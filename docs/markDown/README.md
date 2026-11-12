@@ -4,7 +4,7 @@ The user-facing side is the [website](https://pwsh-termux.machlev.org/) and the 
 
 ## Product
 
-- [Packages](product/packages.md): `pwsh` and `pwsh-preview`, versions, dependencies, what is installed where, pinning and downgrading
+- [Packages](product/packages.md): `pwsh`, `pwsh-preview` and `pwsh-termux-keyring`, versions, dependencies, what is installed where, pinning and downgrading
 
 ## Engineering
 

@@ -46,20 +46,38 @@ Out of scope, and best reported to their owners:
 
 ## Signing key
 
-The apt repository is signed with a dedicated key. Its public half is published with the site, and it is the only key apt should trust for this repository.
+The apt repository is signed with a dedicated key. Its public half is committed to this repository as [`keys/pwsh-termux-archive-keyring.gpg`](keys/pwsh-termux-archive-keyring.gpg), published with the site and installed by the `pwsh-termux-keyring` package (below). apt should trust it for this repository only: the source line names it with `signed-by`, and it does not go into apt's global `trusted.gpg.d`.
 
 | | |
 |---|---|
 | Algorithm | Ed25519 (OpenPGP v4) |
 | Fingerprint | `7086 C70B 4A25 576F E0C0  CE77 E43F B41F 02D0 1FC8` |
-| Public key | <https://pwsh-termux.machlev.org/pwsh-termux.gpg> (binary) and `.asc` (armored). Copies are attached to every [release](https://github.com/EliorMachlev/pwsh-termux/releases) with a `FINGERPRINT.txt`; a release keeps the key that was current when it was made. |
+| Public key | [`keys/pwsh-termux-archive-keyring.gpg`](keys/pwsh-termux-archive-keyring.gpg) in this repository; on the site as <https://pwsh-termux.machlev.org/pwsh-termux.gpg> (the same file) and `.asc` (armored). Copies are attached to every [release](https://github.com/EliorMachlev/pwsh-termux/releases) made since the keyring package exists, with a `FINGERPRINT.txt` and `pwsh-termux-keyring.deb`; a release keeps the key that was current when it was made. |
+| Installed at | `$PREFIX/share/keyrings/pwsh-termux-archive-keyring.gpg`, named by `signed-by` in `$PREFIX/etc/apt/sources.list.d/pwsh-termux.list` |
 | Expiry | None; replaced by rotation (below) |
+| Recovery key | Not set up yet. When it is, its fingerprint is listed here and in `keys/RECOVERY`: an offline key that never signs the repository except to recover from a lost or compromised online key (below). |
 
-Check the downloaded key against this fingerprint: `gpg --show-keys $PREFIX/etc/apt/trusted.gpg.d/pwsh-termux.gpg`. This page and the website are separate channels, so a mismatch between them is itself a warning sign.
+Check the installed key against this fingerprint (`pkg install gnupg` first): `gpg --show-keys $PREFIX/share/keyrings/pwsh-termux-archive-keyring.gpg`. This page and the website are separate channels, so a mismatch between them is itself a warning sign. The file holds exactly one online key, the one that signs; once set up, also the offline recovery key named in `keys/RECOVERY`; and only during a planned rotation, while `keys/ROTATION` names it, the announced next online key. Every key in it is listed here.
 
 **Post-quantum signing** is not yet possible with apt and GnuPG; the repository uses Ed25519. The reason is in [issue #1](https://github.com/EliorMachlev/pwsh-termux/issues/1). Rotation and revocation, below, are the mitigation.
 
-**If the key is compromised or lost**, the maintainer will publish a revocation, generate a new key, redeploy the repository signed with it, and announce the new fingerprint in a GitHub security advisory and on the website. Users then replace the file in `$PREFIX/etc/apt/trusted.gpg.d/`. A revocation certificate was generated when the key was created and is stored separately from the GitHub secret.
+**Planned rotation** reaches users through `pkg upgrade`: the next key is added to `keys/` (marked by `keys/ROTATION`) and shipped in a new `pwsh-termux-keyring` while the current key still signs; the signer switches after an overlap of 180 days, and the old key is then removed with the marker ([release.md](docs/markDown/engineering/release.md#rotating-the-signing-key)).
+
+**If the online key is compromised or lost**, it cannot hand over to a successor itself, since whoever holds it could sign a keyring of their own. That is what the **recovery key** is for: an offline key held only by the maintainer, never on a networked machine or in CI, whose public half is in every installed keyring. The maintainer publishes an advisory (with the revocation, if compromised), signs a repository carrying a keyring with a new online key using the recovery key, and deploys it with a workflow that holds no key and checks the signature against the recovery key alone; users get the new key with `pkg upgrade` ([release.md](docs/markDown/engineering/release.md#recovery-with-the-offline-key)).
+
+What still needs a manual reinstall of `pwsh-termux-keyring.deb` from the site, with a fingerprint check: a user who does not run `pkg upgrade` within an overlap or recovery window (180 days); a key added by hand; and a compromised online key while the recovery key is lost or **not yet set up, which is the case today** (the table above says when that changes). Recovery also needs the hosting and the maintainer's GitHub account to be intact. A revocation certificate for the online key is stored separately from the GitHub secret.
+
+### The keyring package
+
+`pwsh-termux-keyring` (`Architecture: all`) is what the install line downloads from <https://pwsh-termux.machlev.org/pwsh-termux-keyring.deb>. It installs two files and nothing else, with no maintainer scripts: the public key file from `keys/` at `$PREFIX/share/keyrings/pwsh-termux-archive-keyring.gpg`, and `$PREFIX/etc/apt/sources.list.d/pwsh-termux.list` with `deb [signed-by=/data/data/com.termux/files/usr/share/keyrings/pwsh-termux-archive-keyring.gpg] https://pwsh-termux.machlev.org stable main`. It is built once, by [`scripts/build-keyring.sh`](scripts/build-keyring.sh) in the same unprivileged job as the other packages (deterministically: CI builds it twice and compares), and has the same SBOMs and build provenance. Before anything is signed, a job with a read-only token and no signing key checks that provenance (`gh attestation verify`, pinned to `build-packages.yaml`, to the commit being published and to GitHub-hosted runners). The publish job then refuses to sign or publish unless the package is that verified file, it ships the committed `keys/` file byte for byte, and the signing key is the online key in `keys/` (or, during a marked rotation, the next one), never the recovery key; it publishes the verified file as it is. Together these prove that the package was built by this repository's workflow from the published commit and contains exactly the committed keys, whose online key signs the index; they do not prove that the committed key is the right one, which is why you compare its fingerprint with this page.
+
+The first download rests on HTTPS, as any first key download does. To check it:
+
+```bash
+pkg install gnupg
+gpg --show-keys $PREFIX/share/keyrings/pwsh-termux-archive-keyring.gpg     # compare with the fingerprint above
+gh attestation verify $TMPDIR/pwsh-termux-keyring.deb --repo EliorMachlev/pwsh-termux --signer-workflow EliorMachlev/pwsh-termux/.github/workflows/build-packages.yaml
+```
 
 **Handling.** The private key is a GitHub Actions secret (`GPG_PRIVATE_KEY`) used in one workflow step on GitHub's runners, never written to the repository or to later steps; the maintainer holds a separate copy outside GitHub. The key has no passphrase, because the workflow runs unattended; its protection is GitHub's secret storage and the workflow's pinned, audited actions.
 
@@ -74,9 +92,9 @@ No PowerShell file is otherwise modified. [NOTICE.md](NOTICE.md) lists the detai
 
 ## Software Bill of Materials (SBOM) and build provenance
 
-Each GitHub release carries, for its `.deb`, four SBOMs, all listed in the release's `SHA256SUMS`: `*.cdx.json` (CycloneDX 1.6, from Syft) and three SPDX files from three generators, each at the highest SPDX version the tool writes: `*.build.spdx.json` (SPDX 2.3, the packaging view: the official tarball and its SHA-256, the patching tool, the dependencies), `*.syft.spdx3.json` (SPDX 3.0.1, Syft over the package's files) and `*.msft.spdx3.json` (SPDX 3.0, Microsoft's SBOM tool over the package's files). The generators are pinned by version and SHA-256, and each file is validated when it is written.
+Each GitHub release carries, for its `.deb`, four SBOMs (and the same four for the `pwsh-termux-keyring` package it carries), all listed in the release's `SHA256SUMS`: `*.cdx.json` (CycloneDX 1.6, from Syft) and three SPDX files from three generators, each at the highest SPDX version the tool writes: `*.build.spdx.json` (SPDX 2.3, the packaging view: the official tarball and its SHA-256, the patching tool, the dependencies; for the keyring, the committed key file and its SHA-256), `*.syft.spdx3.json` (SPDX 3.0.1, Syft over the package's files) and `*.msft.spdx3.json` (SPDX 3.0, Microsoft's SBOM tool over the package's files). The generators are pinned by version and SHA-256, and each file is validated when it is written.
 
-The `.deb` and the four SBOMs are attested: GitHub signs a statement of which commit and workflow run built each file ([SLSA build level 3](https://slsa.dev) by GitHub's recipe, in a reusable workflow so the signer is `build-packages.yaml` itself). The statements are on GitHub and attached to the release as `pwsh-termux.intoto.jsonl`. To verify:
+The `.deb` and the four SBOMs are attested: GitHub signs a statement of which commit and workflow run built each file ([SLSA build level 3](https://slsa.dev) by GitHub's recipe, in a reusable workflow so the signer is `build-packages.yaml` itself). The statements are on GitHub and attached to the release as a JSON Lines file in the in-toto format, named the way OpenSSF Scorecard's Signed-Releases check expects. To verify:
 
 ```bash
 gh attestation verify pwsh_<version>_aarch64.deb --repo EliorMachlev/pwsh-termux --signer-workflow EliorMachlev/pwsh-termux/.github/workflows/build-packages.yaml

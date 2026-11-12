@@ -3,12 +3,20 @@ name: CI
 # The packaging scripts and the workflows, checked on every change:
 #   shellcheck  every script under scripts/
 #   actionlint  every workflow (syntax, expressions, shell in run: steps)
-#   package     a real build of the current stable PowerShell into a .deb and
-#               an apt repository, then the website checks and assembly
+#   keys        keys/ follows the key rules (one online key, plus the keys
+#               keys/RECOVERY and keys/ROTATION name), SECURITY.md lists them,
+#               and scripts/test-keys.sh tests the rules, the publish checks
+#               and the recovery scripts
+#   package     a real build of the current stable PowerShell and of the
+#               keyring package (reproducible, from keys/) into an apt
+#               repository, unsigned and signed with a throwaway key, then
+#               the website checks and assembly
 on:
   pull_request:
     paths:
       - 'scripts/**'
+      - 'keys/**'
+      - 'SECURITY.md'
       - 'docs/**'
       - '.github/scripts/**'
       - '.github/workflows/**'
@@ -16,6 +24,8 @@ on:
     branches: [main]
     paths:
       - 'scripts/**'
+      - 'keys/**'
+      - 'SECURITY.md'
       - 'docs/**'
       - '.github/scripts/**'
       - '.github/workflows/**'
@@ -73,6 +83,36 @@ jobs:
       - name: actionlint
         run: actionlint -color
 
+  keys:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: The key rules, with the fingerprints
+        run: bash scripts/check-keys.sh | tee fingerprints.txt
+      - name: SECURITY.md lists the keys in keys/
+        run: |
+          fpr=$(awk -F'|' '$2 ~ /Fingerprint/ {gsub(/[` ]/, "", $3); print $3; exit}' SECURITY.md)
+          test -n "$fpr"
+          echo "SECURITY.md: $fpr"
+          awk '$2 == "current" || $2 == "next" {print $1}' fingerprints.txt | grep -qx "$fpr"
+          recovery=$(awk '$2 == "recovery" {print $1}' fingerprints.txt)
+          if [ -n "$recovery" ]; then
+            tr -d ' ' < SECURITY.md | grep -q "$recovery"
+          fi
+      # Throwaway keys and a stub gh: every allowed key shape and the refused
+      # ones, the signer rules (never the recovery key), altered, unverified
+      # and unattested keyring packages, and recovery signing.
+      - name: Test the key rules and the publish checks
+        run: bash scripts/test-keys.sh
+
   package:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
@@ -98,6 +138,25 @@ jobs:
           tag=$(awk '$1 == "stable" {print $2}' releases.txt)
           mkdir -p debs
           bash scripts/build-deb.sh pwsh "$tag" debs
+      - name: Build the keyring package twice and compare
+        run: |
+          bash scripts/build-keyring.sh debs
+          bash scripts/build-keyring.sh keyring-again
+          cmp debs/pwsh-termux-keyring_*_all.deb keyring-again/pwsh-termux-keyring_*_all.deb
+      - name: Check the keyring package
+        run: |
+          deb=$(ls debs/pwsh-termux-keyring_*_all.deb)
+          dpkg-deb -I "$deb"
+          dpkg-deb -c "$deb"
+          test "$(dpkg-deb -f "$deb" Architecture)" = all
+          # it ships keys/ byte for byte, and a source line scoped to it
+          dpkg-deb --fsys-tarfile "$deb" \
+            | tar -xOf - ./data/data/com.termux/files/usr/share/keyrings/pwsh-termux-archive-keyring.gpg \
+            | cmp - keys/pwsh-termux-archive-keyring.gpg
+          dpkg-deb --fsys-tarfile "$deb" \
+            | tar -xOf - ./data/data/com.termux/files/usr/etc/apt/sources.list.d/pwsh-termux.list \
+            | grep -qx 'deb \[signed-by=/data/data/com.termux/files/usr/share/keyrings/pwsh-termux-archive-keyring.gpg\] https://pwsh-termux.machlev.org stable main'
+          if dpkg-deb -c "$deb" | grep -q trusted.gpg.d; then exit 1; fi
       - name: Check the .deb
         run: |
           deb=$(ls debs/pwsh_*.deb)
@@ -112,12 +171,36 @@ jobs:
         run: |
           bash scripts/make-sboms.sh debs sboms
           for ext in cdx.json build.spdx.json syft.spdx3.json msft.spdx3.json; do
-            ls sboms/pwsh_*."$ext" > /dev/null
+            ls sboms/pwsh_*."$ext" sboms/pwsh-termux-keyring_*."$ext" > /dev/null
           done
       - name: Build the (unsigned) apt repository and assemble the site
         run: |
           bash scripts/build-repo.sh debs repo
           bash scripts/assemble-site.sh docs repo
           grep -q '^Package: pwsh$' repo/dists/stable/main/binary-aarch64/Packages
+          grep -q '^Package: pwsh-termux-keyring$' repo/dists/stable/main/binary-aarch64/Packages
+          cmp repo/pwsh-termux-keyring.deb debs/pwsh-termux-keyring_*_all.deb
+          cmp repo/pwsh-termux.gpg keys/pwsh-termux-archive-keyring.gpg
           test -f repo/index.html
           test ! -e repo/markDown
+      # A real signed repository with the real package, through the test-only
+      # KEYRING_FILE (the refusals are in the keys job's test-keys.sh).
+      - name: Sign with a throwaway key
+        run: |
+          GNUPGHOME=$(mktemp -d)
+          export GNUPGHOME
+          gpg --batch --passphrase '' --quick-generate-key "ci <ci@example.invalid>" ed25519 sign never
+          SIGN_KEY=$(gpg --list-secret-keys --with-colons | awk -F: '/^fpr/{print $10; exit}')
+          export SIGN_KEY
+          mkdir test-keys test-debs
+          KEYRING_FILE="$PWD/test-keys/pwsh-termux-archive-keyring.gpg"
+          export KEYRING_FILE
+          gpg --batch --export "$SIGN_KEY" > "$KEYRING_FILE"
+          cp debs/pwsh_*.deb test-debs/
+          bash scripts/build-keyring.sh test-debs
+          KEYRING_DEB_SHA256=$(sha256sum < test-debs/pwsh-termux-keyring_*_all.deb | cut -d' ' -f1)
+          export KEYRING_DEB_SHA256
+          bash scripts/build-repo.sh test-debs repo-signed
+          cmp repo-signed/pwsh-termux-keyring.deb test-debs/pwsh-termux-keyring_*_all.deb
+          gpgv --keyring "$KEYRING_FILE" repo-signed/dists/stable/InRelease
+          grep -q '^Package: pwsh-termux-keyring$' repo-signed/dists/stable/main/binary-aarch64/Packages

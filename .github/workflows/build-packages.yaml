@@ -11,7 +11,8 @@ name: Build packages
 #
 # - build: no apt signing key and no token to sign provenance with, so nothing
 #   it runs can forge a statement about its own output. It builds the .deb
-#   files and writes their SBOMs (scripts/make-sboms.sh).
+#   files (pwsh, pwsh-preview, and pwsh-termux-keyring from the public keys
+#   in keys/) and writes their SBOMs (scripts/make-sboms.sh).
 # - attest: has the signing identity and no key; it attests the files exactly
 #   as build uploaded them and uploads the provenance bundle.
 # Signing the apt repository and publishing are update.yaml's job.
@@ -55,6 +56,10 @@ jobs:
             esac
             bash scripts/build-deb.sh "$pkg" "$tag" debs
           done < releases.txt
+
+      # Deterministic: the same keys/ and script give the same bytes (CI checks it).
+      - name: Build the keyring package
+        run: bash scripts/build-keyring.sh debs
 
       - name: Write the SBOMs
         run: |
