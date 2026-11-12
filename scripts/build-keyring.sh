@@ -32,7 +32,7 @@ umask 022   # deterministic package permissions regardless of the caller's umask
 
 # Bump on every change to the package's content: a key added or dropped, the
 # source line, this script's layout or control fields.
-KEYRING_VERSION=1.0.0
+KEYRING_VERSION=1.1.0
 
 OUT=${1:?output directory}
 HERE=$(cd "$(dirname "$0")" && pwd)

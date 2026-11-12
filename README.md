@@ -51,7 +51,7 @@ pkg install pwsh-preview        # optional: newest preview / release candidate
 
 That line enables the glibc repository, installs `pwsh-termux-keyring` (the repository's public signing key in `$PREFIX/share/keyrings/` and an apt source that trusts it for this repository only, with `signed-by`; `pkg remove` takes both out again) and then installs `pwsh`. To add the key and the source by hand instead, see the [install page](https://pwsh-termux.machlev.org/install.html#by-hand).
 
-Check the key has the fingerprint in [SECURITY.md](SECURITY.md#signing-key), `7086 C70B 4A25 576F E0C0 CE77 E43F B41F 02D0 1FC8`:
+Check the keyring has the two fingerprints in [SECURITY.md](SECURITY.md#signing-key): the signing key `7086 C70B 4A25 576F E0C0 CE77 E43F B41F 02D0 1FC8` and the offline recovery key `937A 3D41 5103 CFF8 9DCD A982 A4B4 5397 EEB6 D752`:
 
 ```bash
 pkg install gnupg

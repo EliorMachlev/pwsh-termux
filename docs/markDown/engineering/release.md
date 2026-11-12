@@ -27,7 +27,7 @@ Run it by hand: **Actions → Update packages → Run workflow**, or `gh workflo
 4. **Run the workflow once**, then check the site.
 5. **Custom domain** ([below](#custom-domain)).
 6. **Private vulnerability reporting** on (Settings → Code security), because [SECURITY.md](../../../SECURITY.md) and `security.txt` point to it.
-7. **Recovery key** (recommended; [below](#the-recovery-key)). Until it is set up, a compromised or lost online key means every user reinstalls the keyring by hand.
+7. **Recovery key** (recommended; [below](#the-recovery-key)). It is set up; without it a compromised or lost online key would mean every user reinstalls the keyring by hand.
 8. **Immutable releases** (optional, recommended): Settings → General, *Releases* section, *Enable release immutability*. A published release's tag and assets can then no longer be changed or replaced. The workflow is compatible: it creates each release once with all its files (`gh release create` uploads to a draft and publishes it at the end) and never uploads to an existing release. This is a repository setting; whether it is on is not visible from the code.
 
 ## Custom domain
@@ -93,7 +93,7 @@ A user who did not run `pkg upgrade` during the overlap, or who added the key by
 
 An offline Ed25519 key that only the maintainer holds, never on a networked machine, in GitHub or in CI. Its public half is in every installed keyring, so it can sign the way out of a lost or compromised online key ([below](#recovery-with-the-offline-key)). It never signs the repository otherwise: `build-repo.sh` refuses it as a signer and refuses to sign if its secret is in the gpg home.
 
-**It is not set up yet**: the code accepts `keys/` without it, and recovery protection is active only after the maintainer adds it in a pull request. Do not generate it on this phone or on any machine that is online.
+**It is set up**: its fingerprint is in `keys/RECOVERY` and [SECURITY.md](../../../SECURITY.md#signing-key). The code still accepts `keys/` without a recovery key, which is how a fork or a rebuilt repository would start. The steps below are how it was made and how to replace it. Do not generate one on a phone or on any machine that is online.
 
 1. **Generate it offline**, on a machine that is not and will not be connected to a network (a live system booted without networking is enough), with a strong passphrase:
    ```bash
