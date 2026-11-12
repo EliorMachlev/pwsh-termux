@@ -48,6 +48,21 @@ release assets.
 next to the executable, which under `grun` is the loader, so it fails. Patching the
 interpreter makes the kernel start `pwsh` directly.
 
+## Signing key
+
+The repository is signed with an **Ed25519** (OpenPGP v4) key.
+
+- **Quantum resistance:** none is available for apt repositories today. GnuPG 2.5 only
+  implements the post-quantum *encryption* algorithm ML-KEM (Kyber), with no post-quantum
+  signature algorithm, and apt only accepts RSA, Ed25519, Ed448 and the NIST/Brainpool
+  curves (`APT::Key::Assert-Pubkey-Algo`). Every key apt accepts is breakable by a large
+  quantum computer, so the realistic mitigation is rotating the key and revoking it if
+  needed. The package contents are additionally bound by SHA-256 hashes in the signed
+  `Release` file.
+- **Why not Ed448?** It passes `gpgv`, but GnuPG 2.5 generates it as a v5 key whose
+  64-character fingerprint apt 2.8 cannot match (`Signed-By`), and apt reports `BADSIG`.
+  Re-test this after apt gains OpenPGP v5/v6 support.
+
 ## One-time setup for maintainers
 
 1. Create a **dedicated, passphrase-less** signing key and keep the private half out of git:
