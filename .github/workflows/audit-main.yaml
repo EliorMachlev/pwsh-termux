@@ -2,11 +2,14 @@ name: Audit main
 
 # The keep-alive deploy key (keepalive-commit.yaml) can push to main past the
 # ruleset, so every commit on main is checked (scripts/audit-main-commits.sh):
-# it must be signed and verified by a trusted account (pull request merges by
-# web-flow, the owner), or be exactly the keep-alive commit with the
-# keepalive/pushed status that only a workflow's GITHUB_TOKEN can create.
-# Anything else opens (or updates) the issue "Unexpected unsigned commit on
-# main", which closes on the next clean run; the job then fails. On a push it
+# it must be signed and verified by the owner, or by web-flow and be the merge
+# commit of a merged pull request into main, or be exactly the keep-alive
+# commit with the keepalive/pushed status that only a workflow's GITHUB_TOKEN
+# can create. Anything else opens (or updates) the issue "Unexpected unsigned
+# commit on main", which closes on the next clean run; the job then fails. If
+# the audit itself fails (an API error, a rewritten main), the `failed` job
+# opens (or comments on) the issue "The audit of main failed", which the next
+# audit that finishes closes. On a push it
 # also checks the pushed range; daily and by hand, the last 90 days and the
 # newest 50 commits. This is detection, not prevention: whoever can push to
 # main can change this file too (docs/markDown/engineering/security.md).
@@ -30,6 +33,7 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: read           # the commits and their signature verification
+      pull-requests: read      # the merged pull request of each web-flow commit
       statuses: read           # the keepalive/pushed status
     outputs:
       findings: ${{ steps.audit.outputs.findings }}
@@ -65,7 +69,7 @@ jobs:
     timeout-minutes: 5
     permissions:
       contents: read
-      issues: write            # open, update and close the audit issue
+      issues: write            # open, update and close the audit issues
     steps:
       - name: Harden the runner
         uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
@@ -83,3 +87,30 @@ jobs:
           FINDINGS: ${{ needs.audit.outputs.findings }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: printf '%s' "$FINDINGS" | base64 -d | bash scripts/audit-main-commits.sh report
+
+  # The audit job failed, so nothing was checked: say so in an issue rather
+  # than only in a red run nobody may look at.
+  failed:
+    needs: audit
+    if: ${{ always() && needs.audit.result == 'failure' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: write            # open or comment on "The audit of main failed"
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Open or update the issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: bash scripts/audit-main-commits.sh failed

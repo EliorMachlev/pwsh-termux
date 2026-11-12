@@ -27,7 +27,8 @@
 #   3. builds one commit on that tip that sets keep.alive to the current UTC
 #      time, as github-actions[bot], with the fixed message;
 #   4. refuses to push unless keepalive_commit_problems (lib/common.sh) finds
-#      nothing and its one parent is the fetched tip;
+#      nothing, its one parent is the fetched tip, and the raw NUL-separated
+#      list of paths it changes from that tip is exactly "keep.alive\0";
 #   5. pushes it to refs/heads/main; if refused and main has moved meanwhile,
 #      starts again from 1, at most KEEPALIVE_PUSH_RETRIES times;
 #   6. posts the commit status keepalive/pushed (success) on it, which
@@ -78,6 +79,9 @@ guard_commit() {
   actual_parent=$(git rev-parse "$commit^1")
   [ "$actual_parent" = "$(git rev-parse "$parent^{commit}")" ] \
     || die "refusing $commit: its parent $actual_parent is not main's tip $parent"
+  # Again against <parent> itself, on the raw NUL-separated path list.
+  git diff -z --name-only --no-renames "$parent" "$commit" | is_keepalive_path_list \
+    || die "refusing $commit: the paths it changes from $parent are not exactly $KEEPALIVE_FILE"
 }
 
 if [ "${1:-}" = check ]; then

@@ -9,14 +9,22 @@
 #                        main moves during the push, gives up when it keeps
 #                        moving or when a refused push is not a race; refuses
 #                        an SSH remote without the key and a run off main;
-#                        its guard refuses an extra file, wrong content, a
-#                        merge, a wrong identity or message, a wrong parent
-#   audit-main-commits.sh accepts a signed commit by a trusted account and a
-#                        keep-alive commit with its status; flags a missing
-#                        or forged status, an extra file, a wrong committer, a
-#                        signature by an untrusted account, a rewritten main;
-#                        report opens, updates (only when changed) and closes
-#                        one issue, matched by its exact title
+#                        its guard refuses an extra file, a file name that
+#                        hides behind keep.alive (newlines in names), wrong
+#                        content, a merge, a wrong identity or message, a
+#                        wrong parent
+#   audit-main-commits.sh accepts a commit signed by the owner, a web-flow
+#                        commit that is a merged pull request's merge commit
+#                        (also on a later page), and a keep-alive commit with
+#                        its status; flags a web-flow commit with no pull
+#                        request, an open one, another merge commit, another
+#                        base; a missing or forged status, an extra or hidden
+#                        file, a wrong committer, a signature by an untrusted
+#                        account, a rewritten main; fails if the pull
+#                        requests cannot be read; report opens, updates (only
+#                        when changed) and closes one issue, matched by its
+#                        exact title; failed opens or comments on another,
+#                        which report closes
 #
 # Usage: test-keepalive-commit.sh
 set -euo pipefail
@@ -72,18 +80,24 @@ unset GIT_DIR GIT_WORK_TREE GITHUB_ACTIONS GITHUB_REF GITHUB_RUN_ID KEEPALIVE_DE
 
 # The stub gh.
 #   api repos/o/r/commits/<sha>             $STUB_DIR/commits/<sha>.json, or unsigned
+#   api --paginate .../<sha>/pulls?...      $STUB_DIR/pulls/<sha>.json, or []; an
+#                                           error if $STUB_DIR/pulls/<sha>.fail exists
 #   api --paginate .../<sha>/statuses?...   $STUB_DIR/statuses/<sha>.json, or []
 #   api --silent -X POST .../statuses/<sha> recorded
 #   issue list                              $STUB_DIR/issues.json
 #   issue view <n> --json body              $STUB_DIR/issue-body.json
 #   issue create|edit|comment|close         recorded
-mkdir -p "$T/bin" "$T/commits" "$T/statuses"
+mkdir -p "$T/bin" "$T/commits" "$T/statuses" "$T/pulls"
 cat > "$T/bin/gh" <<'STUB'
 #!/bin/sh
 set -eu
 printf '%s\n' "$*" >> "$STUB_DIR/calls.log"
 case "$*" in
   "api --silent -X POST repos/o/r/statuses/"*) ;;
+  "api --paginate repos/o/r/commits/"*"/pulls?per_page=100")
+    sha=${3#repos/o/r/commits/}; sha=${sha%%/*}
+    if [ -f "$STUB_DIR/pulls/$sha.fail" ]; then echo "HTTP 502" >&2; exit 1; fi
+    if [ -f "$STUB_DIR/pulls/$sha.json" ]; then cat "$STUB_DIR/pulls/$sha.json"; else echo '[]'; fi ;;
   "api --paginate repos/o/r/commits/"*"/statuses?per_page=100")
     sha=${3#repos/o/r/commits/}; sha=${sha%%/*}
     if [ -f "$STUB_DIR/statuses/$sha.json" ]; then cat "$STUB_DIR/statuses/$sha.json"; else echo '[]'; fi ;;
@@ -272,6 +286,20 @@ c=$(as_bot commit_in "$G" 0 "$KEEPALIVE_COMMIT_MESSAGE")
 expect refuse "keep.alive as a symbolic link"                 guard "$c" "$base"
 reset_to "$base"
 expect refuse "the right commit on the wrong parent"          guard "$good" "$side"
+# Names that read as "keep.alive" once the NUL-separated list is turned into
+# lines and trailing newlines are dropped: keep.alive left as it is plus a
+# file named "keep.alive<newline>", and keep.alive changed plus a file named
+# "<newline>". Only the raw list, compared byte for byte, sees them.
+reset_to "$good"
+c=$(as_bot commit_in "$G" 0 "$KEEPALIVE_COMMIT_MESSAGE" $'keep.alive\n=evil')
+expect refuse "a new file named keep.alive<newline> (keep.alive unchanged)" guard "$c" "$good"
+reset_to "$good"
+c=$(as_bot commit_in "$G" 0 "$KEEPALIVE_COMMIT_MESSAGE" keep.alive=$'2026-11-13T16:00:00Z\n' $'\n=evil')
+expect refuse "keep.alive plus a file named <newline>"         guard "$c" "$good"
+reset_to "$good"
+c=$(as_bot commit_in "$G" 0 "$KEEPALIVE_COMMIT_MESSAGE" keep.alive=$'2026-11-13T16:00:00Z\n')
+expect accept "  (while the same commit without it passes)"    guard "$c" "$good"
+reset_to "$base"
 
 echo "== audit-main-commits.sh audit"
 A=$T/audit
@@ -279,6 +307,14 @@ git init -q "$A"
 baseline=$(commit_in "$A" 200 "old, unsigned, before the baseline" README=readme)
 signed=$(commit_in "$A" 30 "a pull request merge" a.md=a)
 printf '{"committer":{"login":"web-flow"},"commit":{"verification":{"verified":true}}}\n' > "$T/commits/$signed.json"
+# pulls <sha> <json>...: the stub's answer, one page per argument.
+pulls() { local sha=$1; shift; printf '%s\n' "$@" > "$T/pulls/$sha.json"; }
+# pull <number> <merge-commit-sha> <merged: true|false> [<base>]: one pull request.
+pull() {
+  local merged_at=null; [ "$3" = true ] && merged_at='"2026-11-01T00:00:00Z"'
+  printf '{"number":%s,"merge_commit_sha":"%s","merged_at":%s,"base":{"ref":"%s"}}' "$1" "$2" "$merged_at" "${4:-main}"
+}
+pulls "$signed" "[$(pull 5 "$signed" true)]"
 owner=$(commit_in "$A" 29 "the owner's signed commit" b.md=b)
 printf '{"committer":{"login":"o"},"commit":{"verification":{"verified":true}}}\n' > "$T/commits/$owner.json"
 status() { printf '[{"context":"%s","state":"%s","creator":{"login":"%s","id":%s}}]\n' "$2" "$3" "$4" "$5" > "$T/statuses/$1.json"; }
@@ -290,6 +326,8 @@ expect accept "a signed merge, the owner's commit, a keep-alive commit with its 
 check "  no finding"                                          [ ! -s "$T/out.log" ]
 expect_calls "  never writes" 'POST|issue' ""
 check "  the commit before the baseline is not checked"       not grep -q "commits/$baseline" "$T/calls.log"
+expect_calls "  asks for the pull requests of the web-flow commit only" '/pulls' \
+  "api --paginate repos/o/r/commits/$signed/pulls?per_page=100"
 
 # flagged <description> <sha> <reason fragment>: audit finds exactly that.
 flagged() {
@@ -329,6 +367,29 @@ git -C "$A" reset -q --hard HEAD~1
 
 backdated=$(commit_in "$A" 3000 "unsigned, back-dated" d.md=d)
 flagged "an unsigned commit, back-dated outside the window"   "$backdated" "unsigned, and not a keep-alive commit"
+git -C "$A" reset -q --hard HEAD~1
+
+webflow=$(commit_in "$A" 6 "signed by web-flow" e.md=e)
+printf '{"committer":{"login":"web-flow"},"commit":{"verification":{"verified":true}}}\n' > "$T/commits/$webflow.json"
+flagged "signed by web-flow, no pull request (a commit made on github.com)" "$webflow" "not the merge commit of a merged pull request"
+pulls "$webflow" "[$(pull 8 "$webflow" false)]"
+flagged "  a pull request that is not merged"                  "$webflow" "not the merge commit of a merged pull request"
+pulls "$webflow" "[$(pull 8 "$signed" true)]"
+flagged "  a merged pull request with another merge commit (a rebase merge's earlier commit)" "$webflow" "not the merge commit"
+pulls "$webflow" "[$(pull 8 "$webflow" true other)]"
+flagged "  a merged pull request into another branch"          "$webflow" "not the merge commit"
+pulls "$webflow" "[$(pull 8 "$signed" true)]" "[$(pull 9 "$webflow" true)]"
+expect accept "  the merged pull request on the second page: clean" audit_run
+check "  no finding"                                          [ ! -s "$T/out.log" ]
+touch "$T/pulls/$webflow.fail"
+expect refuse "  the pull requests cannot be read: the audit fails" audit_run
+expect_log "  says so"                                        "could not read the pull requests of $webflow"
+rm "$T/pulls/$webflow.fail"
+git -C "$A" reset -q --hard HEAD~1
+
+hidden=$(as_bot commit_in "$A" 5 "$KEEPALIVE_COMMIT_MESSAGE" $'keep.alive\n=evil')
+status "$hidden" keepalive/pushed success 'github-actions[bot]' 41898282
+flagged "a file named keep.alive<newline> (even with a status)" "$hidden" "not only keep.alive"
 git -C "$A" reset -q --hard HEAD~1
 
 tip=$(git -C "$A" rev-parse HEAD)
@@ -379,6 +440,25 @@ expect_calls "  closed with a comment" '^issue (create|edit|comment|close)' \
 issues '[]'
 expect accept "clean, no issue: nothing to do"                report_run ""
 expect_calls "  nothing written" '^issue (create|edit|comment|close)' ""
+
+failed_title="The audit of main failed"
+failed_run() { env RUN_URL=https://run bash "$AUDITOR" failed; }
+issues '[]'
+expect accept "the audit failed, no issue: opens one"        failed_run
+check "  titled exactly, with the run"                        grep -qF -- "issue create --title $failed_title --body The audit of \`main\`" "$T/calls.log"
+check "  links the run"                                       grep -qF "were not checked: https://run" "$T/calls.log"
+issues "[{\"number\":4,\"title\":\"$failed_title\"},{\"number\":7,\"title\":\"$title\"}]"
+expect accept "failed again, the issue open: a comment"       failed_run
+expect_calls "  only a comment" '^issue (create|edit|comment|close)' "issue comment 4 --body Failed again: https://run"
+issues "[{\"number\":4,\"title\":\"$failed_title\"}]"
+expect accept "the next audit finishes, clean: the failure issue is closed" report_run ""
+expect_calls "  closed with a comment" '^issue (create|edit|comment|close)' \
+  "issue close 4 --comment The audit ran to the end again. https://run"
+issues "[{\"number\":4,\"title\":\"$failed_title\"}]"
+expect refuse "  also when it finishes with findings"         report_run "$one"
+check "  closed, and the findings issue opened" \
+  [ "$(grep -cE '^issue (close 4|create --title Unexpected)' "$T/calls.log")" -eq 2 ]
+expect refuse "failed takes no argument"                      bash "$AUDITOR" failed x
 
 echo
 if [ "$fails" -eq 0 ]; then echo "all passed"; else echo "$fails failed"; exit 1; fi

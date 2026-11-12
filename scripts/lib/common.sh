@@ -330,6 +330,15 @@ is_keepalive_timestamp() {
   [ "$(date -u -d "$1" +"$KEEPALIVE_TIMESTAMP_FORMAT" 2>/dev/null)" = "$1" ]
 }
 
+# is_keepalive_path_list: true if stdin, a NUL-separated path list (`git
+# diff -z --name-only`), is exactly "keep.alive" and one NUL, byte for byte.
+# The raw bytes are compared (as hex, since Bash strings cannot hold a NUL):
+# turning the list into lines first would let a second path named
+# "keep.alive<newline>" or "<newline>" read as nothing more.
+is_keepalive_path_list() {
+  [ "$(od -An -v -tx1 | tr -d ' \n')" = "$(printf '%s\0' "$KEEPALIVE_FILE" | od -An -v -tx1 | tr -d ' \n')" ]
+}
+
 # keepalive_commit_problems <commit>: in the current git repository, why the
 # commit is not a keep-alive commit, one reason per line; nothing if it is
 # one. A keep-alive commit has exactly one parent, changes exactly one path,
@@ -342,8 +351,9 @@ keepalive_commit_problems() {
     echo "has $((parents - 1)) parent(s), not 1"
     return 0
   fi
-  changed=$(git diff-tree -r --no-commit-id --no-renames --name-only -z "$commit" | tr '\0' '\n')
-  if [ "$changed" != "$KEEPALIVE_FILE" ]; then
+  if ! git diff-tree -r --no-commit-id --no-renames --name-only -z "$commit" | is_keepalive_path_list; then
+    # For the message only: one path per line, a newline in a name shown as ?.
+    changed=$(git diff-tree -r --no-commit-id --no-renames --name-only -z "$commit" | tr '\n\0' '?\n')
     echo "changes $(printf '%s' "$changed" | grep -c '') path(s), not only $KEEPALIVE_FILE: $(printf '%s' "$changed" | head -n 5 | paste -sd ' ' -)"
   else
     mode=$(git ls-tree "$commit" -- "$KEEPALIVE_FILE" | cut -d' ' -f1)
