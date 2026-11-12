@@ -31,6 +31,9 @@ FORBIDDEN_TAGS = {"script", "form", "base", "iframe", "object", "embed"}
 REQUIRED_FILES = ("style.css", "favicon.svg", "llms.txt", ".nojekyll")
 # Pages that are not listed in sitemap.xml.
 NOT_IN_SITEMAP = ("404.html",)
+# A block assemble-site.sh fills at deploy time: <!-- generated:<name> --> and
+# <!-- /generated:<name> -->, each on a line of its own, around fallback HTML.
+GENERATED_BLOCK = re.compile(r"^<!-- (/?)generated:([A-Za-z0-9:/._-]+) -->$", re.M)
 # security.txt must be renewed before it has fewer days than this left.
 SECURITY_TXT_MIN_DAYS_LEFT = 30
 
@@ -117,11 +120,29 @@ def local_target(docs: pathlib.Path, page: pathlib.Path, ref: str) -> pathlib.Pa
     return target
 
 
+def check_generated_blocks(name, text: str) -> list:
+    """Every generated block opens and closes once, in order, unnested."""
+    problems, open_block = [], None
+    for m in GENERATED_BLOCK.finditer(text):
+        closing, block = m.group(1) == "/", m.group(2)
+        if not closing and open_block is None:
+            open_block = block
+        elif closing and open_block == block:
+            open_block = None
+        else:
+            problems.append(f"{name}: generated block {block!r} is not opened and closed in order")
+    if open_block is not None:
+        problems.append(f"{name}: generated block {open_block!r} is never closed")
+    return problems
+
+
 def check_page(docs: pathlib.Path, page: pathlib.Path, errors: list) -> None:
     name = page.relative_to(docs)
+    text = page.read_text(encoding="utf-8")
     p = Page()
-    p.feed(page.read_text(encoding="utf-8"))
+    p.feed(text)
     problems = [f"{name}: {x}" for x in p.problems]
+    problems += check_generated_blocks(name, text)
 
     if len(p.csp) != 1:
         problems.append(f"{name}: needs exactly one Content-Security-Policy <meta> (found {len(p.csp)})")

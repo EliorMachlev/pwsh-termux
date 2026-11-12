@@ -40,7 +40,6 @@ KEYRING_FILE=${KEYRING_FILE:-$DEFAULT_KEYRING_FILE}
 TERMUX_PREFIX=${TERMUX_PREFIX:-$DEFAULT_TERMUX_PREFIX}
 
 readonly SITE_URL=https://pwsh-termux.machlev.org
-readonly PROJECT_GITHUB_URL=https://github.com/EliorMachlev/pwsh-termux
 readonly KEYRING_PATH=$TERMUX_PREFIX/$KEYRING_INSTALL_SUBDIR/$KEYRING_BASENAME
 readonly SOURCES_LIST_DIR=$TERMUX_PREFIX/etc/apt/sources.list.d
 # Same file name as the manual install: two sources for one URI with
@@ -95,14 +94,6 @@ stage_files() {
   } > "$stage$DOC_DIR/copyright"
 }
 
-# installed_size_kib <stage-dir>: Installed-Size as dpkg-gencontrol counts it
-# (KiB per file, rounded up; one per directory), so it does not depend on the
-# build machine's file system.
-installed_size_kib() {
-  find "$1" -mindepth 1 -printf '%y %s\n' \
-    | awk '$1 == "f" {kb += int(($2 + 1023) / 1024); next} {kb += 1} END {print kb}'
-}
-
 # write_control <stage-dir> <installed-size-kib>
 write_control() {
   local stage=$1 installed_kib=$2
@@ -124,15 +115,10 @@ Description: Signing keys and apt source for the pwsh-termux repository
 CTRL
 }
 
-# build_deb <stage-dir> <deb>: every timestamp is SOURCE_DATE_EPOCH, and xz
-# runs single-threaded (its multi-threaded output depends on the number of
-# CPUs).
+# build_deb <stage-dir> <deb>: reproducibly (build_reproducible_deb), xz -9.
 build_deb() {
-  local stage=$1 deb=$2
-  find "$stage" -exec touch -h -d "@$SOURCE_DATE_EPOCH" {} +
-  mkdir -p "$OUT_DIR"
-  dpkg-deb --root-owner-group --threads-max=1 -Zxz -z9 --build "$stage" "$deb" >&2
-  log "built $deb"
+  build_reproducible_deb "$1" "$2" -Zxz -z9
+  log "built $2"
 }
 
 # write_build_record <deb>: <deb-without-.deb>.build.json, for the SBOMs

@@ -5,10 +5,13 @@
 ## Use it
 - [Install](https://pwsh-termux.machlev.org/install.html): download and `dpkg -i` https://pwsh-termux.machlev.org/pwsh-termux-keyring.deb, which installs the signing key at `$PREFIX/share/keyrings/pwsh-termux-archive-keyring.gpg` and the source `deb [signed-by=<that file>] https://pwsh-termux.machlev.org stable main`; then `pkg update` and `pkg install pwsh` (stable) or `pkg install pwsh-preview`.
 - Requires: Termux, aarch64, `pkg install glibc-repo`.
+- [Verify it yourself](https://pwsh-termux.machlev.org/install.html#verify): the key fingerprints (signing key `7086 C70B 4A25 576F E0C0  CE77 E43F B41F 02D0 1FC8`, offline recovery key `937A 3D41 5103 CFF8 9DCD  A982 A4B4 5397 EEB6 D752`), `gh attestation verify <file>.deb --repo EliorMachlev/pwsh-termux --signer-workflow EliorMachlev/pwsh-termux/.github/workflows/build-packages.yaml --deny-self-hosted-runners`, and `gpgv` on `dists/stable/InRelease`, whose `Valid-Until` is 14 days after its `Date` (re-signed daily).
+- [Uninstall and key changes](https://pwsh-termux.machlev.org/install.html#faq): `pkg remove pwsh pwsh-termux-keyring`; a key rotation or recovery arrives with `pkg upgrade`.
+- [Troubleshooting](https://pwsh-termux.machlev.org/install.html#troubleshooting): missing `glibc-repo`, `NO_PUBKEY`, a non-aarch64 device, an expired Release file.
 
 ## Project
 - [Source and README](https://github.com/EliorMachlev/pwsh-termux)
-- [Documentation](https://github.com/EliorMachlev/pwsh-termux/blob/main/docs/markDown/README.md)
+- [Documentation](https://github.com/EliorMachlev/pwsh-termux/blob/main/docs/markDown/README.md); [every document with the date and commit of its last change](https://pwsh-termux.machlev.org/documents.html)
 - [Security policy](https://github.com/EliorMachlev/pwsh-termux/blob/main/SECURITY.md)
 - [Privacy](https://pwsh-termux.machlev.org/privacy.html)
 - [Releases (every built .deb)](https://github.com/EliorMachlev/pwsh-termux/releases)

@@ -1,6 +1,6 @@
 # Compliance posture
 
-*Last updated: 2026-11-12. This page describes how the maintainer reads the rules that may touch this project; it is not legal advice.*
+*This page describes how the maintainer reads the rules that may touch this project; it is not legal advice. The date and commit of its last change come from Git, not from the page: see the [documents page](https://pwsh-termux.machlev.org/documents.html) or this file's history on GitHub.*
 
 pwsh-termux is a **non-commercial, volunteer, open-source** repackaging project. It sells nothing, is not run as a business, and processes no personal data. The sections below record where that matters.
 

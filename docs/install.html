@@ -39,25 +39,44 @@
   </ul>
 
   <h2>Install</h2>
-<pre><code>pkg install -y glibc-repo &amp;&amp; \
+<pre class="copy" aria-label="Install command"><code>pkg install -y glibc-repo &amp;&amp; \
 curl -fsSL https://pwsh-termux.machlev.org/pwsh-termux-keyring.deb -o $TMPDIR/pwsh-termux-keyring.deb &amp;&amp; \
 dpkg -i $TMPDIR/pwsh-termux-keyring.deb &amp;&amp; \
 pkg update &amp;&amp; pkg install pwsh</code></pre>
+  <p class="hint">Tap or click the command once to select all of it, then copy it.</p>
+<!-- generated:status -->
+<p class="status">The versions the repository serves now are in its <a href="https://github.com/EliorMachlev/pwsh-termux/releases">releases</a>.</p>
+<!-- /generated:status -->
   <p>The second command downloads <code>pwsh-termux-keyring</code>, a small package with the repository&rsquo;s public signing key and its apt source. The key goes to <code>$PREFIX/share/keyrings/</code>, not to apt&rsquo;s global trust store, and the source names it with <code>signed-by</code>, so apt trusts it for this repository only. <code>pkg</code> then checks every later download against it; <code>pkg remove pwsh-termux-keyring</code> undoes it. Then run it:</p>
 <pre><code>pwsh
 $PSVersionTable.PSVersion</code></pre>
   <p>For the preview channel, <code>pkg install pwsh-preview</code> installs <code>pwsh-preview</code> next to <code>pwsh</code>. It only exists while Microsoft&rsquo;s newest preview is newer than the newest stable release.</p>
 
-  <h2 id="check">Check the signing key</h2>
-  <p>The file holds two keys. The first signs the repository; the second is an offline recovery key that only signs to move users to a new key if the first is ever lost or stolen. Compare both fingerprints. Compare it with the one in the <a href="https://github.com/EliorMachlev/pwsh-termux/blob/main/SECURITY.md#signing-key">security policy</a> on GitHub, which is a separate channel, or with the key attached to each <a href="https://github.com/EliorMachlev/pwsh-termux/releases">release</a>:</p>
+  <h2 id="verify">Verify it yourself</h2>
+  <p>You do not have to take this page&rsquo;s word for any of it. Each check below uses a different channel, so a mismatch between them is itself a warning sign.</p>
+
+  <h3 id="check">1. The signing keys</h3>
+  <p>The keyring holds two keys. The first signs the repository; the second is an offline recovery key that only signs to move users to a new key if the first is ever lost or stolen. Compare both fingerprints with the <a href="https://github.com/EliorMachlev/pwsh-termux/blob/main/SECURITY.md#signing-key">security policy</a> on GitHub, or with the <code>FINGERPRINT.txt</code> attached to each <a href="https://github.com/EliorMachlev/pwsh-termux/releases">release</a>:</p>
 <pre><code>7086 C70B 4A25 576F E0C0  CE77 E43F B41F 02D0 1FC8   signing key
 937A 3D41 5103 CFF8 9DCD  A982 A4B4 5397 EEB6 D752   recovery key</code></pre>
-  <p>To print it yourself:</p>
+  <p>To print them from the installed file:</p>
 <pre><code>pkg install gnupg
 gpg --show-keys $PREFIX/share/keyrings/pwsh-termux-archive-keyring.gpg</code></pre>
-  <p>Optionally, check where the package was built. Each <code>pwsh-termux-keyring.deb</code> has a signed build provenance from this project&rsquo;s workflow; with the <a href="https://cli.github.com/">GitHub CLI</a> (<code>pkg install gh</code>, signed in):</p>
+
+  <h3 id="provenance">2. Where the packages were built</h3>
+  <p>Every <code>.deb</code>, including <code>pwsh-termux-keyring.deb</code>, has a signed build provenance from this project&rsquo;s build workflow, recorded on GitHub. With the <a href="https://cli.github.com/">GitHub CLI</a> (<code>pkg install gh</code>, signed in), these are the checks the publishing workflow itself runs before it signs anything:</p>
 <pre><code>gh attestation verify $TMPDIR/pwsh-termux-keyring.deb --repo EliorMachlev/pwsh-termux \
-  --signer-workflow EliorMachlev/pwsh-termux/.github/workflows/build-packages.yaml</code></pre>
+  --signer-workflow EliorMachlev/pwsh-termux/.github/workflows/build-packages.yaml \
+  --deny-self-hosted-runners</code></pre>
+  <p>The same command works for a <code>pwsh_&lt;version&gt;_aarch64.deb</code> downloaded from a release, and for its SBOM files.</p>
+
+  <h3 id="index">3. The signed index</h3>
+  <p><code>pkg</code> already does this on every update: it checks <code>InRelease</code> against the key, then the package list against <code>InRelease</code>, then each package against the list. To see it by hand:</p>
+<pre><code>curl -fsSL https://pwsh-termux.machlev.org/dists/stable/InRelease -o $TMPDIR/InRelease
+gpgv --keyring $PREFIX/share/keyrings/pwsh-termux-archive-keyring.gpg $TMPDIR/InRelease
+grep -E '^(Date|Valid-Until):' $TMPDIR/InRelease</code></pre>
+  <p><code>Valid-Until</code> is 14 days after <code>Date</code>. The repository is re-signed every day, so an old index cannot be served to you for more than 14 days without apt refusing it.</p>
+  <p>The project&rsquo;s security contact is in <a href="/.well-known/security.txt"><code>/.well-known/security.txt</code></a>, which points to the <a href="https://github.com/EliorMachlev/pwsh-termux/blob/main/SECURITY.md">security policy</a>.</p>
 
   <h2 id="by-hand">Add the key by hand instead</h2>
   <p>If you would rather not install a package for it, these commands write the same two files with the same content:</p>
@@ -70,18 +89,35 @@ pkg update
 pkg install pwsh</code></pre>
   <p>A key added by hand is not updated by <code>pkg upgrade</code>. When the key is rotated, download it again (the <a href="https://github.com/EliorMachlev/pwsh-termux/blob/main/SECURITY.md#signing-key">security policy</a> announces it), or install the keyring package.</p>
 
-  <h2>Update and remove</h2>
-<pre><code>pkg upgrade            # updates everything, including pwsh and the key package
-pkg remove pwsh        # remove PowerShell</code></pre>
-  <p>To also drop the repository: <code>pkg remove pwsh-termux-keyring</code>, which removes the key and the source. If you added them by hand, delete <code>$PREFIX/etc/apt/sources.list.d/pwsh-termux.list</code> and <code>$PREFIX/share/keyrings/pwsh-termux-archive-keyring.gpg</code>.</p>
+  <h2 id="update">Update</h2>
+<pre><code>pkg upgrade            # updates everything, including pwsh and the key package</code></pre>
+  <p>Most days a <code>pkg update</code> downloads only the small, freshly signed <code>InRelease</code> file: the repository is re-signed daily even when nothing changed, and nothing is offered for upgrade until Microsoft releases a new version.</p>
 
-  <h2>If something goes wrong</h2>
+  <h2 id="uninstall">Uninstall</h2>
+<pre><code>pkg remove pwsh pwsh-preview     # PowerShell (either or both)
+pkg remove pwsh-termux-keyring   # the key and the apt source
+pkg update</code></pre>
+  <p>Removing <code>pwsh-termux-keyring</code> deletes both <code>$PREFIX/share/keyrings/pwsh-termux-archive-keyring.gpg</code> and <code>$PREFIX/etc/apt/sources.list.d/pwsh-termux.list</code>, so <code>pkg</code> stops contacting this site. If you added them by hand, delete those two files yourself. Your PowerShell profile and modules in <code>~/.config/powershell</code> and <code>~/.local/share/powershell</code> are yours and stay; delete them too if you want nothing left.</p>
+
+  <h2 id="faq">Questions</h2>
+  <h3>What happens when the signing key changes?</h3>
+  <p>If you installed with the line above, nothing for you to do. A <strong>planned rotation</strong> ships the next key in a new <code>pwsh-termux-keyring</code> while the old key still signs, for 180 days; <code>pkg upgrade</code> lists <code>pwsh-termux-keyring</code> among the upgrades, and that is all you see. If the signing key is ever <strong>lost or stolen</strong>, a security advisory is published on GitHub, the repository is signed once with the offline recovery key that your keyring already trusts, and again <code>pkg upgrade</code> installs the new keyring. Either way, check the new fingerprints against the <a href="https://github.com/EliorMachlev/pwsh-termux/blob/main/SECURITY.md#signing-key">security policy</a> if you like.</p>
+  <h3>And if I added the key by hand, or did not update for months?</h3>
+  <p>A key added by hand is not updated by <code>pkg upgrade</code>, and a device that misses a whole 180-day window keeps only the old key. You then see <em>NO_PUBKEY</em> or <em>not signed</em> from <code>pkg update</code>. Run the install line again (or download the key again), and compare the fingerprints above.</p>
+  <h3>Why did <code>pkg update</code> say the Release file is expired?</h3>
+  <p>The repository&rsquo;s signed index is valid for 14 days and is re-signed daily. If the project&rsquo;s build has been broken for longer than that, apt refuses the old index instead of quietly serving stale packages. PowerShell keeps working; updates from this repository resume once the index is re-signed. If it lasts more than a day or two, check the <a href="https://github.com/EliorMachlev/pwsh-termux/issues">issues</a>.</p>
+
+  <h2 id="troubleshooting">If something goes wrong</h2>
   <table>
     <thead><tr><th>Symptom</th><th>Cause and fix</th></tr></thead>
     <tbody>
-      <tr><td><code>pkg update</code> says <em>NO_PUBKEY</em> or the repository is <em>not signed</em></td><td>The key is missing, empty or outdated. Run the install line again; if you added the key by hand, download it again and check the file is not an error page.</td></tr>
+      <tr><td><code>pkg update</code> says <em>NO_PUBKEY</em> or the repository is <em>not signed</em></td><td>The key is missing, empty or outdated (for example after a <a href="#faq">key change</a> you missed). Run the install line again; if you added the key by hand, download it again and check the file is not an error page. Then compare the <a href="#check">fingerprints</a>.</td></tr>
       <tr><td><code>Unable to locate package pwsh</code></td><td>The keyring package is not installed (the source line comes with it), or <code>pkg update</code> was not run afterwards.</td></tr>
       <tr><td><code>depends on glibc, but it is not installable</code></td><td>The glibc repository is not enabled: <code>pkg install glibc-repo</code>, then <code>pkg update</code>.</td></tr>
+      <tr><td><code>Unable to locate package glibc-repo</code></td><td>Termux&rsquo;s own package lists are old or point to an outdated mirror: run <code>pkg update</code> (or <code>termux-change-repo</code>), then the install line again.</td></tr>
+      <tr><td><code>pkg install pwsh</code> finds no installation candidate, or <code>dpkg</code> says <em>package architecture (aarch64) does not match system</em></td><td>The device is not arm64. <code>uname -m</code> must print <code>aarch64</code>; a 32-bit Termux (<code>armv7l</code>, <code>armv8l</code>) or an x86 device cannot run these packages. On a 64-bit phone, check that Termux itself is the 64-bit (arm64-v8a) build: <code>dpkg --print-architecture</code> prints <code>aarch64</code>.</td></tr>
+      <tr><td><code>Release file for https://pwsh-termux.machlev.org/dists/stable/InRelease is expired</code></td><td>The signed index was not renewed within its 14 days (see <a href="#faq">above</a>), or your device&rsquo;s clock is far ahead: check the date in Android&rsquo;s settings. Otherwise nothing to fix on your side; it clears with the next re-sign.</td></tr>
+      <tr><td><code>Release file &hellip; is not valid yet</code></td><td>Your device&rsquo;s clock is behind. Set the date and time automatically in Android&rsquo;s settings.</td></tr>
       <tr><td>Installed but <code>pwsh</code> says it cannot execute or a library is missing</td><td>Run <code>pkg install --reinstall pwsh</code>; if it persists, <a href="https://github.com/EliorMachlev/pwsh-termux/issues">open an issue</a> with the output of <code>pkg list-installed | grep -E 'glibc|icu|pwsh'</code>.</td></tr>
     </tbody>
   </table>
@@ -101,6 +137,7 @@ export POWERSHELL_UPDATECHECK=Off</code></pre>
     <li><a href="https://github.com/EliorMachlev/pwsh-termux/blob/main/docs/markDown/legal/terms-of-service.md">Terms</a></li>
     <li><a href="https://github.com/EliorMachlev/pwsh-termux/blob/main/docs/markDown/legal/accessibility-statement.md">Accessibility</a></li>
     <li><a href="https://github.com/EliorMachlev/pwsh-termux/releases">Releases</a></li>
+    <li><a href="/documents.html">All documents</a></li>
   </ul>
 </div></footer>
 </body>

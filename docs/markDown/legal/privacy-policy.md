@@ -1,6 +1,6 @@
 # Privacy policy
 
-*Last updated: 2026-11-12.*
+*The date and commit of this page's last change come from Git, not from the page: see the [documents page](https://pwsh-termux.machlev.org/documents.html) or this file's history on GitHub.*
 
 pwsh-termux collects **nothing** about you. This policy covers the website (`pwsh-termux.machlev.org`), the apt repository served from it, the GitHub repository, and the packages. The short version is on the [website](https://pwsh-termux.machlev.org/privacy.html).
 

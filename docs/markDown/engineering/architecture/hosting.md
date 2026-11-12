@@ -7,6 +7,7 @@ Everything is static files on **GitHub Pages**, deployed by a workflow (Settings
 [`scripts/assemble-site.sh`](../../../../scripts/assemble-site.sh) merges the website into the apt repository's output folder:
 
 - everything in `docs/` **except** `docs/markDown/` (the handbook lives on GitHub, not on the site);
+- the generated blocks in the pages are filled from the repository being deployed: `status`, the versions in `Packages` and the `Date` and `Valid-Until` of `Release`; `documents` and `last-updated:<path>`, each Markdown document's last commit date and short SHA from `git log`, which needs the checkout's full history ([website](../website.md));
 - every `"/style.css"` and `"/favicon.svg"` reference in the pages is rewritten to `?v=<12 hex digits of the file's SHA-256>`. Pages and the CDN let browsers keep a stylesheet for hours but a page for minutes, so without this a deploy could pair a new page with an old stylesheet.
 
 The artifact is uploaded with `include-hidden-files: true`. Without it `actions/upload-pages-artifact` skips every dotfile and would silently drop `.well-known/security.txt` (it still excludes `.git` and `.github`).

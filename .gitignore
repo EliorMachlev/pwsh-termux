@@ -2,3 +2,5 @@ out/
 repo/
 debs/
 *.deb
+__pycache__/
+*.pyc

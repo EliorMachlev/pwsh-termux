@@ -13,8 +13,15 @@
 #        GPG_PASSPHRASE_FILE  optional; otherwise gpg asks for the passphrase
 #
 # It refuses to run in CI, and unless the recovery key's secret is in the
-# local gpg home and its fingerprint is the one in keys/RECOVERY. It then
-# checks the result with verify-recovery-repo.sh.
+# local gpg home and its fingerprint is the one in keys/RECOVERY, and it
+# refuses a Release whose Valid-Until window is unbounded or has fewer than
+# VALID_UNTIL_WARN_DAYS (7) days left (build-repo.sh writes 14 from the time
+# it runs: build and sign in one sitting). It then checks the result with
+# verify-recovery-repo.sh.
+#
+# The recovery-signed index expires 14 days after build-repo.sh ran, and CI
+# cannot re-sign it (it holds no key apt trusts during a recovery), so repeat
+# build-repo.sh and this script within every 14 days of a recovery window.
 set -euo pipefail
 source "$(dirname "$0")/lib/common.sh"
 
@@ -52,6 +59,7 @@ main() {
   recovery=$(require_recovery_fingerprint "$KEYRING_FILE")
   require_recovery_secret "$recovery"
   [ -f "$DIST_DIR/Release" ] || die "$DIST_DIR/Release not found (run build-repo.sh first)"
+  check_release_fresh "$DIST_DIR/Release"
 
   sign_with_recovery_key "$recovery"
   KEYRING_FILE=$KEYRING_FILE bash "$SCRIPTS_DIR/verify-recovery-repo.sh" "$REPO_DIR"

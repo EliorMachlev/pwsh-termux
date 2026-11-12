@@ -18,6 +18,8 @@ There is one long-lived branch, **`main`**. It is what the website and the repos
 | [Gitleaks](../../../.github/workflows/gitleaks.yaml) | yes | yes | weekly | whole history |
 | [Dependency Review](../../../.github/workflows/dependency-review.yaml) | yes | | | blocks high-severity advisories |
 | [OpenSSF Scorecard](../../../.github/workflows/scorecard.yaml) | | yes | weekly | |
-| [Update packages](../../../.github/workflows/update.yaml) | | yes, for scripts, docs and itself | **daily** | builds, signs and **deploys** |
+| [Update packages](../../../.github/workflows/update.yaml) | | yes, for scripts, docs and itself | **daily** | builds, signs and **deploys**; re-signs daily (Valid-Until) |
+| [Index staleness](../../../.github/workflows/staleness.yaml) | | | daily | opens an issue if the live index has under 7 days left |
+| [Yearly key review](../../../.github/workflows/key-review.yaml) | | | yearly | opens a reminder issue |
 
 Only `update.yaml` publishes anything, and only from `main`. Workflows triggered by a pull request have read-only tokens and no access to the signing key.

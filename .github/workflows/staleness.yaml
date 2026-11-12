@@ -1,0 +1,90 @@
+name: Index staleness
+
+# Watches the live apt index. The signed InRelease carries a Valid-Until 14
+# days ahead, and update.yaml re-signs it daily; if that stops, apt on every
+# device refuses the index once the date passes (SECURITY.md, "Index
+# freshness"). This checks the live https://pwsh-termux.machlev.org/dists/stable/InRelease
+# every day: it must download, verify against keys/ (gpgv, as apt), and have
+# at least 7 days left (scripts/check-index-freshness.sh). If not, it opens an
+# issue, or comments on the one already open (never a second one); when the
+# index is healthy again, it comments and closes that issue.
+on:
+  schedule:
+    - cron: "41 7 * * *"      # daily, three hours after update.yaml
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  INRELEASE_URL: https://pwsh-termux.machlev.org/dists/stable/InRelease
+  ISSUE_TITLE: "The live apt index is stale or unreachable"
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: write            # open, comment on and close the staleness issue
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # Never fails the step: the result goes to the next one.
+      - name: Fetch and check the live index
+        id: check
+        run: |
+          if ! curl -fsS --max-time 60 --retry 3 --retry-all-errors -o InRelease "$INRELEASE_URL" 2> curl.log; then
+            {
+              echo "healthy=false"
+              echo "summary=$INRELEASE_URL is unreachable: $(tr '\n' ' ' < curl.log)"
+            } >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if result=$(bash scripts/check-index-freshness.sh InRelease 2>&1); then
+            echo "healthy=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "healthy=false" >> "$GITHUB_OUTPUT"
+          fi
+          echo "summary=$(tr '\n' ' ' <<<"$result")" >> "$GITHUB_OUTPUT"
+
+      - name: Open, update or close the issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          HEALTHY: ${{ steps.check.outputs.healthy }}
+          SUMMARY: ${{ steps.check.outputs.summary }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          echo "$SUMMARY"
+          existing=$(gh issue list --state open --limit 100 --search "in:title \"$ISSUE_TITLE\"" \
+            --json number,title --jq '.[] | select(.title == env.ISSUE_TITLE) | .number' | head -n1)
+          if [ "$HEALTHY" = true ]; then
+            if [ -n "$existing" ]; then
+              gh issue close "$existing" --comment "Healthy again: $SUMMARY ($RUN_URL)"
+            fi
+            exit 0
+          fi
+          body=$(printf '%s\n' \
+            "The scheduled check of $INRELEASE_URL failed:" "" \
+            "> $SUMMARY" "" \
+            "apt refuses the index once its Valid-Until passes, and update.yaml re-signs it daily, so this usually means update.yaml has been failing or is disabled. Check its recent runs and fix or re-run it; during a recovery, re-sign offline (docs/markDown/engineering/release.md, \"Recovery with the offline key\")." "" \
+            "Run: $RUN_URL")
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --body "$body"
+          else
+            gh issue create --title "$ISSUE_TITLE" --body "$body"
+          fi
+          echo "::error::$SUMMARY"
+          exit 1

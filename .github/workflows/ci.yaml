@@ -6,10 +6,11 @@ name: CI
 #   actionlint  every workflow (syntax, expressions, shell in run: steps)
 #   keys        keys/ follows the key rules (one online key, plus the keys
 #               keys/RECOVERY and keys/ROTATION name), SECURITY.md lists them,
-#               and scripts/test-keys.sh tests the rules, the publish checks
-#               and the recovery scripts
-#   package     a real build of the current stable PowerShell and of the
-#               keyring package (reproducible, from keys/) into an apt
+#               and scripts/test-keys.sh tests the rules, the publish checks,
+#               the recovery scripts and the index's Valid-Until window
+#   package     a real build of the current stable PowerShell (twice, compared
+#               byte for byte) and of the keyring package (reproducible,
+#               from keys/) into an apt
 #               repository, unsigned and signed with a throwaway key, then
 #               the website checks and assembly
 on:
@@ -112,13 +113,14 @@ jobs:
           fi
       # Throwaway keys and a stub gh: every allowed key shape and the refused
       # ones, the signer rules (never the recovery key), altered, unverified
-      # and unattested keyring packages, and recovery signing.
+      # and unattested keyring packages, recovery signing, and the index's
+      # Valid-Until window (a re-sign changes InRelease, not Packages).
       - name: Test the key rules and the publish checks
         run: bash scripts/test-keys.sh
 
   package:
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - name: Harden the runner
         uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
@@ -128,6 +130,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          fetch-depth: 0       # assemble-site.sh reads each document's last commit (git log)
       - name: Install tools
         run: sudo apt-get update && sudo apt-get install -y patchelf jq xz-utils
       - name: Check the website
@@ -141,6 +144,14 @@ jobs:
           tag=$(awk '$1 == "stable" {print $2}' releases.txt)
           mkdir -p debs
           bash scripts/build-deb.sh pwsh "$tag" debs
+      # The daily update.yaml run rebuilds an unchanged release; it must give
+      # the same bytes, or Packages would change every day.
+      - name: Build the .deb again and compare (reproducible)
+        run: |
+          tag=$(awk '$1 == "stable" {print $2}' releases.txt)
+          sleep 2
+          bash scripts/build-deb.sh pwsh "$tag" debs-again
+          cmp debs/pwsh_*.deb debs-again/pwsh_*.deb
       - name: Build the keyring package twice and compare
         run: |
           bash scripts/build-keyring.sh debs
@@ -180,6 +191,9 @@ jobs:
         run: |
           bash scripts/build-repo.sh debs repo
           bash scripts/assemble-site.sh docs repo
+          python3 .github/scripts/site-check.py repo
+          grep -q 'Now serving <code>pwsh</code>' repo/index.html repo/install.html
+          grep -q 'Last updated <time' repo/documents.html repo/privacy.html
           grep -q '^Package: pwsh$' repo/dists/stable/main/binary-aarch64/Packages
           grep -q '^Package: pwsh-termux-keyring$' repo/dists/stable/main/binary-aarch64/Packages
           cmp repo/pwsh-termux-keyring.deb debs/pwsh-termux-keyring_*_all.deb

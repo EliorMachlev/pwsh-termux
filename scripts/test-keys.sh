@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Tests of the key rules and the publish and recovery checks (check-keys.sh,
 # build-repo.sh, verify-attestation.sh, recovery-sign.sh,
-# verify-recovery-repo.sh) with throwaway Ed25519 keys and a stub `gh` (real
-# attestations exist only on GitHub). Runs on Termux and on CI; touches
+# verify-recovery-repo.sh, check-index-freshness.sh), and of the index's Valid-Until window (a daily
+# re-sign changes InRelease only), with throwaway Ed25519 keys and a stub
+# `gh` (real attestations exist only on GitHub). Runs on Termux and on CI; touches
 # nothing outside a temporary folder. Uses the test-only KEYRING_FILE.
 #
 # Usage: test-keys.sh
@@ -196,6 +197,105 @@ expect refuse "a package that does not match Packages"    verify_recovery "$new"
 cp -r "$T/rrepo" "$T/oldkey"
 cp "$(kr s1)" "$(repo_key_file "$T/oldkey")"
 expect refuse "a published key file that is not keys/"    verify_recovery "$new" "$T/oldkey"
+
+echo "== Valid-Until: a bounded window, and a re-sign changes InRelease only"
+# publish_to <keyring-file> <signer> <debs-dir> <repo-dir>: publish, to a known folder.
+publish_to() {
+  local deb=("$3"/"$KEYRING_PACKAGE"_*_all.deb)
+  KEYRING_FILE=$1 SIGN_KEY=$2 KEYRING_DEB_SHA256=$(sha256_of "${deb[0]}") \
+    bash "$SCRIPTS_DIR/build-repo.sh" "$3" "$4"
+}
+# same_bytes <file> <file>, differ <file> <file>
+same_bytes() { cmp -s "$1" "$2"; }
+differ() { ! cmp -s "$1" "$2"; }
+# window_is <release-file> <seconds>: Valid-Until - Date is exactly that.
+# (A subshell, like the next one: the helpers die, which must not end the test.)
+window_is() (
+  date=$(release_field_epoch "$1" Date) && valid_until=$(release_field_epoch "$1" Valid-Until) \
+    && [ $((valid_until - date)) -eq "$2" ]
+)
+# dates_well_formed <release-file>: both lines match apt's date format.
+dates_well_formed() {
+  grep -Eq "^Date: ${RELEASE_DATE_REGEX#^}" "$1" && grep -Eq "^Valid-Until: ${RELEASE_DATE_REGEX#^}" "$1"
+}
+# window_ok <release-file> <min-days-left>: check_release_window accepts it.
+window_ok() ( check_release_window "$@" )
+# signed_text_has <inrelease> <keyring-file> <line>: the signed text holds the line.
+signed_text_has() { gpgv_quiet "$2" --output - "$1" | grep -qxF -- "$3"; }
+
+expect accept "day 1: publish"                            publish_to "$(kr s1)" "$A" "$good" "$T/day1"
+sleep 2   # a later run: Date and Valid-Until move on
+expect accept "day 2: publish the same packages again"    publish_to "$(kr s1)" "$A" "$good" "$T/day2"
+d1=$(repo_dist_dir "$T/day1") d2=$(repo_dist_dir "$T/day2") idx=$(repo_index_subdir)
+expect accept "Release has Valid-Until"                   grep -q '^Valid-Until: ' "$d1/Release"
+expect accept "Date and Valid-Until are RFC 1123 UTC dates" dates_well_formed "$d1/Release"
+expect accept "Valid-Until is Date + $VALID_UNTIL_DAYS days" window_is "$d1/Release" $((VALID_UNTIL_DAYS * SECONDS_PER_DAY))
+expect accept "the window starts now"                     window_ok "$d1/Release" $((VALID_UNTIL_DAYS - 1))
+expect accept "Valid-Until is in the signed text (InRelease)" \
+  signed_text_has "$d1/InRelease" "$(kr s1)" "Valid-Until: $(release_field "$d1/Release" Valid-Until)"
+expect accept "a later run: Valid-Until moved on"         differ "$d1/Release" "$d2/Release"
+expect accept "a later run: InRelease differs"            differ "$d1/InRelease" "$d2/InRelease"
+expect accept "a later run: Release.gpg differs"          differ "$d1/Release.gpg" "$d2/Release.gpg"
+for f in Packages Packages.gz Packages.xz; do
+  if [ "$f" = Packages.xz ] && ! command -v xz >/dev/null; then echo "skip  $f (no xz here)"; continue; fi
+  expect accept "a later run: $f is byte-identical"       same_bytes "$d1/$idx/$f" "$d2/$idx/$f"
+done
+for deb in "$T"/day1/pool/*/*/*.deb; do
+  expect accept "a later run: ${deb##*/} is byte-identical" same_bytes "$deb" "$T/day2/${deb#"$T"/day1/}"
+done
+expect accept "a later run: the index verifies (gpgv, as apt)" gpgv_quiet "$(kr s1)" "$d2/InRelease"
+
+# set_window <repo-dir> <Date-line-value> <Valid-Until-line-value|-> : rewrite
+# Release's dates (- drops Valid-Until), as a hand-made or old Release would be.
+set_window() {
+  local release; release=$(repo_dist_dir "$1")/Release
+  sed -i -e "s/^Date: .*/Date: $2/" -e '/^Valid-Until: /d' "$release"
+  if [ "$3" != - ]; then sed -i "/^Date: /a Valid-Until: $3" "$release"; fi
+}
+# rresign <repo-dir>: sign its Release with the recovery key again.
+rresign() {
+  local dist; dist=$(repo_dist_dir "$1")
+  GNUPGHOME=$OFFLINE gpg --batch --yes --local-user "$R" --clearsign -o "$dist/InRelease" "$dist/Release" 2>/dev/null
+  GNUPGHOME=$OFFLINE gpg --batch --yes --local-user "$R" -abs -o "$dist/Release.gpg" "$dist/Release" 2>/dev/null
+}
+# windowed <name> <Date> <Valid-Until|->: a recovery-signed copy of rrepo with these dates.
+windowed() {
+  cp -r "$T/rrepo" "$T/$1"
+  set_window "$T/$1" "$2" "$3"
+  rresign "$T/$1"
+  printf '%s\n' "$T/$1"
+}
+now=$(now_epoch) day=$SECONDS_PER_DAY
+expect accept "recovery: a window with 13 days left" \
+  verify_recovery "$new" "$(windowed w1 "$(release_date $((now - day)))" "$(release_date $((now + 13 * day)))")"
+expect refuse "recovery: no Valid-Until" \
+  verify_recovery "$new" "$(windowed w2 "$(release_date "$now")" -)"
+expect refuse "recovery: Valid-Until more than $VALID_UNTIL_DAYS days after Date" \
+  verify_recovery "$new" "$(windowed w3 "$(release_date "$now")" "$(release_date $((now + 30 * day)))")"
+expect refuse "recovery: expired" \
+  verify_recovery "$new" "$(windowed w4 "$(release_date $((now - 20 * day)))" "$(release_date $((now - 6 * day)))")"
+expect refuse "recovery: fewer than $VALID_UNTIL_WARN_DAYS days left" \
+  verify_recovery "$new" "$(windowed w5 "$(release_date $((now - 10 * day)))" "$(release_date $((now + 4 * day)))")"
+expect refuse "recovery: a Date in the future" \
+  verify_recovery "$new" "$(windowed w6 "$(release_date $((now + day)))" "$(release_date $((now + 10 * day)))")"
+expect refuse "recovery: a Valid-Until that is not an RFC 1123 date" \
+  verify_recovery "$new" "$(windowed w7 "$(release_date "$now")" "2099-01-01T00:00:00Z")"
+expect refuse "recovery: a Valid-Until that is not a real day" \
+  verify_recovery "$new" "$(windowed w8 "$(release_date "$now")" "Mon, 31 Feb 2099 00:00:00 UTC")"
+KEYRING_FILE=$new bash "$SCRIPTS_DIR/build-repo.sh" "$rd" "$T/stale" 2>/dev/null
+set_window "$T/stale" "$(release_date $((now - 10 * day)))" "$(release_date $((now + 4 * day)))"
+expect refuse "recovery-sign.sh: a Release built too long ago" rsign "$new" "$T/stale"
+
+echo "== check-index-freshness.sh: the staleness monitor's check"
+fresh() { env KEYRING_FILE="$1" bash "$SCRIPTS_DIR/check-index-freshness.sh" "$2"; }
+expect accept "a fresh index signed by the online key"    fresh "$(kr s1)" "$d1/InRelease"
+expect accept "a fresh index signed by the recovery key"  fresh "$new" "$(repo_dist_dir "$T/w1")/InRelease"
+expect refuse "fewer than $VALID_UNTIL_WARN_DAYS days left" fresh "$new" "$(repo_dist_dir "$T/w5")/InRelease"
+expect refuse "expired"                                   fresh "$new" "$(repo_dist_dir "$T/w4")/InRelease"
+expect refuse "no Valid-Until"                            fresh "$new" "$(repo_dist_dir "$T/w2")/InRelease"
+expect refuse "signed by a key that is not in keys/"      fresh "$(kr s1)" "$(repo_dist_dir "$T/w1")/InRelease"
+printf '<html>not found</html>\n' > "$T/error-page"
+expect refuse "an error page instead of InRelease"        fresh "$(kr s1)" "$T/error-page"
 
 echo
 [ "$fails" -eq 0 ] || { echo "$fails test(s) failed"; exit 1; }
