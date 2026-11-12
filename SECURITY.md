@@ -57,7 +57,7 @@ The apt repository is signed with a dedicated key. Its public half is published 
 
 Check the downloaded key against this fingerprint: `gpg --show-keys $PREFIX/etc/apt/trusted.gpg.d/pwsh-termux.gpg`. This page and the website are separate channels, so a mismatch between them is itself a warning sign.
 
-**Post-quantum signing is not yet possible.** This is a limit of today's tools, not a choice: the maintainer would use a quantum-resistant signature if apt could verify one, and will switch when it can. GnuPG 2.5 implements only post-quantum *encryption* (ML-KEM), and apt accepts only RSA, Ed25519, Ed448 and the NIST/Brainpool curves. Ed448 was tried: GnuPG generates it as a version-5 key whose 64-character fingerprint apt 2.8 cannot match, so apt reports a bad signature. Ed25519 is the strongest algorithm apt can verify. Until a post-quantum option works, rotation and revocation (below) are the mitigation.
+**Post-quantum signing** is not yet possible with apt and GnuPG; the repository uses Ed25519. The reason is in [issue #1](https://github.com/EliorMachlev/pwsh-termux/issues/1). Rotation and revocation, below, are the mitigation.
 
 **If the key is compromised or lost**, the maintainer will publish a revocation, generate a new key, redeploy the repository signed with it, and announce the new fingerprint in a GitHub security advisory and on the website. Users then replace the file in `$PREFIX/etc/apt/trusted.gpg.d/`. A revocation certificate was generated when the key was created and is stored separately from the GitHub secret.
 

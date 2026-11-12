@@ -89,7 +89,7 @@ The whole pipeline is [`.github/workflows/update.yaml`](.github/workflows/update
 - **arm64 only**, and only on Termux with the glibc repository: the packages are built for `aarch64` against Termux's glibc paths.
 - **The repository holds the current stable and preview only.** Older builds are release assets, not apt candidates.
 - **PowerShell is unchanged**, including Microsoft's telemetry and update notice. How to switch them off: the [install page](https://pwsh-termux.machlev.org/install.html).
-- **Post-quantum signing is not yet possible.** apt cannot verify a quantum-resistant signature today, so the repository uses Ed25519, the strongest it supports, and will switch when apt can; see [SECURITY.md](SECURITY.md#signing-key).
+- **Post-quantum signing** is not yet possible with apt; see [issue #1](https://github.com/EliorMachlev/pwsh-termux/issues/1).
 
 ## 🧱 Built with
 
