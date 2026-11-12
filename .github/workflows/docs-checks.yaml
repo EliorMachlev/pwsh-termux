@@ -60,11 +60,12 @@ jobs:
           tar -xzf "$archive" -C "$RUNNER_TEMP"
           echo "$RUNNER_TEMP/lychee-x86_64-unknown-linux-gnu" >> "$GITHUB_PATH"
       # Local links and #anchors, every run: a renamed section breaks them
-      # without a word.
+      # without a word. --root-dir is the website's root, so the pages' own
+      # root-relative links (/install.html) resolve like they do when served.
       - name: Check local links
         run: |
           read -ra docs <<< "$DOCS"
-          lychee --offline --include-fragments --no-progress "${docs[@]}"
+          lychee --offline --include-fragments --root-dir "$PWD/docs" --no-progress "${docs[@]}"
       # External links weekly and by hand: a site that's down for an hour
       # isn't a PR's fault.
       - name: Check external links
@@ -73,7 +74,7 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
           read -ra docs <<< "$DOCS"
-          lychee --no-progress --max-retries 3 "${docs[@]}"
+          lychee --root-dir "$PWD/docs" --no-progress --max-retries 3 "${docs[@]}"
 
   spelling:
     runs-on: ubuntu-latest
