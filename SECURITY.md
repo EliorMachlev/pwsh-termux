@@ -109,7 +109,7 @@ The signed index (`dists/stable/InRelease`) carries a `Valid-Until` date 14 days
 
 The daily workflow re-signs and redeploys the index every day, whether or not Microsoft published anything, so the date moves on by itself and no commit is made. An unchanged release rebuilds to the same bytes, so `Packages` and every `.deb` stay byte-identical: a daily re-sign changes only `InRelease` (and `Release`, `Release.gpg`), clients re-download that small file, and no upgrade is offered.
 
-**If the pipeline is broken for more than 14 days**, apt on every device stops loudly instead of silently serving stale packages: `pkg update` prints *Release file for https://pwsh-termux.machlev.org/dists/stable/InRelease is expired (invalid since …). Updates for this repository will not be applied.* Installed packages keep working; nothing new installs from this repository until the index is re-signed. An index signed with the offline recovery key has the same 14-day limit.
+**If the pipeline is broken for more than 14 days**, apt on every device stops loudly instead of silently serving stale packages: `pkg update` prints *Release file for https://pwsh-termux.machlev.org/dists/stable/InRelease is expired (invalid since …). Updates for this repository will not be applied.* Installed packages keep working; nothing new installs from this repository until the index is re-signed. A daily check of the live index opens an issue when fewer than 7 days are left (or it cannot be fetched or verified), so the maintainer hears about it first. An index signed with the offline recovery key has the same 14-day limit.
 
 ## Verifying a download
 

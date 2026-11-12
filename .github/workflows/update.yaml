@@ -13,7 +13,7 @@ name: Update packages
 # Packages and every .deb stay byte-identical and only InRelease changes:
 # clients re-download that small file and are offered no upgrade. If this
 # workflow stops for more than 14 days, apt on every device refuses the
-# expired index.
+# expired index (staleness.yaml opens an issue 7 days before that).
 #
 # One-time setup (secret, Pages source, custom domain): docs/markDown/engineering/release.md
 on:

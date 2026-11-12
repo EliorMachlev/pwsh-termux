@@ -1,0 +1,61 @@
+name: Yearly key review
+
+# Once a year, an issue that reminds the maintainer to check the offline
+# recovery-key backup and to review the key rotation plan
+# (docs/markDown/engineering/release.md). It holds no key material and asks
+# for none: everything it lists is done offline, by hand. One issue per year;
+# a re-run comments on that year's issue (if still open) instead of opening
+# another.
+on:
+  schedule:
+    - cron: "17 8 2 1 *"      # 2 January
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  remind:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      issues: write            # open (or comment on) the reminder issue
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
+        with:
+          egress-policy: audit
+
+      - name: Open the reminder
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_DOC: ${{ github.server_url }}/${{ github.repository }}/blob/main/docs/markDown/engineering/release.md
+        run: |
+          ISSUE_TITLE="Yearly key review $(date -u +%Y): recovery-key backup and rotation plan"
+          export ISSUE_TITLE
+          body=$(cat <<EOF
+          A yearly reminder. Nothing here needs, or should ever contain, key material: do every step offline and write only "done" (or a problem, without secrets) in this issue.
+
+          - [ ] **Recovery key backup.** On the offline machine, check that both copies of the recovery secret still read, unlock with the recorded passphrase, and show the fingerprint in \`keys/RECOVERY\` (\`gpg --show-keys\` on the backup file). Do not connect the media to an online machine.
+          - [ ] **Revocation certificates** for the recovery key and for the online key are where they should be, apart from the secrets.
+          - [ ] **Online key backup**: the copy of \`GPG_PRIVATE_KEY\` held outside GitHub is still readable.
+          - [ ] **Fingerprints**: SECURITY.md, docs/install.html and the README match \`keys/\` (\`bash scripts/check-keys.sh\`).
+          - [ ] **Rotation plan**: reread "Rotating the signing key" and "Recovery with the offline key" in $RELEASE_DOC and decide whether the online key is rotated this year. A recovery-signed index must be re-signed within every 14 days (Valid-Until).
+          - [ ] **Schedules**: update.yaml (daily re-sign) and staleness.yaml are enabled and green.
+          EOF
+          )
+          found=$(gh issue list --state all --limit 100 --search "in:title \"$ISSUE_TITLE\"" \
+            --json number,title,state --jq '.[] | select(.title == env.ISSUE_TITLE) | "\(.number) \(.state)"' | head -n1)
+          number=${found%% *} state=${found#* }
+          if [ -z "$found" ]; then
+            gh issue create --title "$ISSUE_TITLE" --body "$body"
+          elif [ "$state" = OPEN ]; then
+            gh issue comment "$number" --body "Reminder: this year's key review is still open."
+          else
+            echo "This year's review (#$number) is already done."
+          fi

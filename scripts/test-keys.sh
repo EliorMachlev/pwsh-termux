@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Tests of the key rules and the publish and recovery checks (check-keys.sh,
 # build-repo.sh, verify-attestation.sh, recovery-sign.sh,
-# verify-recovery-repo.sh), and of the index's Valid-Until window (a daily
+# verify-recovery-repo.sh, check-index-freshness.sh), and of the index's Valid-Until window (a daily
 # re-sign changes InRelease only), with throwaway Ed25519 keys and a stub
 # `gh` (real attestations exist only on GitHub). Runs on Termux and on CI; touches
 # nothing outside a temporary folder. Uses the test-only KEYRING_FILE.
@@ -285,6 +285,17 @@ expect refuse "recovery: a Valid-Until that is not a real day" \
 KEYRING_FILE=$new bash "$SCRIPTS_DIR/build-repo.sh" "$rd" "$T/stale" 2>/dev/null
 set_window "$T/stale" "$(release_date $((now - 10 * day)))" "$(release_date $((now + 4 * day)))"
 expect refuse "recovery-sign.sh: a Release built too long ago" rsign "$new" "$T/stale"
+
+echo "== check-index-freshness.sh: the staleness monitor's check"
+fresh() { env KEYRING_FILE="$1" bash "$SCRIPTS_DIR/check-index-freshness.sh" "$2"; }
+expect accept "a fresh index signed by the online key"    fresh "$(kr s1)" "$d1/InRelease"
+expect accept "a fresh index signed by the recovery key"  fresh "$new" "$(repo_dist_dir "$T/w1")/InRelease"
+expect refuse "fewer than $VALID_UNTIL_WARN_DAYS days left" fresh "$new" "$(repo_dist_dir "$T/w5")/InRelease"
+expect refuse "expired"                                   fresh "$new" "$(repo_dist_dir "$T/w4")/InRelease"
+expect refuse "no Valid-Until"                            fresh "$new" "$(repo_dist_dir "$T/w2")/InRelease"
+expect refuse "signed by a key that is not in keys/"      fresh "$(kr s1)" "$(repo_dist_dir "$T/w1")/InRelease"
+printf '<html>not found</html>\n' > "$T/error-page"
+expect refuse "an error page instead of InRelease"        fresh "$(kr s1)" "$T/error-page"
 
 echo
 [ "$fails" -eq 0 ] || { echo "$fails test(s) failed"; exit 1; }

@@ -12,7 +12,7 @@ There is nothing to "cut". New PowerShell releases are picked up by the schedule
 
 This happens **every day, whether or not Microsoft released anything**, and makes no commit. The index carries a `Valid-Until` 14 days after its `Date` (`VALID_UNTIL_DAYS` in [`scripts/lib/common.sh`](../../../scripts/lib/common.sh)), so apt refuses an index that has not been re-signed for 14 days ([SECURITY.md](../../../SECURITY.md#index-freshness-valid-until)); the daily run is what moves that date on. An unchanged release rebuilds to the same bytes (`build-deb.sh` and `build-keyring.sh` are reproducible), so `Packages`, `Packages.gz`, `Packages.xz` and every `.deb` are byte-identical from one day to the next and only `Release`, `InRelease` and `Release.gpg` change: clients re-download the small `InRelease` and are offered no upgrade. `test-keys.sh` proves it for the index, and CI's package build builds the real `.deb` twice and compares.
 
-**If the pipeline is broken for more than 14 days**, the deployed index expires and `pkg update` on every device fails with *Release file … is expired*. That is deliberate: a loud error instead of silently frozen packages. Fix the run (or start it by hand) and the next deploy clears it for everyone; nothing needs to change on the devices.
+**If the pipeline is broken for more than 14 days**, the deployed index expires and `pkg update` on every device fails with *Release file … is expired*. That is deliberate: a loud error instead of silently frozen packages. Fix the run (or start it by hand) and the next deploy clears it for everyone; nothing needs to change on the devices. [`staleness.yaml`](../../../.github/workflows/staleness.yaml) checks the live index daily and opens an issue when fewer than 7 days are left, so this should be caught a week early.
 
 Run it by hand: **Actions → Update packages → Run workflow**, or `gh workflow run update.yaml`.
 
@@ -108,6 +108,8 @@ An offline Ed25519 key that only the maintainer holds, never on a networked mach
    ```
 2. **Store it**: `recovery-secret.asc` on at least two offline media kept in different places (for example two encrypted USB drives, or one plus a paper copy made with `paperkey`); `recovery-revoke.asc` separately from both; the passphrase written down apart from the media. Never copy the secret to an online machine, a cloud drive, a password manager that syncs, or a GitHub secret.
 3. **Add it** (a pull request): append `recovery-public.gpg` to `keys/pwsh-termux-archive-keyring.gpg`, `echo <RECOVERY-FINGERPRINT> > keys/RECOVERY`, bump `KEYRING_VERSION`, add a *Recovery key* row with its fingerprint to [`SECURITY.md`](../../../SECURITY.md#signing-key) (CI checks it is there), and run `bash scripts/check-keys.sh` (`current`, `recovery`). From the next publish on, `pkg upgrade` gives every user a keyring that trusts it.
+
+Once a year [`key-review.yaml`](../../../.github/workflows/key-review.yaml) opens an issue reminding you to check these backups (offline, by hand) and to review the rotation plan above; the issue holds no key material.
 
 ## Recovery with the offline key
 
