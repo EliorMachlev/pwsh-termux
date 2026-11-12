@@ -153,6 +153,7 @@ expect refuse "dry run reports a disabled workflow as refresh would" run refresh
 expect_calls  "  and calls nothing that writes"            ""
 states active active active
 expect accept "dry run, all active"                        run refresh --dry-run
+expect_line   "  says it would renew"                      "daily.yaml active: would renew (dry run)"
 expect_calls  "  calls nothing that writes"                ""
 
 echo "== check"

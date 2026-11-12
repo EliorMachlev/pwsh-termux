@@ -97,8 +97,8 @@ days_since_last_commit() {
 }
 
 refresh() {
-  local files=$1 states=$2 file state renewed=() failed=() enabled="enabled again"
-  if [ "$DRY_RUN" = true ]; then enabled="dry run: not enabled"; fi
+  local files=$1 states=$2 file state renewed=() failed=() enabled="enabled again" done=renewed
+  if [ "$DRY_RUN" = true ]; then enabled="dry run: not enabled" done="would renew (dry run)"; fi
   for file in $files; do
     state=$(state_of "$file" "$states")
     case $state in
@@ -110,7 +110,7 @@ refresh() {
             echo "$file $state: re-enabled ($enabled)"
             renewed+=("$file")
           else
-            echo "$file $state: renewed"
+            echo "$file $state: $done"
           fi
         else
           echo "$file $state: enable FAILED"
