@@ -47,12 +47,13 @@ The CI runner is x86 and cannot execute the arm64 binary, so this step is the on
 ## Build the keyring package
 
 ```bash
-bash scripts/check-keys.sh                 # keys/ holds public keys only; prints the fingerprints
+bash scripts/check-keys.sh                 # the key rules; prints the fingerprint
+bash scripts/test-keys.sh                  # the rules and the publish checks, with throwaway keys
 bash scripts/build-keyring.sh out          # out/pwsh-termux-keyring_<version>_all.deb
 bash scripts/build-keyring.sh out2 && cmp out/pwsh-termux-keyring_*_all.deb out2/pwsh-termux-keyring_*_all.deb
 ```
 
-The build is reproducible: run it twice and the bytes are the same ([details](architecture/repository.md#the-keyring-package)). It sets `umask 022` itself.
+The build is deterministic: run it twice and the bytes are the same ([details](architecture/repository.md#the-keyring-package)). It sets `umask 022` itself.
 
 ## Build and test a repository
 
@@ -61,17 +62,18 @@ bash scripts/build-repo.sh out repo                  # unsigned: fine locally
 bash scripts/assemble-site.sh docs repo              # merge the website
 ```
 
-To test signing and let real `apt` read the result, without touching your system's sources, use a throwaway key and an isolated apt configuration. `build-repo.sh` refuses to sign with a key that is not in `keys/`, so point the test-only `KEYRING_FILE` at a keyring holding the throwaway key, and build the keyring package from it (the workflows never set `KEYRING_FILE`):
+To test signing and let real `apt` read the result, without touching your system's sources, use a throwaway key and an isolated apt configuration. `build-repo.sh` refuses to sign with a key that is not the key in `keys/`, so point the test-only `KEYRING_FILE` at a keyring holding the throwaway key, in a folder of its own (a `ROTATION` file next to it would count), and build the keyring package from it. `KEYRING_DEB_SHA256` stands in for the digest the workflow's `verify` job takes from the attestation (the publish step never sets `KEYRING_FILE`):
 
 ```bash
 export GNUPGHOME=$(mktemp -d); chmod 700 "$GNUPGHOME"
 gpg --batch --passphrase '' --quick-generate-key "test <test@example.invalid>" ed25519 sign never
 SIGN_KEY=$(gpg --list-secret-keys --with-colons | awk -F: '/^fpr/{print $10; exit}')
 export SIGN_KEY
-export KEYRING_FILE=$(mktemp)                        # TEST ONLY
+export KEYRING_FILE=$(mktemp -d)/pwsh-termux-archive-keyring.gpg   # TEST ONLY
 gpg --export "$SIGN_KEY" > "$KEYRING_FILE"
 rm -f out/pwsh-termux-keyring_*                      # the one built from keys/, if any
 bash scripts/build-keyring.sh out
+export KEYRING_DEB_SHA256=$(sha256sum < out/pwsh-termux-keyring_*_all.deb | cut -d' ' -f1)
 bash scripts/build-repo.sh out repo
 
 # apt reads the key from the keyring package's own layout, as on a device

@@ -34,18 +34,24 @@ Termux has neither `dpkg-scanpackages` nor `apt-ftparchive`. So `Packages` is wr
 
 When `SIGN_KEY` is set the script produces `InRelease` (`gpg --clearsign`) and `Release.gpg` (`gpg -abs`). apt prefers `InRelease`. Without `SIGN_KEY` it warns that the repository is **unsigned**, for local experiments only; [`update.yaml`](../../../../.github/workflows/update.yaml) refuses to run without the key.
 
-The public keys come from Git, not from the signing key: [`keys/pwsh-termux-archive-keyring.gpg`](../../../../keys/pwsh-termux-archive-keyring.gpg) is published as `pwsh-termux.gpg` byte for byte, and armored as `pwsh-termux.asc` (checked to dearmor to the same bytes). When signing, `build-repo.sh` fails closed unless:
+The public key comes from Git, not from the signing key: [`keys/pwsh-termux-archive-keyring.gpg`](../../../../keys/pwsh-termux-archive-keyring.gpg) is published as `pwsh-termux.gpg` byte for byte, and armored as `pwsh-termux.asc` (checked to dearmor to the same bytes).
 
-- the file holds public keys only ([`scripts/check-keys.sh`](../../../../scripts/check-keys.sh), which CI also runs on `keys/`);
-- the signing key's fingerprint is one of its primary keys;
-- the folder of `.deb` files holds exactly one `pwsh-termux-keyring` (in the workflow: the one the unprivileged build job built and attested) and it ships exactly that file;
-- `build-keyring.sh`, run again in the signing job from the same `keys/` file and the same `SOURCE_DATE_EPOCH`, produces that package **byte for byte**;
-- the public key exported from the signing key itself (`gpg --export`, public only) is among the keys in the file that package installs;
-- `InRelease` and `Release.gpg` verify with `gpgv` against that file alone, as apt will.
+**Key rules** ([`scripts/check-keys.sh`](../../../../scripts/check-keys.sh); CI's `keys` job and every signing run apply them, all fail closed). The file is binary OpenPGP with no secret material, and keys/ holds nothing else except, during a rotation, `keys/ROTATION`:
 
-The package that is published is the attested one from the build job, never the rebuild, so `gh attestation verify` works on the shipped file. The rebuild is compared with a package built from `keys/`, not with one built from the exported signing key alone: during a planned rotation `keys/` also holds the next key, so a package from the signing key alone would differ by design. The two checks together say the same thing without that exception: the attested package is exactly what `keys/` produces, and the key that signs is in it.
+- **Steady state** (no `keys/ROTATION`): exactly one primary key, and it is the signing key.
+- **Rotation** (`keys/ROTATION` committed, one line: the fingerprint of the next key): exactly two primary keys, one of them the key the marker names, and the signing key is one of the two. A marker next to a single key is stale and refused, so the last rotation step cannot leave it behind.
 
-`KEYRING_FILE` overrides the file, for tests with a throwaway key only ([build](../build.md#build-and-test-a-repository)); the workflows never set it.
+**Publish checks.** `update.yaml` has a `verify` job, with a read-only token and no signing key, that runs [`scripts/verify-attestation.sh`](../../../../scripts/verify-attestation.sh) on the keyring package the build job uploaded: `gh attestation verify --repo EliorMachlev/pwsh-termux --signer-workflow …/build-packages.yaml --source-digest <this commit> --deny-self-hosted-runners`. It outputs the file's SHA-256. The `publish` job then runs `build-repo.sh` with the signing key and `KEYRING_DEB_SHA256` set to that digest, and the script refuses to sign unless:
+
+- `keys/` passes the key rules above, and the signing key's fingerprint is the key in it (or one of the two during a marked rotation);
+- the folder of `.deb` files holds exactly one `pwsh-termux-keyring`, its SHA-256 is `KEYRING_DEB_SHA256` (the file whose provenance was verified), and it ships `keys/pwsh-termux-archive-keyring.gpg` byte for byte;
+- `InRelease` and `Release.gpg` verify with `gpgv` against `keys/` alone, as apt will.
+
+It publishes that verified file as it is. A secret replaced without changing `keys/`, or the reverse, publishes nothing.
+
+What these prove: the package users install was built by this repository's `build-packages.yaml` from the commit being published, and it contains exactly the committed `keys/`, whose key is the one that signs the index. They do not prove that `keys/` holds the *right* key: that rests on review of changes to `keys/` and on users comparing the fingerprint with [SECURITY.md](../../../../SECURITY.md#signing-key).
+
+`KEYRING_FILE` overrides the key file (and the `ROTATION` next to it) for tests with throwaway keys only ([build](../build.md#build-and-test-a-repository)); the signing step in `update.yaml` clears it. [`scripts/test-keys.sh`](../../../../scripts/test-keys.sh) tests every rule and refusal with throwaway keys and a stub `gh`.
 
 The key is Ed25519 (OpenPGP v4). Ed448 was tried and rejected; see [SECURITY.md](../../../../SECURITY.md#signing-key).
 
@@ -53,13 +59,13 @@ The key is Ed25519 (OpenPGP v4). Ed448 was tried and rejected; see [SECURITY.md]
 
 A user must trust the key once. [`scripts/build-keyring.sh`](../../../../scripts/build-keyring.sh) packs it so that this is one `dpkg -i`: `pwsh-termux-keyring` (`Architecture: all`) installs `share/keyrings/pwsh-termux-archive-keyring.gpg` (the file from `keys/`) and `etc/apt/sources.list.d/pwsh-termux.list` (the `signed-by` line above), plus its `copyright`. It has no maintainer scripts. Neither file is a conffile, so an upgrade replaces both and `pkg remove` deletes both.
 
-It is built in [`build-packages.yaml`](../../../../.github/workflows/build-packages.yaml)'s unprivileged `build` job, next to `pwsh`, so it gets the same SBOMs and build provenance, and built again in `update.yaml`'s `publish` job, which holds the signing key, to check it (above). The attestation proves which workflow run and commit built the package from that commit's `keys/`; it does not prove those keys are the right ones, which rests on the fingerprint in SECURITY.md and on the publish job's check that the signing key is among them. `build-repo.sh` lists it in the index like any other package and copies it to `/pwsh-termux-keyring.deb`, the fixed URL the install line downloads from. `update.yaml` also attaches it, with its SBOMs, to each new PowerShell release, next to the public key.
+It is built once, in [`build-packages.yaml`](../../../../.github/workflows/build-packages.yaml)'s unprivileged `build` job next to `pwsh`, so it gets the same SBOMs and build provenance; the publish job checks that file (above) and publishes it. `build-repo.sh` lists it in the index like any other package and copies it to `/pwsh-termux-keyring.deb`, the fixed URL the install line downloads from. `update.yaml` also attaches it, with its SBOMs, to each new PowerShell release, next to the public key.
 
-**Reproducible.** The same commit gives the same bytes: every file's timestamp is `SOURCE_DATE_EPOCH`, which defaults to the commit time of the key file (`git log -1 --format=%ct -- keys/...`; the build job checks out the full history for this, since a shallow clone would date it by the newest commit). Outside a checkout, or for an uncommitted test keyring, it falls back to the creation time of the newest key in the file. xz runs single-threaded (`--threads-max=1`), owners are `root:root` and permissions come from `umask 022`, and `Installed-Size` is summed from file sizes rather than `du`, which depends on the file system. CI builds it twice and compares the bytes, and the publish job's rebuild compares it again on every run. Both jobs check out the full history so they date it by the same commit.
+**Deterministic.** The same key file and script give the same bytes, whoever builds them: every file's timestamp is `SOURCE_DATE_EPOCH`, which defaults to the key's creation time read from the key file (no Git history needed), xz runs single-threaded (`--threads-max=1`), owners are `root:root`, permissions come from `umask 022`, and `Installed-Size` is summed from file sizes rather than `du`, which depends on the file system. CI builds it twice and compares the bytes. That is a reproducibility test, not a security gate: the publish job relies on the attestation and the content checks above, not on a second build.
 
 **Version.** `KEYRING_VERSION` at the top of the script; bump it whenever the content changes (a key added or dropped, the source line, the layout), or `pkg upgrade` will not deliver it.
 
-**Rotation.** apt accepts an index signed by any key in the `signed-by` file. So a planned rotation adds the next key to `keys/` while the old key still signs; `pkg upgrade` delivers both keys before the switch ([release](../release.md#rotating-the-signing-key)). A compromised key cannot hand over to its successor this way (whoever holds it could sign a keyring too), so users then reinstall by hand.
+**Rotation.** apt accepts an index signed by any key in the `signed-by` file, and the keyring package is in the signed index. So a planned rotation first ships a keyring with the old and the next key (marked by `keys/ROTATION`) while the old key still signs, and `pkg upgrade` delivers it; the signing switches to the next key only after a grace period ([release](../release.md#rotating-the-signing-key)). A compromised key cannot hand over to its successor this way, since whoever holds it could sign a keyring of their own: users then reinstall the keyring by hand, after an advisory.
 
 The first install still rests on HTTPS, which is why the docs tell users to compare the fingerprint with [SECURITY.md](../../../../SECURITY.md#signing-key) and offer `gh attestation verify` on the downloaded package.
 

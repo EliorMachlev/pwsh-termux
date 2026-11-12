@@ -36,9 +36,6 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-          # Full history: build-keyring.sh dates the keyring package by the
-          # commit that last changed keys/, which a shallow clone cannot see.
-          fetch-depth: 0
 
       - name: Install tools
         run: sudo apt-get update && sudo apt-get install -y patchelf jq xz-utils
@@ -60,7 +57,7 @@ jobs:
             bash scripts/build-deb.sh "$pkg" "$tag" debs
           done < releases.txt
 
-      # Reproducible: the same commit gives the same bytes (CI checks it).
+      # Deterministic: the same keys/ and script give the same bytes (CI checks it).
       - name: Build the keyring package
         run: bash scripts/build-keyring.sh debs
 

@@ -38,9 +38,47 @@ jobs:
       attestations: write      # and records it on GitHub
     uses: ./.github/workflows/build-packages.yaml
 
+  # Checks the keyring package's build provenance: built by build-packages.yaml,
+  # from this commit, on a GitHub-hosted runner. A read-only token and no
+  # signing key; publish signs only the file with the digest it outputs.
+  verify:
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      attestations: read
+    outputs:
+      keyring-sha256: ${{ steps.verify.outputs.sha256 }}
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Download the packages
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: packages
+          path: packages
+
+      - name: Verify the keyring package's provenance
+        id: verify
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          debs=(packages/pwsh-termux-keyring_*_all.deb)
+          [ "${#debs[@]}" -eq 1 ] && [ -f "${debs[0]}" ]
+          sha=$(bash scripts/verify-attestation.sh "${debs[0]}" "$GITHUB_SHA")
+          echo "sha256=$sha" >> "$GITHUB_OUTPUT"
+
   # The only job with the apt signing key and a token that can write releases.
   publish:
-    needs: build
+    needs: [build, verify]
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     permissions:
@@ -54,9 +92,6 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-          # Full history: build-repo.sh rebuilds the keyring package and must
-          # date it by the same commit as the build job (see build-keyring.sh).
-          fetch-depth: 0
 
       - name: Install tools
         run: sudo apt-get update && sudo apt-get install -y gnupg xz-utils
@@ -71,13 +106,16 @@ jobs:
 
       # The key is imported and used in this one step: it never reaches
       # GITHUB_ENV or a later step. build-repo.sh refuses to sign unless the
-      # key is in keys/ and in the attested keyring package, and it rebuilds
-      # that package from keys/ and requires the same bytes. It publishes the
-      # attested package, not the rebuild.
+      # key is the one key in keys/, the keyring package is the file the
+      # verify job checked (KEYRING_DEB_SHA256) and ships keys/ byte for byte,
+      # and the signed index verifies against keys/. KEYRING_FILE (tests only)
+      # is cleared so keys/ is always what is checked and published.
       - name: Build the signed apt repository and assemble the site
         env:
           GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+          KEYRING_DEB_SHA256: ${{ needs.verify.outputs.keyring-sha256 }}
         run: |
+          unset KEYRING_FILE
           if [ -z "$GPG_PRIVATE_KEY" ]; then
             echo "::error::GPG_PRIVATE_KEY secret is not set; refusing to publish an unsigned repository"
             exit 1

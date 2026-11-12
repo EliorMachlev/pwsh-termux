@@ -1,14 +1,16 @@
 #!/usr/bin/env bash
-# Build the pwsh-termux-keyring .deb: the repository's public keys and the apt
-# source that trusts them for this repository only (signed-by), so a user sets
-# the repository up by installing one package and removes it with one
-# `pkg remove`. The keys come from keys/pwsh-termux-archive-keyring.gpg, which
-# is committed to Git; the build is reproducible (same commit, same bytes).
+# Build the pwsh-termux-keyring .deb: the repository's public signing key and
+# the apt source that trusts it for this repository only (signed-by), so a
+# user sets the repository up by installing one package and removes it with
+# one `pkg remove`. The key comes from keys/pwsh-termux-archive-keyring.gpg,
+# which is committed to Git and holds exactly one key, the one that signs (two
+# only while keys/ROTATION marks a planned rotation; check-keys.sh). The build
+# is deterministic (same key file and script, same bytes).
 #
-# A planned key rotation reaches users through `pkg upgrade`: the new key is
-# added to keys/ while the old key still signs, so this package delivers it
-# before the switch. A compromised key cannot be replaced that way; users
-# reinstall this package by hand. See docs/markDown/engineering/release.md.
+# A planned rotation reaches users through `pkg upgrade`: the next key is
+# shipped in this package while the old key still signs the index. A
+# compromised key cannot be replaced that way; users then reinstall this
+# package by hand. See docs/markDown/engineering/release.md.
 #
 # Usage: build-keyring.sh <outdir>
 # Prints the path of the built .deb on stdout (everything else goes to stderr)
@@ -18,14 +20,14 @@
 #                        key in local and CI tests). Default and production:
 #                        keys/pwsh-termux-archive-keyring.gpg.
 #      SOURCE_DATE_EPOCH timestamp for every file in the package. Default: the
-#                        commit time of the keyring file in Git; if it has
-#                        none (not a checkout, or an uncommitted test file),
-#                        the creation time of its newest key.
+#                        creation time of the key, read from the key file, so
+#                        the bytes depend on the file's content only (not on
+#                        Git history or the time of the build).
 #      TERMUX_PREFIX     (default: /data/data/com.termux/files/usr)
 set -euo pipefail
 umask 022   # deterministic package permissions regardless of the caller's umask
 
-# Bump on every change to the package's content: a key added or removed, the
+# Bump on every change to the package's content: a key added or dropped, the
 # source line, this script's layout or control fields.
 KEYRING_VERSION=1.0.0
 
@@ -49,11 +51,8 @@ die() { printf '[build-keyring] ERROR: %s\n' "$*" >&2; exit 1; }
 bash "$HERE/check-keys.sh" "$KEYRING_FILE" >&2 || die "$KEYRING_FILE failed the key check"
 
 if [ -z "${SOURCE_DATE_EPOCH:-}" ]; then
-  SOURCE_DATE_EPOCH=$(git -C "$ROOT" log -1 --format=%ct -- "$KEYRING_FILE" 2>/dev/null || true)
-  if [ -z "$SOURCE_DATE_EPOCH" ]; then
-    SOURCE_DATE_EPOCH=$(gpg --batch --show-keys --with-colons "$KEYRING_FILE" 2>/dev/null \
-      | awk -F: '$1 == "pub" && $6 > max {max = $6} END {print max}')
-  fi
+  SOURCE_DATE_EPOCH=$(gpg --batch --show-keys --with-colons "$KEYRING_FILE" 2>/dev/null \
+    | awk -F: '$1 == "pub" {print $6; exit}')
 fi
 [[ "$SOURCE_DATE_EPOCH" =~ ^[0-9]+$ ]] || die "no usable SOURCE_DATE_EPOCH: '$SOURCE_DATE_EPOCH'"
 export SOURCE_DATE_EPOCH
@@ -71,7 +70,7 @@ install -m 644 "$KEYRING_FILE" "$stage$KEYRING_PATH"
 # different Signed-By values are an apt error.
 printf '%s\n' "$SOURCE_LINE" > "$stage$TERMUX_PREFIX/etc/apt/sources.list.d/pwsh-termux.list"
 {
-  echo "Public keys and apt source of the unofficial pwsh-termux repository"
+  echo "Public signing key and apt source of the unofficial pwsh-termux repository"
   echo "(https://pwsh-termux.machlev.org). MIT license: see the project's LICENSE at"
   echo "https://github.com/EliorMachlev/pwsh-termux."
 } > "$stage$TERMUX_PREFIX/share/doc/$PKG/copyright"
@@ -91,11 +90,12 @@ Installed-Size: $installed_kb
 Section: misc
 Priority: optional
 Homepage: https://pwsh-termux.machlev.org/
-Description: Signing keys and apt source for the pwsh-termux repository
- Installs the public keys that sign the pwsh-termux apt repository and a
- source line that trusts them for this repository only (signed-by).
- A planned key rotation arrives with pkg upgrade; a compromised key needs
- this package reinstalled by hand. Removing it removes both files.
+Description: Signing key and apt source for the pwsh-termux repository
+ Installs the public key that signs the pwsh-termux apt repository and a
+ source line that trusts it for this repository only (signed-by).
+ A planned key rotation arrives with pkg upgrade; after a key
+ compromise, reinstall this package from the site as the advisory says.
+ Removing it removes both files.
 CTRL
 
 # Every timestamp is SOURCE_DATE_EPOCH, and xz runs single-threaded (its

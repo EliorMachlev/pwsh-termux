@@ -64,7 +64,7 @@ Optionally, check the package's build provenance: `gh attestation verify $TMPDIR
 |---|---|---|
 | `pwsh` | `pwsh` | The highest stable PowerShell 7 release |
 | `pwsh-preview` | `pwsh-preview` | The highest preview / release candidate, only while it is newer than stable; installs side by side with `pwsh` |
-| `pwsh-termux-keyring` | none | The repository's public signing keys ([`keys/`](keys)) and apt source; the install line installs it |
+| `pwsh-termux-keyring` | none | The repository's public signing key ([`keys/`](keys)) and apt source; the install line installs it |
 
 `pwsh` and `pwsh-preview` depend on `glibc`, `gcc-libs-glibc`, `libicu-glibc`, `openssl-glibc` and `zlib-glibc` from Termux's glibc repository. Details: [packages](docs/markDown/product/packages.md).
 

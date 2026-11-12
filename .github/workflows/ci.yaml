@@ -3,7 +3,9 @@ name: CI
 # The packaging scripts and the workflows, checked on every change:
 #   shellcheck  every script under scripts/
 #   actionlint  every workflow (syntax, expressions, shell in run: steps)
-#   keys        keys/ holds public keys only, and SECURITY.md's fingerprint is one of them
+#   keys        keys/ follows the key rules (one public key, or two with a
+#               ROTATION marker), SECURITY.md's fingerprint is in it, and
+#               scripts/test-keys.sh tests the rules and the publish checks
 #   package     a real build of the current stable PowerShell and of the
 #               keyring package (reproducible, from keys/) into an apt
 #               repository, unsigned and signed with a throwaway key, then
@@ -92,7 +94,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: Public keys only, with their fingerprints
+      - name: The key rules, with the fingerprints
         run: bash scripts/check-keys.sh | tee fingerprints.txt
       - name: SECURITY.md names a key that is in keys/
         run: |
@@ -100,6 +102,11 @@ jobs:
           test -n "$fpr"
           echo "SECURITY.md: $fpr"
           cut -d' ' -f1 fingerprints.txt | grep -qx "$fpr"
+      # Throwaway keys and a stub gh: steady state, rotation states, wrong
+      # signer, stale or wrong marker, altered, unverified and unattested
+      # keyring packages.
+      - name: Test the key rules and the publish checks
+        run: bash scripts/test-keys.sh
 
   package:
     runs-on: ubuntu-24.04
@@ -171,35 +178,23 @@ jobs:
           cmp repo/pwsh-termux.gpg keys/pwsh-termux-archive-keyring.gpg
           test -f repo/index.html
           test ! -e repo/markDown
-      # KEYRING_FILE is the test-only override: the throwaway key is not in
-      # keys/, and build-repo.sh must refuse to sign with a key that is not.
-      # It must also refuse a keyring package it cannot rebuild byte for byte.
-      - name: Sign with a throwaway key; refuse a key not in keys/ and an unreproducible keyring
+      # A real signed repository with the real package, through the test-only
+      # KEYRING_FILE (the refusals are in the keys job's test-keys.sh).
+      - name: Sign with a throwaway key
         run: |
           GNUPGHOME=$(mktemp -d)
           export GNUPGHOME
           gpg --batch --passphrase '' --quick-generate-key "ci <ci@example.invalid>" ed25519 sign never
           SIGN_KEY=$(gpg --list-secret-keys --with-colons | awk -F: '/^fpr/{print $10; exit}')
           export SIGN_KEY
-          if bash scripts/build-repo.sh debs repo-refused; then
-            echo "::error::build-repo.sh signed with a key that is not in keys/"
-            exit 1
-          fi
-          KEYRING_FILE="$RUNNER_TEMP/test-keyring.gpg"
+          mkdir test-keys test-debs
+          KEYRING_FILE="$PWD/test-keys/pwsh-termux-archive-keyring.gpg"
           export KEYRING_FILE
           gpg --batch --export "$SIGN_KEY" > "$KEYRING_FILE"
-          mkdir test-debs
           cp debs/pwsh_*.deb test-debs/
           bash scripts/build-keyring.sh test-debs
-          # a keyring package that is not what build-keyring.sh rebuilds
-          # (here: another timestamp) must be refused
-          mkdir tampered-debs
-          cp debs/pwsh_*.deb tampered-debs/
-          SOURCE_DATE_EPOCH=1 bash scripts/build-keyring.sh tampered-debs
-          if bash scripts/build-repo.sh tampered-debs repo-refused; then
-            echo "::error::build-repo.sh accepted a keyring package it cannot reproduce"
-            exit 1
-          fi
+          KEYRING_DEB_SHA256=$(sha256sum < test-debs/pwsh-termux-keyring_*_all.deb | cut -d' ' -f1)
+          export KEYRING_DEB_SHA256
           bash scripts/build-repo.sh test-debs repo-signed
           cmp repo-signed/pwsh-termux-keyring.deb test-debs/pwsh-termux-keyring_*_all.deb
           gpgv --keyring "$KEYRING_FILE" repo-signed/dists/stable/InRelease

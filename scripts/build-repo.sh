@@ -9,18 +9,21 @@
 #                   publish instead of keys/pwsh-termux-archive-keyring.gpg
 #                   (for a throwaway key; see docs/markDown/engineering/build.md).
 #
+#        KEYRING_DEB_SHA256  the SHA-256 of the pwsh-termux-keyring .deb in the
+#                   debs folder, as its build provenance was verified by the
+#                   caller (update.yaml: scripts/verify-attestation.sh, in a
+#                   job without the signing key). Required when signing.
+#
 # When signing, it fails closed unless all of these hold:
-#   - the debs folder holds one pwsh-termux-keyring package (in CI: the one
-#     the unprivileged build job built and attested) that ships exactly the
-#     keyring file;
-#   - build-keyring.sh, run again here from the same keyring file and the same
-#     SOURCE_DATE_EPOCH, gives that package byte for byte (the attested build
-#     is reproducible, and nothing else went into it);
-#   - the public key exported from SIGN_KEY itself is in the keyring the
-#     package ships (and in the keyring file);
+#   - the keyring file (keys/) passes check-keys.sh, and the signing key is
+#     the one key in it, or, while keys/ROTATION marks a planned rotation,
+#     one of its two keys; a secret replaced without keys/, or the reverse,
+#     stops here;
+#   - the debs folder holds one pwsh-termux-keyring package, and its SHA-256
+#     is KEYRING_DEB_SHA256 (the file whose attestation was verified);
+#   - that package ships exactly the keyring file, byte for byte;
 #   - the signed index verifies against the keyring file with gpgv, as apt will.
-# The package from the debs folder is what gets published, never the rebuild,
-# so its attestation verifies on the shipped file.
+# The package from the debs folder is published as it is.
 #
 # Layout (suite "stable", component "main", arch "aarch64"):
 #   repo/pool/main/<pkg>/*.deb
@@ -42,8 +45,6 @@ KEYRING_MEMBER=./data/data/com.termux/files/usr/share/keyrings/pwsh-termux-archi
 log() { printf '[build-repo] %s\n' "$*" >&2; }
 die() { printf '[build-repo] ERROR: %s\n' "$*" >&2; exit 1; }
 
-work=$(mktemp -d)
-trap 'rm -rf "$work"' EXIT
 
 shopt -s nullglob
 debs=("$DEBS"/*.deb)
@@ -51,8 +52,7 @@ debs=("$DEBS"/*.deb)
 keyring_debs=("$DEBS"/pwsh-termux-keyring_*.deb)
 [ "${#keyring_debs[@]}" -le 1 ] || die "more than one pwsh-termux-keyring package in $DEBS"
 
-# The keyring file holds public keys only, and its fingerprints are the ones
-# the repository may be signed with.
+# The keyring file's keys: one, or two during a marked rotation.
 key_fprs=$(bash "$HERE/check-keys.sh" "$KEYRING_FILE" | cut -d' ' -f1)
 
 # The keyring package, when present, must ship exactly the keyring file.
@@ -66,28 +66,15 @@ if [ -n "${SIGN_KEY:-}" ]; then
   sign_fpr=$(gpg --batch --list-secret-keys --with-colons -- "$SIGN_KEY" \
     | awk -F: '$1 == "sec" {want = 1; next} $1 == "fpr" && want {print $10; exit}')
   [ -n "$sign_fpr" ] || die "no secret key for SIGN_KEY in the keyring"
-  grep -qx "$sign_fpr" <<<"$key_fprs" \
-    || die "the signing key $sign_fpr is not in $KEYRING_FILE; add its public key there first (release.md, rotating the signing key)"
+  grep -qx -- "$sign_fpr" <<<"$key_fprs" \
+    || die "the signing key $sign_fpr is not the key in $KEYRING_FILE ($(tr '\n' ' ' <<<"$key_fprs")); see release.md, rotating the signing key"
 
-  # Rebuild the keyring package here and require the same bytes. Not a package
-  # built from the exported signing key alone: during a planned rotation keys/
-  # also holds the next key, so that would differ by design.
-  rebuilt=$(KEYRING_FILE="$KEYRING_FILE" bash "$HERE/build-keyring.sh" "$work/rebuild")
-  cmp -s "$rebuilt" "${keyring_debs[0]}" \
-    || die "${keyring_debs[0]} is not what build-keyring.sh builds from $KEYRING_FILE (sha256 $(sha256sum < "${keyring_debs[0]}" | cut -d' ' -f1) vs $(sha256sum < "$rebuilt" | cut -d' ' -f1))"
+  [ -n "${KEYRING_DEB_SHA256:-}" ] \
+    || die "signing, but KEYRING_DEB_SHA256 (the attestation-verified digest of the keyring package) is not set"
+  [ "$(sha256sum < "${keyring_debs[0]}" | cut -d' ' -f1)" = "$KEYRING_DEB_SHA256" ] \
+    || die "${keyring_debs[0]} is not the file whose provenance was verified (KEYRING_DEB_SHA256)"
 
-  # The public half of the key that will sign, exported from it (public only),
-  # must be in the keyring the package installs.
-  gpg --batch --export -- "$sign_fpr" > "$work/signing-public.gpg"
-  exported_fpr=$(gpg --batch --show-keys --with-colons "$work/signing-public.gpg" \
-    | awk -F: '$1 == "pub" {want = 1; next} $1 == "fpr" && want {print $10; exit}')
-  [ "$exported_fpr" = "$sign_fpr" ] || die "could not export the public half of $sign_fpr"
-  dpkg-deb --fsys-tarfile "${keyring_debs[0]}" | tar -xOf - "$KEYRING_MEMBER" > "$work/packaged.gpg"
-  gpg --batch --show-keys --with-colons "$work/packaged.gpg" \
-    | awk -F: '$1 == "pub" {want = 1; next} $1 == "fpr" && want {print $10; want = 0}' \
-    | grep -qx "$exported_fpr" \
-    || die "the signing key $exported_fpr is not in the keyring that ${keyring_debs[0]} installs"
-  log "keyring package reproduced byte for byte and holds the signing key $sign_fpr"
+  log "keyring package is the verified file; signing key $sign_fpr is the key in $KEYRING_FILE"
 fi
 
 rm -rf "$REPO"
