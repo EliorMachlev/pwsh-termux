@@ -33,6 +33,7 @@ Run it by hand: **Actions → Update packages → Run workflow**, or `gh workflo
 6. **Private vulnerability reporting** on (Settings → Code security), because [SECURITY.md](../../../SECURITY.md) and `security.txt` point to it.
 7. **Recovery key** (recommended; [below](#the-recovery-key)). It is set up; without it a compromised or lost online key would mean every user reinstalls the keyring by hand.
 8. **Immutable releases** (optional, recommended): Settings → General, *Releases* section, *Enable release immutability*. A published release's tag and assets can then no longer be changed or replaced. The workflow is compatible: it creates each release once with all its files (`gh release create` uploads to a draft and publishes it at the end) and never uploads to an existing release. This is a repository setting; whether it is on is not visible from the code.
+9. **The keep-alive deploy key** and the ruleset split, after `keepalive-commit.yaml` is on `main` ([below](#the-keep-alive-deploy-key)). Until then the keep-alive commit's push is refused and its job fails; the API renewal keeps working.
 
 ## Custom domain
 
@@ -131,6 +132,81 @@ When the online key is compromised or lost. It needs the recovery key to be set 
 7. **Back to normal.** `gh secret set GPG_PRIVATE_KEY < new-signing-secret.asc` and `gh workflow enable update.yaml`. From now on the online key signs again. A user who did not run `pkg upgrade` in the window reinstalls the keyring from the site.
 
 Until a user upgrades, whoever holds a compromised key can still sign an index that user accepts, though serving it to them takes control of their connection or of the hosting.
+
+## The keep-alive deploy key
+
+[`keepalive-commit.yaml`](../../../.github/workflows/keepalive-commit.yaml) pushes at most one commit a month to `main`, changing only `keep.alive`, with a deploy key ([why, and what the key can do](ci-cd.md#keep-alive-commit)). Already in place: the read-write deploy key *pwsh-termux keepalive (push to main)*, and the environment `keepalive` (deployment branch policy: `main` only) holding its private half as the secret `KEEPALIVE_DEPLOY_KEY`. The private half exists nowhere else; nobody needs a copy, since rotation makes a new key.
+
+### Ruleset split (maintainer, after the merge)
+
+Today one ruleset, *Protection* (id `27110284`), applies every rule to all refs (`~ALL`), with only the Admin role (`RepositoryRole` 5) as bypass actor. A bypass actor bypasses *every* rule of a ruleset, so the deploy key cannot simply be added there: it would then also be able to delete `main`, force-push it and create branches. The split puts those three rules where the deploy key has no bypass, and the deploy key only on a ruleset for `main` alone. Rulesets stack: a push must pass every ruleset that applies to its ref, each bypassed only by that ruleset's own actors.
+
+| Ruleset | Target | Rules | Bypass actors |
+|---|---|---|---|
+| *Protection* (existing, edited) | all refs (`~ALL`) | `deletion`, `non_fast_forward`, `creation` | Admin role only, as today. **Not** the deploy key. |
+| *Protection, other branches* (new) | all refs except `refs/heads/main` | `required_signatures`, `required_deployments` (`github-pages`), `code_scanning` (CodeQL, Scorecard, zizmor) | Admin role only |
+| *Main* (new) | `refs/heads/main` | `required_signatures`, `required_deployments` (`github-pages`), `code_scanning` (CodeQL, Scorecard, zizmor) | Admin role, and **`DeployKey`** (`actor_id: null`, `bypass_mode: always`) |
+
+The second ruleset keeps the other branches exactly as protected as today; without it, the deploy key could push unsigned commits to any existing branch, whose workflows then run. Keep the Admin bypass where it is today: the `creation` rule with no bypass at all would stop the maintainer creating branches too. Order matters, so `main` is never unprotected: create *Main*, then *Protection, other branches*, then strip *Protection*.
+
+```bash
+R=repos/EliorMachlev/pwsh-termux
+SCAN='{"type":"code_scanning","parameters":{"code_scanning_tools":[
+  {"tool":"CodeQL","alerts_threshold":"all","security_alerts_threshold":"all"},
+  {"tool":"Scorecard","alerts_threshold":"all","security_alerts_threshold":"all"},
+  {"tool":"zizmor","alerts_threshold":"all","security_alerts_threshold":"all"}]}}'
+RULES='[{"type":"required_signatures"},
+  {"type":"required_deployments","parameters":{"required_deployment_environments":["github-pages"]}},'"$SCAN"']'
+ADMIN='{"actor_type":"RepositoryRole","actor_id":5,"bypass_mode":"always"}'
+
+# 1. Main: signatures, deployment, code scanning on main; the deploy key may bypass them.
+gh api -X POST $R/rulesets --input - <<JSON
+{"name":"Main","target":"branch","enforcement":"active",
+ "conditions":{"ref_name":{"include":["refs/heads/main"],"exclude":[]}},
+ "bypass_actors":[$ADMIN,{"actor_type":"DeployKey","actor_id":null,"bypass_mode":"always"}],
+ "rules":$RULES}
+JSON
+
+# 2. The same rules on every other branch, with no deploy-key bypass.
+gh api -X POST $R/rulesets --input - <<JSON
+{"name":"Protection, other branches","target":"branch","enforcement":"active",
+ "conditions":{"ref_name":{"include":["~ALL"],"exclude":["refs/heads/main"]}},
+ "bypass_actors":[$ADMIN],
+ "rules":$RULES}
+JSON
+
+# 3. Protection keeps only deletion, non-fast-forward and creation, on all refs.
+gh api -X PUT $R/rulesets/27110284 --input - <<JSON
+{"name":"Protection","target":"branch","enforcement":"active",
+ "conditions":{"ref_name":{"include":["~ALL"],"exclude":[]}},
+ "bypass_actors":[$ADMIN],
+ "rules":[{"type":"deletion"},{"type":"non_fast_forward"},{"type":"creation"}]}
+JSON
+```
+
+### Checking it
+
+1. **The rules on `main`**: `gh api $R/rules/branches/main --jq '[.[] | "\(.type) \(.ruleset_id)"]'` lists `deletion`, `non_fast_forward` and `creation` from *Protection*, and `required_signatures`, `required_deployments` and `code_scanning` from *Main*; on any other branch (`$R/rules/branches/<branch>`), the last three come from *Protection, other branches*.
+2. **The bypass lists**: `gh api $R/rulesets/<id> --jq .bypass_actors` for each. `DeployKey` appears on *Main* only. `gh api $R/keys --jq length` is `1`.
+3. **A keep-alive push succeeds**: run *Keep-alive commit* by hand with *ignore_age* checked (`gh workflow run keepalive-commit.yaml -f ignore_age=true`). The run pushes one commit that changes only `keep.alive` and posts `keepalive/pushed`; `main`'s history shows it as unsigned, by `github-actions[bot]`. Then **Rule insights** (`gh api "$R/rulesets/rule-suites?ref=refs/heads/main" --jq '.[0] | {actor_name, result, after_sha}'`) shows that push with result `bypass`, and run *Audit main* by hand: it must pass and leave no issue open.
+4. **Anything else is refused.** The deploy key's private half is only in the environment, so these are read from the configuration rather than tried with the key: a force push or deletion of `main`, or a new branch, falls under *Protection*, which the deploy key cannot bypass (step 2); a push to another existing branch falls under *Protection, other branches* (unsigned is refused). Tags fall under the separate *Tag Protection* ruleset (unchanged): no update, deletion or force push, but it has no `creation` rule, because `update.yaml` creates release tags with `GITHUB_TOKEN`, which cannot bypass a ruleset; so the deploy key could create a new tag on an existing signed commit. That would show up as an unexpected tag or release, not on `main`. What the deploy key *can* push to `main` beyond `keep.alive` is limited by `keepalive-commit.sh`'s guard and by who can run it, not by GitHub: that is the residual risk the audit is for. A maintainer who wants to see the refusals happen can rebuild the same three rulesets in a throwaway repository with its own deploy key; never add a second deploy key here (below).
+5. **Normal work is unchanged**: a pull request merges as before (signed, deployed, scanned), and the maintainer can still create branches.
+
+### Rotating the keep-alive deploy key
+
+Rotate it at once if the audit issue is open and the commits are not yours, or if the secret may have been exposed; otherwise when you like (the yearly key review is a good moment). The bypass applies to whichever deploy key the repository has, so the ruleset does not change.
+
+```bash
+ssh-keygen -t ed25519 -N '' -C "pwsh-termux keepalive" -f keepalive_key        # on a trusted machine
+gh api $R/keys --jq '.[] | {id, title}'                                          # the old key's id
+gh api -X DELETE $R/keys/<old-id>                                                # first: the old key stops working now
+gh api -X POST $R/keys -f title="pwsh-termux keepalive (push to main)" -f key="$(cat keepalive_key.pub)" -F read_only=false
+gh secret set KEEPALIVE_DEPLOY_KEY --env keepalive < keepalive_key
+shred -u keepalive_key keepalive_key.pub                                         # no copy is kept
+gh api $R/keys --jq length                                                       # 1
+```
+
+Then run *Keep-alive commit* with *ignore_age* once (step 3 above). **Never add a second deploy key**, not even for a moment or read-only: a `DeployKey` bypass has no key id, so it covers every deploy key the repository has; delete the old key before adding the new one.
 
 ## Troubleshooting a failed run
 
