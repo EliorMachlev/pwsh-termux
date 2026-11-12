@@ -1,6 +1,6 @@
 # Terms of service
 
-*Last updated: 2026-11-12.*
+*The date and commit of this page's last change come from Git, not from the page: see the [documents page](https://pwsh-termux.machlev.org/documents.html) or this file's history on GitHub.*
 
 These terms cover your use of the pwsh-termux website, apt repository and packages. By using them you accept them.
 

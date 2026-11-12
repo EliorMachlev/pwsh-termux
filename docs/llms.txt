@@ -11,7 +11,7 @@
 
 ## Project
 - [Source and README](https://github.com/EliorMachlev/pwsh-termux)
-- [Documentation](https://github.com/EliorMachlev/pwsh-termux/blob/main/docs/markDown/README.md)
+- [Documentation](https://github.com/EliorMachlev/pwsh-termux/blob/main/docs/markDown/README.md); [every document with the date and commit of its last change](https://pwsh-termux.machlev.org/documents.html)
 - [Security policy](https://github.com/EliorMachlev/pwsh-termux/blob/main/SECURITY.md)
 - [Privacy](https://pwsh-termux.machlev.org/privacy.html)
 - [Releases (every built .deb)](https://github.com/EliorMachlev/pwsh-termux/releases)

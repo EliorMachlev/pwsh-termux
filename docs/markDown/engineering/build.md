@@ -59,7 +59,7 @@ The build is deterministic: run it twice and the bytes are the same ([details](a
 
 ```bash
 bash scripts/build-repo.sh out repo                  # unsigned: fine locally
-bash scripts/assemble-site.sh docs repo              # merge the website
+bash scripts/assemble-site.sh docs repo              # merge the website (needs a full Git clone, not --depth 1)
 ```
 
 To test signing and let real `apt` read the result, without touching your system's sources, use a throwaway key and an isolated apt configuration. `build-repo.sh` refuses to sign with a key that is not the key in `keys/`, so point the test-only `KEYRING_FILE` at a keyring holding the throwaway key, in a folder of its own (a `ROTATION` file next to it would count), and build the keyring package from it. `KEYRING_DEB_SHA256` stands in for the digest the workflow's `verify` job takes from the attestation (the publish step never sets `KEYRING_FILE`):

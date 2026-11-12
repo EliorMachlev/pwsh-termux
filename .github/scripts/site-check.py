@@ -33,7 +33,7 @@ REQUIRED_FILES = ("style.css", "favicon.svg", "llms.txt", ".nojekyll")
 NOT_IN_SITEMAP = ("404.html",)
 # A block assemble-site.sh fills at deploy time: <!-- generated:<name> --> and
 # <!-- /generated:<name> -->, each on a line of its own, around fallback HTML.
-GENERATED_BLOCK = re.compile(r"^<!-- (/?)generated:([a-z0-9:/._-]+) -->$", re.M)
+GENERATED_BLOCK = re.compile(r"^<!-- (/?)generated:([A-Za-z0-9:/._-]+) -->$", re.M)
 # security.txt must be renewed before it has fewer days than this left.
 SECURITY_TXT_MIN_DAYS_LEFT = 30
 

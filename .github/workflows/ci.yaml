@@ -130,6 +130,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          fetch-depth: 0       # assemble-site.sh reads each document's last commit (git log)
       - name: Install tools
         run: sudo apt-get update && sudo apt-get install -y patchelf jq xz-utils
       - name: Check the website
@@ -192,6 +193,7 @@ jobs:
           bash scripts/assemble-site.sh docs repo
           python3 .github/scripts/site-check.py repo
           grep -q 'Now serving <code>pwsh</code>' repo/index.html repo/install.html
+          grep -q 'Last updated <time' repo/documents.html repo/privacy.html
           grep -q '^Package: pwsh$' repo/dists/stable/main/binary-aarch64/Packages
           grep -q '^Package: pwsh-termux-keyring$' repo/dists/stable/main/binary-aarch64/Packages
           cmp repo/pwsh-termux-keyring.deb debs/pwsh-termux-keyring_*_all.deb

@@ -18,6 +18,15 @@
 # and this replaces the lines between them:
 #   status   the packages the index serves, with their versions, and the
 #            index's Date and Valid-Until (from Packages and Release).
+#   documents          a table of every Markdown document (the handbook in
+#                      docs/markDown and the top-level ones), each with
+#                      "Last updated <date> · <short sha>" linked to its commit.
+#   last-updated:<path>  that line for one Markdown file (path from the
+#                      repository root).
+# The dates and commits come from `git log -1` for each file, so they cannot
+# go stale and no file holds its own date. That needs the full Git history:
+# it stops with an error in a shallow clone (actions/checkout needs
+# fetch-depth: 0) or outside a Git checkout, rather than print a wrong date.
 set -euo pipefail
 source "$(dirname "$0")/lib/common.sh"
 
@@ -31,6 +40,14 @@ readonly ASSET_HASH_LENGTH=12
 readonly STATUS_PACKAGES=(pwsh pwsh-preview)
 # A Debian version as build-deb.sh writes it; anything else is not put in a page.
 readonly DEB_VERSION_REGEX='^[0-9][0-9A-Za-z.+~-]*$'
+# The Markdown documents the documents block lists, besides docs/markDown.
+readonly TOP_LEVEL_DOCUMENTS=(README.md SECURITY.md CONTRIBUTING.md NOTICE.md)
+readonly LAST_UPDATED_BLOCK_PREFIX=last-updated:
+
+# Set by require_full_history: the Git checkout docs/ is in, and docs/'s
+# path in it ("docs/").
+GIT_TOP=
+DOCS_PREFIX=
 
 # Removed on exit.
 WORK_DIR=
@@ -98,6 +115,78 @@ write_status() {
   } > "$out"
 }
 
+# html_escape: stdin to stdout, with & < > " escaped.
+html_escape() { sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g' -e 's/"/\&quot;/g'; }
+
+# require_full_history: docs/ is in a Git checkout with its whole history;
+# sets GIT_TOP. In a shallow clone `git log -1 -- <file>` would name the
+# shallow tip for every file, a wrong answer that looks right.
+require_full_history() {
+  GIT_TOP=$(git -C "$DOCS_DIR" rev-parse --show-toplevel 2>/dev/null) \
+    || die "$DOCS_DIR is not in a Git checkout: the documents' dates and commits come from git log"
+  DOCS_PREFIX=$(git -C "$DOCS_DIR" rev-parse --show-prefix)
+  [ "$(git -C "$GIT_TOP" rev-parse --is-shallow-repository)" = false ] \
+    || die "$GIT_TOP is a shallow clone: fetch the full history (actions/checkout with fetch-depth: 0, or git fetch --unshallow)"
+}
+
+# last_commit <path>: "<date> <short-sha> <sha>" of the last commit that
+# changed the file (path from the repository root). Dies if there is none.
+last_commit() {
+  local path=$1 commit
+  [ -f "$GIT_TOP/$path" ] || die "$path not found"
+  commit=$(git -C "$GIT_TOP" log -1 --format='%cs %h %H' -- "$path")
+  [ -n "$commit" ] || die "$path has no commit in the Git history (not committed yet?)"
+  printf '%s\n' "$commit"
+}
+
+# last_updated_html <path>: "Last updated <date> · <short sha>", linked to the commit.
+last_updated_html() {
+  local date short sha
+  read -r date short sha < <(last_commit "$1") || die "no commit for $1"
+  printf 'Last updated <time datetime="%s">%s</time> &middot; <a href="%s"><code>%s</code></a>' \
+    "$date" "$date" "$(project_commit_url "$sha")" "$short"
+}
+
+# document_title <path>: its first "# " heading, HTML-escaped, or the path.
+document_title() {
+  local title
+  title=$(awk '/^# / {sub(/^# +/, ""); print; exit}' "$GIT_TOP/$1")
+  printf '%s\n' "${title:-$1}" | html_escape
+}
+
+# markdown_documents: the paths the documents block lists, handbook first.
+markdown_documents() {
+  ( cd "$GIT_TOP" && find "$DOCS_PREFIX$HANDBOOK_SUBDIR" -name '*.md' -type f | LC_ALL=C sort )
+  printf '%s\n' "${TOP_LEVEL_DOCUMENTS[@]}"
+}
+
+# write_documents <out-file>: the documents table.
+write_documents() {
+  local out=$1 path
+  {
+    echo '<table>'
+    echo '  <thead><tr><th>Document</th><th>Last change</th></tr></thead>'
+    echo '  <tbody>'
+    while read -r path; do
+      printf '    <tr><td><a href="%s">%s</a><br><code>%s</code></td><td>%s</td></tr>\n' \
+        "$(project_blob_url "$path")" "$(document_title "$path")" "$path" "$(last_updated_html "$path")"
+    done < <(markdown_documents)
+    echo '  </tbody>'
+    echo '</table>'
+  } > "$out"
+}
+
+# fill_last_updated_blocks: each last-updated:<path> block in the pages.
+fill_last_updated_blocks() {
+  local name path html_file
+  while read -r name; do
+    path=${name#"$LAST_UPDATED_BLOCK_PREFIX"}
+    html_file=$WORK_DIR/last-updated-$(sha256sum <<<"$path" | cut -c1-16).html
+    printf '<p class="updated">%s</p>\n' "$(last_updated_html "$path")" > "$html_file"
+    fill_blocks "$name" "$html_file"
+  done < <(sed -n "s#^<!-- generated:\(${LAST_UPDATED_BLOCK_PREFIX}[^ ]*\) -->\$#\1#p" "$REPO_DIR"/*.html | sort -u)
+}
+
 # join_with <separator> <item...>
 join_with() {
   local separator=$1 joined=$2; shift 2
@@ -124,8 +213,12 @@ main() {
   WORK_DIR=$(mktemp -d)
   trap 'rm -rf "$WORK_DIR"' EXIT
 
+  require_full_history
   copy_site
   shopt -s nullglob
+  write_documents "$WORK_DIR/documents.html"
+  fill_blocks documents "$WORK_DIR/documents.html"
+  fill_last_updated_blocks
   write_status "$WORK_DIR/status.html"
   fill_blocks status "$WORK_DIR/status.html"
   for asset in "${CACHE_BUSTED_ASSETS[@]}"; do

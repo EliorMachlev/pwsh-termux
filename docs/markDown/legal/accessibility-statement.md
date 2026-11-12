@@ -1,6 +1,6 @@
 # Accessibility statement
 
-*Last updated: 2026-11-12.*
+*The date and commit of this page's last change come from Git, not from the page: see the [documents page](https://pwsh-termux.machlev.org/documents.html) or this file's history on GitHub.*
 
 The pwsh-termux website (`pwsh-termux.machlev.org`) is meant to be usable by everyone, including people who use screen readers, keyboards, magnification or high-contrast settings. This statement covers the website. The packages have no user interface of their own: PowerShell is a command-line shell and uses your terminal.
 

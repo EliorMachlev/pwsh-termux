@@ -63,3 +63,4 @@ pre.copy { cursor: text; }
 pre.copy code { -webkit-user-select: all; user-select: all; }
 .hint { font-size: .92rem; color: var(--ink-2); margin-top: -.5rem; }
 .status { background: var(--paper-2); border: 1px solid var(--line); border-radius: .75rem; padding: .6rem 1rem; color: var(--ink-2); font-size: .95rem; }
+.updated { font-size: .92rem; color: var(--ink-2); }
