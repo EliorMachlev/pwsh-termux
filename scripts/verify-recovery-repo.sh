@@ -10,6 +10,10 @@
 #   - keys/ passes check-keys.sh and keys/RECOVERY names a recovery key;
 #   - InRelease and Release.gpg verify with gpgv against the recovery key
 #     ALONE, and InRelease's signed text is the Release file;
+#   - Release has a Date that is not in the future and a Valid-Until at most
+#     VALID_UNTIL_DAYS (14) days after it, with at least VALID_UNTIL_WARN_DAYS
+#     (7) days still left (scripts/lib/common.sh): the recovery key never
+#     makes an unbounded index, and a nearly expired one is not deployed;
 #   - every index file's SHA-256 matches Release, every .deb in pool/ is
 #     listed in Packages with a matching SHA-256, and nothing else is in pool/;
 #   - pwsh-termux.gpg is keys/pwsh-termux-archive-keyring.gpg byte for byte,
@@ -102,11 +106,12 @@ main() {
   trap 'rm -rf "$WORK_DIR"' EXIT
   export_recovery_key "$recovery" "$WORK_DIR/recovery.gpg"
   verify_signatures "$recovery" "$WORK_DIR/recovery.gpg"
+  check_release_fresh "$DIST_DIR/Release"
   verify_index_files
   verify_pool
   verify_key_files
 
-  log "signed by the recovery key $recovery; index, pool and key files consistent"
+  log "signed by the recovery key $recovery, valid until $(release_field "$DIST_DIR/Release" Valid-Until); index, pool and key files consistent"
 }
 
 main

@@ -103,6 +103,14 @@ for f in pwsh_<version>_aarch64.*.json; do gh attestation verify "$f" --repo Eli
 
 `SHA256SUMS` comes from the same release as the files it lists, so only the attestation proves where a file came from. The apt repository's own signature (the key above) is a separate check and covers what `apt` installs.
 
+## Index freshness (Valid-Until)
+
+The signed index (`dists/stable/InRelease`) carries a `Valid-Until` date 14 days after its `Date`. apt refuses an index past that date, so an attacker who controls a user's connection or a mirror cannot keep serving an old, validly signed index (one that hides a security update) for more than 14 days: a *freeze* or *replay* attack is bounded.
+
+The daily workflow re-signs and redeploys the index every day, whether or not Microsoft published anything, so the date moves on by itself and no commit is made. An unchanged release rebuilds to the same bytes, so `Packages` and every `.deb` stay byte-identical: a daily re-sign changes only `InRelease` (and `Release`, `Release.gpg`), clients re-download that small file, and no upgrade is offered.
+
+**If the pipeline is broken for more than 14 days**, apt on every device stops loudly instead of silently serving stale packages: `pkg update` prints *Release file for https://pwsh-termux.machlev.org/dists/stable/InRelease is expired (invalid since …). Updates for this repository will not be applied.* Installed packages keep working; nothing new installs from this repository until the index is re-signed. An index signed with the offline recovery key has the same 14-day limit.
+
 ## Verifying a download
 
 `apt` checks the signed index and each package's SHA-256 for you. To check a `.deb` from a [release](https://github.com/EliorMachlev/pwsh-termux/releases) by hand, compare `sha256sum <file>` with the `SHA256:` line for that file in <https://pwsh-termux.machlev.org/dists/stable/main/binary-aarch64/Packages>, which is signed in `InRelease`.

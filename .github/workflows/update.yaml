@@ -6,10 +6,19 @@ name: Update packages
 # https://pwsh-termux.machlev.org/. Each pwsh/pwsh-preview .deb, with the public key and the
 # keyring package, is also kept as a release asset.
 #
+# It runs, signs and deploys every day even when Microsoft has released
+# nothing, and commits nothing: the signed index carries a Valid-Until 14 days
+# ahead (scripts/build-repo.sh), and each daily run moves it on. An unchanged
+# release rebuilds to the same bytes (build-deb.sh is reproducible), so
+# Packages and every .deb stay byte-identical and only InRelease changes:
+# clients re-download that small file and are offered no upgrade. If this
+# workflow stops for more than 14 days, apt on every device refuses the
+# expired index.
+#
 # One-time setup (secret, Pages source, custom domain): docs/markDown/engineering/release.md
 on:
   schedule:
-    - cron: "23 4 * * *"      # daily; Microsoft releases roughly monthly
+    - cron: "23 4 * * *"      # daily, release or not: re-signs the index (Valid-Until)
   workflow_dispatch:
   push:
     branches: [main]

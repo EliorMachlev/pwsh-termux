@@ -27,6 +27,14 @@
 #   - the signed index verifies against the keyring file with gpgv, as apt will.
 # The package from the debs folder is published as it is.
 #
+# Release carries Date and Valid-Until = Date + VALID_UNTIL_DAYS (14) days
+# (scripts/lib/common.sh): apt refuses the index after that, so an old index
+# cannot be replayed to users for longer (a freeze attack). update.yaml runs
+# daily and re-signs it, which moves the window on. Only Release, InRelease
+# and Release.gpg depend on the time: the same .deb files give byte-identical
+# Packages, Packages.gz and Packages.xz, so a daily re-sign makes clients
+# fetch only the small InRelease, and never offers an upgrade.
+#
 # Layout (suite "stable", component "main", arch "aarch64"):
 #   repo/pool/main/<pkg>/*.deb
 #   repo/dists/stable/{Release,InRelease,Release.gpg}
@@ -157,7 +165,8 @@ write_pool_and_packages() {
 }
 
 write_release() {
-  local index_file
+  local index_file now
+  now=$(now_epoch)
   {
     echo "Origin: $RELEASE_ORIGIN"
     echo "Label: $RELEASE_ORIGIN"
@@ -165,13 +174,16 @@ write_release() {
     echo "Codename: $APT_SUITE"
     echo "Architectures: $APT_ARCH"
     echo "Components: $APT_COMPONENT"
-    echo "Date: $(LC_ALL=C date -u '+%a, %d %b %Y %H:%M:%S UTC')"
+    echo "Date: $(release_date "$now")"
+    echo "Valid-Until: $(release_date $((now + VALID_UNTIL_DAYS * SECONDS_PER_DAY)))"
     echo "Description: $RELEASE_DESCRIPTION"
     echo "SHA256:"
     for index_file in "$INDEX_DIR"/Packages*; do
       echo " $(sha256_of "$index_file") $(file_size "$index_file") ${index_file#"$DIST_DIR/"}"
     done
   } > "$RELEASE_FILE"
+  check_release_window "$RELEASE_FILE" "$((VALID_UNTIL_DAYS - 1))"
+  log "Release valid until $(release_field "$RELEASE_FILE" Valid-Until)"
 }
 
 sign_and_verify_release() {

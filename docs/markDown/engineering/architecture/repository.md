@@ -28,7 +28,7 @@ Clients use `deb [signed-by=/data/data/com.termux/files/usr/share/keyrings/pwsh-
 
 ## The index without apt tooling
 
-Termux has neither `dpkg-scanpackages` nor `apt-ftparchive`. So `Packages` is written directly: for each `.deb`, the control fields from `dpkg-deb -f`, then `Filename`, `Size`, `MD5sum` and `SHA256`, then a blank line. `Release` is a header (`Origin`, `Suite`, `Codename`, `Architectures`, `Components`, `Date`) and a `SHA256:` list of the three `Packages*` files. Using one implementation means a local build and the CI build are the same code.
+Termux has neither `dpkg-scanpackages` nor `apt-ftparchive`. So `Packages` is written directly: for each `.deb`, the control fields from `dpkg-deb -f`, then `Filename`, `Size`, `MD5sum` and `SHA256`, then a blank line. `Release` is a header (`Origin`, `Suite`, `Codename`, `Architectures`, `Components`, `Date`, `Valid-Until`, `Description`) and a `SHA256:` list of the three `Packages*` files. Using one implementation means a local build and the CI build are the same code.
 
 ## Signing
 
@@ -77,9 +77,17 @@ What remains manual (reinstalling the keyring from the site): a user who does no
 
 The first install still rests on HTTPS, which is why the docs tell users to compare the fingerprint with [SECURITY.md](../../../../SECURITY.md#signing-key) and offer `gh attestation verify` on the downloaded package.
 
+## Valid-Until
+
+`Valid-Until` is `Date` plus `VALID_UNTIL_DAYS` (14) days, both RFC 1123 dates in UTC, written from one clock reading; `build-repo.sh` checks its own output with `check_release_window` ([`scripts/lib/common.sh`](../../../../scripts/lib/common.sh)). apt refuses the index after that date, which bounds a freeze or replay attack to 14 days. [`update.yaml`](../../../../.github/workflows/update.yaml) runs daily and re-signs the index even when nothing changed, which moves the date on ([release](../release.md#what-happens-on-a-run)).
+
+Only `Release`, `InRelease` and `Release.gpg` depend on the time. `Packages` is made from the `.deb` files alone, `gzip -n` stores no name or time, and xz stores none, so the same packages give byte-identical `Packages`, `Packages.gz` and `Packages.xz`; with reproducible `.deb` builds a daily re-sign changes only the signed release files. [`scripts/test-keys.sh`](../../../../scripts/test-keys.sh) builds twice at different times and compares.
+
+For an index signed with the recovery key, [`recovery-sign.sh`](../../../../scripts/recovery-sign.sh) and [`verify-recovery-repo.sh`](../../../../scripts/verify-recovery-repo.sh) (run by `recover.yaml` before it deploys) also require a `Date` that is not in the future, a `Valid-Until` at most 14 days after it, and at least `VALID_UNTIL_WARN_DAYS` (7) days left.
+
 ## What the index promises
 
-apt checks `InRelease` against the trusted key, then each index file against the hashes in `Release`, then each `.deb` against the `SHA256` in `Packages`. A `.deb` therefore cannot be swapped without re-signing. The repository holds the *current* stable and preview only (it is rebuilt from scratch each run); older versions are release assets.
+apt checks `InRelease` against the trusted key and its `Valid-Until`, then each index file against the hashes in `Release`, then each `.deb` against the `SHA256` in `Packages`. A `.deb` therefore cannot be swapped without re-signing. The repository holds the *current* stable and preview only (it is rebuilt from scratch each run); older versions are release assets.
 
 ## Adding something
 

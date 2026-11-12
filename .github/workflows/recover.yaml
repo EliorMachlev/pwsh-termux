@@ -7,9 +7,12 @@ name: Deploy a recovery-signed repository
 # release tagged recovery-* as recovery-repo.tar.gz, and starts this workflow
 # with that tag. It has no signing key and cannot sign anything: it deploys
 # the apt repository only if scripts/verify-recovery-repo.sh accepts it
-# (InRelease and Release.gpg signed by the recovery key alone, the index and
-# pool consistent, the key files equal to keys/), then adds the public key
-# files from keys/ and the website from docs/ itself.
+# (InRelease and Release.gpg signed by the recovery key alone, a Valid-Until
+# at most 14 days after Date with at least 7 days left, the index and pool
+# consistent, the key files equal to keys/), then adds the public key files
+# from keys/ and the website from docs/ itself. Nothing here can re-sign:
+# during a recovery the maintainer signs and deploys again within every 14
+# days, or apt refuses the expired index.
 on:
   workflow_dispatch:
     inputs:

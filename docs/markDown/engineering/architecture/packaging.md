@@ -16,7 +16,7 @@ It prints the path of the `.deb` on stdout; all messages go to stderr.
 4. **Extract** into the package's `opt` folder.
 5. **Patch** every ELF executable that has a loader (here `pwsh` and `createdump`; shared libraries have none): `patchelf --set-interpreter $PREFIX/glibc/lib/ld-linux-aarch64.so.1` and `--set-rpath $PREFIX/glibc/lib:$PREFIX/opt/<package>`. The build fails if nothing was patched or if `pwsh`'s interpreter is not the expected one afterwards.
 6. **Lay out** the package: `bin/<package>` symlink to `../opt/<package>/pwsh`, and `share/doc/<package>/copyright` (a note that this is an unofficial repackaging, then Microsoft's `LICENSE.txt`).
-7. **Describe** it in `DEBIAN/control` (below) and **build** with `dpkg-deb --root-owner-group -Zxz`.
+7. **Describe** it in `DEBIAN/control` (below) and **build** with `dpkg-deb --root-owner-group --threads-max=1 -Zxz`, reproducibly: every file's timestamp is `SOURCE_DATE_EPOCH`, which defaults to the newest file time in Microsoft's tarball, xz runs single-threaded, and `Installed-Size` is summed from file sizes (not `du`). The same release gives the same bytes, so the daily run rebuilds an unchanged release byte for byte and the signed index's `Packages` does not change ([repository](repository.md#valid-until)).
 
 The script sets `umask 022` first: Termux's default `umask` of 077 would make `DEBIAN` mode 0700, which `dpkg-deb` rejects, and would give packaged directories the wrong permissions.
 
@@ -31,7 +31,7 @@ Section: shells
 Homepage: https://github.com/PowerShell/PowerShell
 ```
 
-The description says the package is an unofficial repackaging, not affiliated with Microsoft. Environment knobs: `PATCHELF` (default `patchelf`), `TERMUX_PREFIX` (default `/data/data/com.termux/files/usr`), `REVISION` (default `1`), `DEB_COMPRESSION` (`xz`, or `gzip` for a quicker local build).
+The description says the package is an unofficial repackaging, not affiliated with Microsoft. Environment knobs: `PATCHELF` (default `patchelf`), `TERMUX_PREFIX` (default `/data/data/com.termux/files/usr`), `REVISION` (default `1`), `DEB_COMPRESSION` (`xz`, or `gzip` for a quicker local build), `SOURCE_DATE_EPOCH` (default: the newest file time in the tarball).
 
 ## Why patchelf and not glibc-runner
 
@@ -45,4 +45,4 @@ Patching the interpreter into the binary makes the kernel start `pwsh` itself, s
 
 ## Checks
 
-The `package` job in [`ci.yaml`](../../../../.github/workflows/ci.yaml) builds the real stable package on every change and asserts the interpreter and the symlink. It cannot *run* the arm64 binary on its x86 runner; that check is done on a device ([build](../build.md#testing-on-a-device)).
+The `package` job in [`ci.yaml`](../../../../.github/workflows/ci.yaml) builds the real stable package twice on every change, compares the bytes, and asserts the interpreter and the symlink. It cannot *run* the arm64 binary on its x86 runner; that check is done on a device ([build](../build.md#testing-on-a-device)).

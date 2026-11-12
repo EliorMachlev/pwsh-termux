@@ -8,6 +8,12 @@
 #      TERMUX_PREFIX     (default: /data/data/com.termux/files/usr)
 #      REVISION          packaging revision (default: 1)
 #      DEB_COMPRESSION   xz | gzip (default: xz)
+#      SOURCE_DATE_EPOCH timestamp for every file in the package. Default: the
+#                        newest file time in Microsoft's (verified) tarball.
+#
+# The build is reproducible: the same release, script and tools give the same
+# bytes, so the daily run rebuilds an unchanged release byte for byte and the
+# repository index does not change (see build-repo.sh, Valid-Until).
 set -euo pipefail
 umask 022   # deterministic package permissions regardless of the caller's umask
 source "$(dirname "$0")/lib/common.sh"
@@ -112,10 +118,22 @@ add_command_and_copyright() {
   } > "$stage$TERMUX_PREFIX/share/doc/$PKG/copyright"
 }
 
+# set_source_date_epoch <install-dir>: as given, or the newest file time in
+# the unpacked tarball (tar keeps the times), so the bytes depend on the
+# release only, not on the time of the build.
+set_source_date_epoch() {
+  if [ -z "${SOURCE_DATE_EPOCH:-}" ]; then
+    SOURCE_DATE_EPOCH=$(find "$1" -type f -printf '%T@\n' | sort -n | tail -n1 | cut -d. -f1)
+  fi
+  [[ "$SOURCE_DATE_EPOCH" =~ ^[0-9]+$ ]] || die "no usable SOURCE_DATE_EPOCH: '$SOURCE_DATE_EPOCH'"
+  export SOURCE_DATE_EPOCH
+  log "SOURCE_DATE_EPOCH=$SOURCE_DATE_EPOCH"
+}
+
 # write_control <stage-dir> <version> <deb-version>
 write_control() {
   local stage=$1 ver=$2 deb_ver=$3 installed_kb
-  installed_kb=$(du -sk "$stage" | cut -f1)
+  installed_kb=$(installed_size_kib "$stage")
   mkdir -p "$stage/DEBIAN"
   cat > "$stage/DEBIAN/control" <<CTRL
 Package: $PKG
@@ -169,13 +187,13 @@ main() {
 
   stage="$WORK_DIR/stage"
   unpack "$WORK_DIR/$asset" "$stage$INSTALL_DIR"
+  set_source_date_epoch "$stage$INSTALL_DIR"
   patch_elf_files "$stage$INSTALL_DIR"
   add_command_and_copyright "$stage" "$stage$INSTALL_DIR" "$ver"
   write_control "$stage" "$ver" "$deb_ver"
 
-  mkdir -p "$OUT_DIR"
   deb="$OUT_DIR/${PKG}_${deb_ver}_${APT_ARCH}.deb"
-  dpkg-deb --root-owner-group -Z"$DEB_COMPRESSION" --build "$stage" "$deb" >&2
+  build_reproducible_deb "$stage" "$deb" -Z"$DEB_COMPRESSION"
   log "built $deb"
 
   write_build_record "$deb" "$deb_ver" "$base_url/$asset" "$ASSET_SHA256"

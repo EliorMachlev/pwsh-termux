@@ -71,6 +71,31 @@ sha256_of() { sha256sum < "$1" | cut -d' ' -f1; }
 # file_size <file>: the file's size in bytes.
 file_size() { stat -c %s "$1"; }
 
+# ---------------------------------------------------------------------------
+# Building packages reproducibly (build-deb.sh, build-keyring.sh)
+# ---------------------------------------------------------------------------
+
+# installed_size_kib <stage-dir>: Installed-Size as dpkg-gencontrol counts it
+# (KiB per file, rounded up; one per directory or link), so it does not
+# depend on the build machine's file system the way `du` does.
+installed_size_kib() {
+  find "$1" -mindepth 1 -printf '%y %s\n' \
+    | awk '$1 == "f" {kb += int(($2 + 1023) / 1024); next} {kb += 1} END {print kb}'
+}
+
+# build_reproducible_deb <stage-dir> <deb> <dpkg-deb-option...>: build the
+# package with every timestamp set to SOURCE_DATE_EPOCH (which the caller
+# sets and exports; dpkg-deb also uses it for the archive's own members),
+# root:root owners, and xz single-threaded (its multi-threaded output depends
+# on the number of CPUs). The same staged files give the same bytes.
+build_reproducible_deb() {
+  local stage=$1 deb=$2; shift 2
+  [[ "${SOURCE_DATE_EPOCH:-}" =~ ^[0-9]+$ ]] || die "SOURCE_DATE_EPOCH is not set"
+  find "$stage" -exec touch -h -d "@$SOURCE_DATE_EPOCH" {} +
+  mkdir -p "$(dirname "$deb")"
+  dpkg-deb --root-owner-group --threads-max=1 "$@" --build "$stage" "$deb" >&2
+}
+
 # deb_ships_keyring <deb> <keyring-file>: true if the package installs exactly
 # that keyring file, byte for byte.
 deb_ships_keyring() {
@@ -168,6 +193,82 @@ gpgv_quiet() {
   local keyring_file=$1; shift
   gpgv --keyring "$keyring_file" "$@" 2>/dev/null
 }
+
+# ---------------------------------------------------------------------------
+# The index's validity window (Date and Valid-Until in Release)
+# ---------------------------------------------------------------------------
+
+# apt refuses an index after its Valid-Until, so a stale (frozen) index cannot
+# be replayed to users for longer than this. The daily update.yaml run
+# re-signs the index, which moves the window on.
+readonly VALID_UNTIL_DAYS=14
+# Fewer days left than this is stale: the staleness monitor opens an issue,
+# and a recovery-signed index with less is not signed or deployed.
+readonly VALID_UNTIL_WARN_DAYS=7
+# How far a Date may be ahead of this machine's clock (clock skew).
+readonly RELEASE_CLOCK_SKEW_SECONDS=300
+readonly SECONDS_PER_DAY=86400
+# Date and Valid-Until as apt writes and reads them (RFC 1123, in UTC).
+readonly RELEASE_DATE_FORMAT='%a, %d %b %Y %H:%M:%S UTC'
+readonly RELEASE_DATE_REGEX='^(Mon|Tue|Wed|Thu|Fri|Sat|Sun), [0-9]{2} (Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) [0-9]{4} [0-9]{2}:[0-9]{2}:[0-9]{2} UTC$'
+
+# now_epoch: the current time, seconds since the epoch.
+now_epoch() { date -u +%s; }
+
+# release_date <epoch>: that time as a Release date.
+release_date() { LC_ALL=C date -u -d "@$1" +"$RELEASE_DATE_FORMAT"; }
+
+# release_field <release-file> <field>: the value of a top-level field, or
+# nothing.
+release_field() {
+  awk -v name="$2" 'index($0, name ": ") == 1 {print substr($0, length(name) + 3); exit}' "$1"
+}
+
+# release_field_epoch <release-file> <field>: a date field in seconds since
+# the epoch. Dies unless it is present and written exactly as apt writes it.
+release_field_epoch() {
+  local release_file=$1 field=$2 value epoch
+  value=$(release_field "$release_file" "$field")
+  [ -n "$value" ] || die "$release_file has no $field"
+  [[ "$value" =~ $RELEASE_DATE_REGEX ]] || die "$release_file: $field is not an RFC 1123 UTC date: '$value'"
+  epoch=$(LC_ALL=C date -u -d "$value" +%s 2>/dev/null) || die "$release_file: $field is not a date: '$value'"
+  [ "$(release_date "$epoch")" = "$value" ] || die "$release_file: $field is not a valid date: '$value'"
+  printf '%s\n' "$epoch"
+}
+
+# release_days_left <release-file>: whole days until its Valid-Until (may be
+# negative). Dies as release_field_epoch does.
+release_days_left() {
+  local valid_until
+  valid_until=$(release_field_epoch "$1" Valid-Until) || return
+  printf '%s\n' $(( (valid_until - $(now_epoch)) / SECONDS_PER_DAY ))
+}
+
+# check_release_window <release-file> <min-days-left>: dies unless Date and
+# Valid-Until are present and well formed, Date is not in the future,
+# Valid-Until is after Date by at most VALID_UNTIL_DAYS, and at least
+# <min-days-left> days are left.
+check_release_window() {
+  local release_file=$1 min_days_left=$2 date valid_until now
+  date=$(release_field_epoch "$release_file" Date) || return
+  valid_until=$(release_field_epoch "$release_file" Valid-Until) || return
+  now=$(now_epoch)
+  [ "$date" -le $((now + RELEASE_CLOCK_SKEW_SECONDS)) ] \
+    || die "$release_file: Date is in the future ($(release_date "$date"))"
+  [ "$valid_until" -gt "$date" ] \
+    || die "$release_file: Valid-Until is not after Date"
+  [ $((valid_until - date)) -le $((VALID_UNTIL_DAYS * SECONDS_PER_DAY)) ] \
+    || die "$release_file: Valid-Until is more than $VALID_UNTIL_DAYS days after Date"
+  [ "$valid_until" -gt "$now" ] \
+    || die "$release_file: expired at $(release_date "$valid_until") (Valid-Until)"
+  [ $((valid_until - now)) -ge $((min_days_left * SECONDS_PER_DAY)) ] \
+    || die "$release_file: only $(( (valid_until - now) / SECONDS_PER_DAY )) day(s) left before Valid-Until (needs $min_days_left)"
+}
+
+# check_release_fresh <release-file>: check_release_window with at least
+# VALID_UNTIL_WARN_DAYS left: what a deployed or about-to-be-deployed index
+# must have (recovery-sign.sh, verify-recovery-repo.sh, check-index-freshness.sh).
+check_release_fresh() { check_release_window "$1" "$VALID_UNTIL_WARN_DAYS"; }
 
 # ---------------------------------------------------------------------------
 # The apt repository's layout
