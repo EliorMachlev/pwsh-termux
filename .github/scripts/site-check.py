@@ -27,6 +27,13 @@ GENERATED = ("/pwsh-termux.gpg", "/pwsh-termux.asc", "/pwsh-termux-keyring.deb",
 REQUIRED_CSP = ("default-src 'none'", "base-uri 'none'", "form-action 'none'")
 FORBIDDEN_TAGS = {"script", "form", "base", "iframe", "object", "embed"}
 
+# Files the site needs besides the pages.
+REQUIRED_FILES = ("style.css", "favicon.svg", "llms.txt", ".nojekyll")
+# Pages that are not listed in sitemap.xml.
+NOT_IN_SITEMAP = ("404.html",)
+# security.txt must be renewed before it has fewer days than this left.
+SECURITY_TXT_MIN_DAYS_LEFT = 30
+
 
 class Page(HTMLParser):
     def __init__(self):
@@ -94,7 +101,7 @@ class Page(HTMLParser):
             self.has_title_text = True
 
 
-def local_target(docs: pathlib.Path, page: pathlib.Path, ref: str):
+def local_target(docs: pathlib.Path, page: pathlib.Path, ref: str) -> pathlib.Path | str | None:
     """Return the file a local reference points to, or None if it is not local."""
     ref = ref.split("#", 1)[0].split("?", 1)[0]
     if ref == "" or re.match(r"^[a-z][a-z0-9+.-]*:", ref, re.I) or ref.startswith("//"):
@@ -110,7 +117,7 @@ def local_target(docs: pathlib.Path, page: pathlib.Path, ref: str):
     return target
 
 
-def check_page(docs: pathlib.Path, page: pathlib.Path, errors: list):
+def check_page(docs: pathlib.Path, page: pathlib.Path, errors: list) -> None:
     name = page.relative_to(docs)
     p = Page()
     p.feed(page.read_text(encoding="utf-8"))
@@ -161,15 +168,69 @@ def check_page(docs: pathlib.Path, page: pathlib.Path, errors: list):
     errors.extend(problems)
 
 
-def main():
-    if len(sys.argv) != 2:
-        sys.exit(__doc__)
-    docs = pathlib.Path(sys.argv[1])
-    errors = []
-
+def check_cname(docs: pathlib.Path, errors: list) -> None:
     cname = docs / "CNAME"
     if not cname.is_file() or cname.read_text().strip() != DOMAIN:
         errors.append(f"CNAME must contain exactly {DOMAIN}")
+
+
+def page_url(page: pathlib.Path) -> str:
+    """The page's URL on the site, as sitemap.xml lists it."""
+    return SITE + "/" if page.name == "index.html" else f"{SITE}/{page.name}"
+
+
+def check_sitemap(docs: pathlib.Path, pages: list, errors: list) -> None:
+    sitemap = docs / "sitemap.xml"
+    if not sitemap.is_file():
+        errors.append("sitemap.xml is missing")
+        return
+    listed = set(re.findall(r"<loc>([^<]+)</loc>", sitemap.read_text()))
+    expected = {page_url(p) for p in pages if p.name not in NOT_IN_SITEMAP}
+    for missing in sorted(expected - listed):
+        errors.append(f"sitemap.xml does not list {missing}")
+    for extra in sorted(listed - expected):
+        errors.append(f"sitemap.xml lists {extra}, which is not a page")
+
+
+def check_robots(docs: pathlib.Path, errors: list) -> None:
+    robots = docs / "robots.txt"
+    if not robots.is_file() or f"Sitemap: {SITE}/sitemap.xml" not in robots.read_text():
+        errors.append(f"robots.txt must point to {SITE}/sitemap.xml")
+
+
+def check_security_txt(docs: pathlib.Path, errors: list) -> None:
+    sec = docs / ".well-known" / "security.txt"
+    if not sec.is_file():
+        errors.append(".well-known/security.txt is missing")
+        return
+    text = sec.read_text()
+    if f"Canonical: {SITE}/.well-known/security.txt" not in text:
+        errors.append("security.txt: Canonical must be the site's own URL")
+    if "Contact:" not in text:
+        errors.append("security.txt: Contact is missing")
+    m = re.search(r"^Expires:\s*(\S+)", text, re.M)
+    if not m:
+        errors.append("security.txt: Expires is missing")
+        return
+    expires = datetime.datetime.fromisoformat(m.group(1).replace("Z", "+00:00"))
+    left = expires - datetime.datetime.now(datetime.timezone.utc)
+    if left < datetime.timedelta(days=SECURITY_TXT_MIN_DAYS_LEFT):
+        errors.append(f"security.txt expires in {left.days} days: renew Expires (RFC 9116)")
+
+
+def check_required_files(docs: pathlib.Path, errors: list) -> None:
+    for needed in REQUIRED_FILES:
+        if not (docs / needed).is_file():
+            errors.append(f"{needed} is missing")
+
+
+def main() -> None:
+    if len(sys.argv) != 2:
+        sys.exit(__doc__)
+    docs = pathlib.Path(sys.argv[1])
+    errors: list = []
+
+    check_cname(docs, errors)
 
     pages = sorted(docs.glob("*.html"))
     if not (docs / "index.html").is_file():
@@ -177,43 +238,10 @@ def main():
     for page in pages:
         check_page(docs, page, errors)
 
-    sitemap = docs / "sitemap.xml"
-    if sitemap.is_file():
-        listed = set(re.findall(r"<loc>([^<]+)</loc>", sitemap.read_text()))
-        expected = {SITE + "/" if p.name == "index.html" else f"{SITE}/{p.name}"
-                    for p in pages if p.name != "404.html"}
-        for missing in sorted(expected - listed):
-            errors.append(f"sitemap.xml does not list {missing}")
-        for extra in sorted(listed - expected):
-            errors.append(f"sitemap.xml lists {extra}, which is not a page")
-    else:
-        errors.append("sitemap.xml is missing")
-
-    robots = docs / "robots.txt"
-    if not robots.is_file() or f"Sitemap: {SITE}/sitemap.xml" not in robots.read_text():
-        errors.append(f"robots.txt must point to {SITE}/sitemap.xml")
-
-    sec = docs / ".well-known" / "security.txt"
-    if sec.is_file():
-        text = sec.read_text()
-        if f"Canonical: {SITE}/.well-known/security.txt" not in text:
-            errors.append("security.txt: Canonical must be the site's own URL")
-        if "Contact:" not in text:
-            errors.append("security.txt: Contact is missing")
-        m = re.search(r"^Expires:\s*(\S+)", text, re.M)
-        if not m:
-            errors.append("security.txt: Expires is missing")
-        else:
-            expires = datetime.datetime.fromisoformat(m.group(1).replace("Z", "+00:00"))
-            left = expires - datetime.datetime.now(datetime.timezone.utc)
-            if left < datetime.timedelta(days=30):
-                errors.append(f"security.txt expires in {left.days} days: renew Expires (RFC 9116)")
-    else:
-        errors.append(".well-known/security.txt is missing")
-
-    for needed in ("style.css", "favicon.svg", "llms.txt", ".nojekyll"):
-        if not (docs / needed).is_file():
-            errors.append(f"{needed} is missing")
+    check_sitemap(docs, pages, errors)
+    check_robots(docs, errors)
+    check_security_txt(docs, errors)
+    check_required_files(docs, errors)
 
     if errors:
         print("Site check failed:", file=sys.stderr)

@@ -16,73 +16,134 @@ import subprocess
 import sys
 import uuid
 from datetime import datetime, timezone
+from typing import Any
 
-deb, record, out = sys.argv[1:4]
-b = json.load(open(record))
-deb_sha = hashlib.sha256(open(deb, "rb").read()).hexdigest()
-depends = subprocess.check_output(["dpkg-deb", "-f", deb, "Depends"], text=True).strip()
-deps = [d.strip().split()[0] for d in depends.split(",") if d.strip()]
-arch = subprocess.check_output(["dpkg-deb", "-f", deb, "Architecture"], text=True).strip()
-now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+PROJECT_URL = "https://github.com/EliorMachlev/pwsh-termux"
+SPDX_NAMESPACE_BASE = f"{PROJECT_URL}/spdx"
+CREATOR_TOOL = "Tool: pwsh-termux-spdx-build-view"
+NOASSERTION = "NOASSERTION"
+
+DOCUMENT_ID = "SPDXRef-DOCUMENT"
+DEB_ID = "SPDXRef-Package-deb"
+UPSTREAM_ID = "SPDXRef-Package-upstream"
+PATCHELF_ID = "SPDXRef-Package-patchelf"
+KEYRING_SOURCE_ID = "SPDXRef-Package-keyring-source"
+DEPENDENCY_ID_PREFIX = "SPDXRef-Package-dep-"
+
+MICROSOFT_SUPPLIER = "Organization: Microsoft Corporation"
+PATCHELF_URL = "https://github.com/NixOS/patchelf"
+
+Package = dict[str, Any]
+Relationship = dict[str, str]
 
 
-def pkg(spdx_id, name, version, download, sha=None, **extra):
+def deb_field(deb: str, field: str) -> str:
+    """One control field of the .deb, as dpkg-deb -f prints it."""
+    return subprocess.check_output(["dpkg-deb", "-f", deb, field], text=True).strip()
+
+
+def file_sha256(path: str) -> str:
+    with open(path, "rb") as f:
+        return hashlib.sha256(f.read()).hexdigest()
+
+
+def dependency_names(depends: str) -> list[str]:
+    """Package names from a Depends field, without version constraints."""
+    return [d.strip().split()[0] for d in depends.split(",") if d.strip()]
+
+
+def purl_ref(locator: str) -> list[dict[str, str]]:
+    return [{"referenceCategory": "PACKAGE-MANAGER", "referenceType": "purl",
+             "referenceLocator": locator}]
+
+
+def relationship(element: str, kind: str, related: str) -> Relationship:
+    return {"spdxElementId": element, "relationshipType": kind, "relatedSpdxElement": related}
+
+
+def pkg(spdx_id: str, name: str, version: str, download: str, sha: str | None = None,
+        **extra: Any) -> Package:
     p = {"SPDXID": spdx_id, "name": name, "versionInfo": version,
          "downloadLocation": download, "filesAnalyzed": False,
-         "licenseConcluded": "NOASSERTION", "licenseDeclared": "NOASSERTION",
-         "copyrightText": "NOASSERTION"}
+         "licenseConcluded": NOASSERTION, "licenseDeclared": NOASSERTION,
+         "copyrightText": NOASSERTION}
     if sha:
         p["checksums"] = [{"algorithm": "SHA256", "checksumValue": sha}]
     p.update(extra)
     return p
 
 
-deb_pkg = pkg("SPDXRef-Package-deb", b["package"], b["version"], "NOASSERTION", deb_sha,
-              licenseDeclared="MIT", supplier="NOASSERTION",
-              externalRefs=[{"referenceCategory": "PACKAGE-MANAGER", "referenceType": "purl",
-                             "referenceLocator": f"pkg:deb/termux/{b['package']}@{b['version']}?arch={arch}"}])
-rels = [{"spdxElementId": "SPDXRef-DOCUMENT", "relationshipType": "DESCRIBES", "relatedSpdxElement": "SPDXRef-Package-deb"}]
+def upstream_packages(build: dict[str, Any]) -> tuple[list[Package], list[Relationship]]:
+    """pwsh, pwsh-preview: Microsoft's tarball, patched with patchelf."""
+    upstream_ver = build["upstream_tag"].lstrip("v")
+    packages = [
+        pkg(UPSTREAM_ID, "PowerShell", upstream_ver, build["upstream_url"],
+            build["upstream_sha256"], licenseDeclared="MIT", supplier=MICROSOFT_SUPPLIER,
+            externalRefs=purl_ref(f"pkg:github/PowerShell/PowerShell@{build['upstream_tag']}")),
+        pkg(PATCHELF_ID, "patchelf", build["patchelf_version"], PATCHELF_URL,
+            externalRefs=purl_ref(f"pkg:generic/patchelf@{build['patchelf_version']}")),
+    ]
+    rels = [
+        relationship(DEB_ID, "GENERATED_FROM", UPSTREAM_ID),
+        relationship(PATCHELF_ID, "BUILD_TOOL_OF", DEB_ID),
+    ]
+    return packages, rels
 
-if "upstream_tag" in b:
-    # pwsh, pwsh-preview: Microsoft's tarball, patched with patchelf.
-    upstream_ver = b["upstream_tag"].lstrip("v")
+
+def keyring_source_packages(build: dict[str, Any]) -> tuple[list[Package], list[Relationship]]:
+    """pwsh-termux-keyring: the public keyring committed to this repository."""
     packages = [
-        deb_pkg,
-        pkg("SPDXRef-Package-upstream", "PowerShell", upstream_ver, b["upstream_url"],
-            b["upstream_sha256"], licenseDeclared="MIT", supplier="Organization: Microsoft Corporation",
-            externalRefs=[{"referenceCategory": "PACKAGE-MANAGER", "referenceType": "purl",
-                           "referenceLocator": f"pkg:github/PowerShell/PowerShell@{b['upstream_tag']}"}]),
-        pkg("SPDXRef-Package-patchelf", "patchelf", b["patchelf_version"],
-            "https://github.com/NixOS/patchelf", externalRefs=[
-                {"referenceCategory": "PACKAGE-MANAGER", "referenceType": "purl",
-                 "referenceLocator": f"pkg:generic/patchelf@{b['patchelf_version']}"}]),
-    ]
-    rels += [
-        {"spdxElementId": "SPDXRef-Package-deb", "relationshipType": "GENERATED_FROM", "relatedSpdxElement": "SPDXRef-Package-upstream"},
-        {"spdxElementId": "SPDXRef-Package-patchelf", "relationshipType": "BUILD_TOOL_OF", "relatedSpdxElement": "SPDXRef-Package-deb"},
-    ]
-else:
-    # pwsh-termux-keyring: the public keyring committed to this repository.
-    packages = [
-        deb_pkg,
-        pkg("SPDXRef-Package-keyring-source", b["source_file"], "NOASSERTION",
-            "git+https://github.com/EliorMachlev/pwsh-termux", b["source_sha256"],
-            licenseDeclared="MIT", supplier="NOASSERTION",
+        pkg(KEYRING_SOURCE_ID, build["source_file"], NOASSERTION,
+            f"git+{PROJECT_URL}", build["source_sha256"],
+            licenseDeclared="MIT", supplier=NOASSERTION,
             comment="The public OpenPGP keys the package installs, as committed to the repository."),
     ]
-    rels.append({"spdxElementId": "SPDXRef-Package-deb", "relationshipType": "GENERATED_FROM", "relatedSpdxElement": "SPDXRef-Package-keyring-source"})
+    return packages, [relationship(DEB_ID, "GENERATED_FROM", KEYRING_SOURCE_ID)]
 
-for d in deps:
-    sid = "SPDXRef-Package-dep-" + d.replace("_", "-")
-    packages.append(pkg(sid, d, "NOASSERTION", "NOASSERTION",
-                        comment="Termux package this one depends on at run time; not part of it."))
-    rels.append({"spdxElementId": "SPDXRef-Package-deb", "relationshipType": "DEPENDS_ON", "relatedSpdxElement": sid})
 
-doc = {
-    "spdxVersion": "SPDX-2.3", "dataLicense": "CC0-1.0", "SPDXID": "SPDXRef-DOCUMENT",
-    "name": f"{b['package']}_{b['version']}_{arch} (packaging view)",
-    "documentNamespace": f"https://github.com/EliorMachlev/pwsh-termux/spdx/{b['package']}-{b['version']}-{uuid.uuid4()}",
-    "creationInfo": {"created": now, "creators": ["Tool: pwsh-termux-spdx-build-view"]},
-    "packages": packages, "relationships": rels,
-}
-json.dump(doc, open(out, "w"), indent=2)
+def dependency_packages(deps: list[str]) -> tuple[list[Package], list[Relationship]]:
+    packages, rels = [], []
+    for d in deps:
+        sid = DEPENDENCY_ID_PREFIX + d.replace("_", "-")
+        packages.append(pkg(sid, d, NOASSERTION, NOASSERTION,
+                            comment="Termux package this one depends on at run time; not part of it."))
+        rels.append(relationship(DEB_ID, "DEPENDS_ON", sid))
+    return packages, rels
+
+
+def build_document(deb: str, build: dict[str, Any]) -> dict[str, Any]:
+    deps = dependency_names(deb_field(deb, "Depends"))
+    arch = deb_field(deb, "Architecture")
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    deb_pkg = pkg(DEB_ID, build["package"], build["version"], NOASSERTION, file_sha256(deb),
+                  licenseDeclared="MIT", supplier=NOASSERTION,
+                  externalRefs=purl_ref(f"pkg:deb/termux/{build['package']}@{build['version']}?arch={arch}"))
+    packages = [deb_pkg]
+    rels = [relationship(DOCUMENT_ID, "DESCRIBES", DEB_ID)]
+
+    sources = upstream_packages(build) if "upstream_tag" in build else keyring_source_packages(build)
+    for more_packages, more_rels in (sources, dependency_packages(deps)):
+        packages += more_packages
+        rels += more_rels
+
+    return {
+        "spdxVersion": "SPDX-2.3", "dataLicense": "CC0-1.0", "SPDXID": DOCUMENT_ID,
+        "name": f"{build['package']}_{build['version']}_{arch} (packaging view)",
+        "documentNamespace": f"{SPDX_NAMESPACE_BASE}/{build['package']}-{build['version']}-{uuid.uuid4()}",
+        "creationInfo": {"created": now, "creators": [CREATOR_TOOL]},
+        "packages": packages, "relationships": rels,
+    }
+
+
+def main() -> None:
+    deb, record, out = sys.argv[1:4]
+    with open(record) as f:
+        build = json.load(f)
+    doc = build_document(deb, build)
+    with open(out, "w") as f:
+        json.dump(doc, f, indent=2)
+
+
+if __name__ == "__main__":
+    main()
