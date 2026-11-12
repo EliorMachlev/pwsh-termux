@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self'; img-src 'self'; font-src 'self'; base-uri 'none'; form-action 'none'">
+<title>Install: pwsh-termux</title>
+<meta name="description" content="Install PowerShell 7 on Termux from the pwsh-termux apt repository, check the signing key, update and remove it.">
+<meta name="color-scheme" content="light dark">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Install: pwsh-termux">
+<meta property="og:description" content="Install PowerShell 7 on Termux from the pwsh-termux apt repository, check the signing key, update and remove it.">
+<meta property="og:url" content="https://pwsh-termux.machlev.org/install.html">
+<meta name="twitter:card" content="summary">
+<link rel="canonical" href="https://pwsh-termux.machlev.org/install.html">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="site"><div class="wrap">
+  <a class="brand" href="/"><img src="/favicon.svg" alt="" width="32" height="32"><span>pwsh-termux</span></a>
+  <nav aria-label="Main"><ul>
+    <li><a href="/install.html" aria-current="page">Install</a></li>
+    <li><a href="/privacy.html">Privacy</a></li>
+    <li><a href="https://github.com/EliorMachlev/pwsh-termux/blob/main/docs/markDown/README.md">Docs</a></li>
+    <li><a href="https://github.com/EliorMachlev/pwsh-termux">GitHub</a></li>
+  </ul></nav>
+</div></header>
+<main id="main"><div class="wrap">
+  <h1>Install</h1>
+  <p class="lead">Four commands, then <code>pkg</code> keeps PowerShell up to date.</p>
+
+  <h2>Requirements</h2>
+  <ul>
+    <li>Termux on an <strong>arm64 (aarch64)</strong> device. Check with <code>uname -m</code>.</li>
+    <li>The Termux glibc repository, which provides the glibc libraries PowerShell needs: <code>pkg install glibc-repo</code>.</li>
+    <li>About 200&nbsp;MB of free space (the package is about 50&nbsp;MB to download).</li>
+  </ul>
+
+  <h2>Steps</h2>
+  <ol class="steps">
+    <li><p>Add the repository&rsquo;s signing key:</p>
+<pre><code>curl -fsSL https://pwsh-termux.machlev.org/pwsh-termux.gpg \
+  -o $PREFIX/etc/apt/trusted.gpg.d/pwsh-termux.gpg</code></pre></li>
+    <li><p>Add the repository:</p>
+<pre><code>echo "deb https://pwsh-termux.machlev.org stable main" \
+  &gt; $PREFIX/etc/apt/sources.list.d/pwsh-termux.list</code></pre></li>
+    <li><p>Install:</p>
+<pre><code>pkg update
+pkg install pwsh</code></pre></li>
+    <li><p>Run it:</p>
+<pre><code>pwsh
+$PSVersionTable.PSVersion</code></pre></li>
+  </ol>
+  <p>For the preview channel, <code>pkg install pwsh-preview</code> installs <code>pwsh-preview</code> next to <code>pwsh</code>. It only exists while Microsoft&rsquo;s newest preview is newer than the newest stable release.</p>
+
+  <h2>Check the signing key</h2>
+  <p>The key you downloaded should have this fingerprint (compare it with the one in the <a href="https://github.com/EliorMachlev/pwsh-termux/blob/main/SECURITY.md">security policy</a> on GitHub, which is a separate channel):</p>
+<pre><code>7086 C70B 4A25 576F E0C0  CE77 E43F B41F 02D0 1FC8</code></pre>
+  <p>To see it yourself: <code>pkg install gnupg</code>, then <code>gpg --show-keys $PREFIX/etc/apt/trusted.gpg.d/pwsh-termux.gpg</code>.</p>
+
+  <h2>Update and remove</h2>
+<pre><code>pkg upgrade            # updates everything, including pwsh
+pkg remove pwsh        # remove PowerShell</code></pre>
+  <p>To also drop the repository: delete <code>$PREFIX/etc/apt/sources.list.d/pwsh-termux.list</code> and <code>$PREFIX/etc/apt/trusted.gpg.d/pwsh-termux.gpg</code>.</p>
+
+  <h2>If something goes wrong</h2>
+  <table>
+    <thead><tr><th>Symptom</th><th>Cause and fix</th></tr></thead>
+    <tbody>
+      <tr><td><code>pkg update</code> says <em>NO_PUBKEY</em> or the repository is <em>not signed</em></td><td>The key from step 1 is missing or empty. Repeat step 1 and check the file is not an error page.</td></tr>
+      <tr><td><code>Unable to locate package pwsh</code></td><td>Step 2 was skipped, or <code>pkg update</code> was not run afterwards.</td></tr>
+      <tr><td><code>depends on glibc, but it is not installable</code></td><td>The glibc repository is not enabled: <code>pkg install glibc-repo</code>, then <code>pkg update</code>.</td></tr>
+      <tr><td>Installed but <code>pwsh</code> says it cannot execute or a library is missing</td><td>Run <code>pkg install --reinstall pwsh</code>; if it persists, <a href="https://github.com/EliorMachlev/pwsh-termux/issues">open an issue</a> with the output of <code>pkg list-installed | grep -E 'glibc|icu|pwsh'</code>.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>About PowerShell&rsquo;s own behavior</h2>
+  <p>This package does not change PowerShell. Microsoft&rsquo;s build collects usage telemetry unless you opt out, and it can print a notice about newer versions. To turn both off, add to <code>~/.bashrc</code> (or your shell&rsquo;s file):</p>
+<pre><code>export POWERSHELL_TELEMETRY_OPTOUT=1
+export POWERSHELL_UPDATECHECK=Off</code></pre>
+</div></main>
+<footer class="site"><div class="wrap">
+  <p>pwsh-termux is an unofficial community project. It is not affiliated with or endorsed by Microsoft. &ldquo;PowerShell&rdquo; is a trademark of Microsoft.</p>
+  <p>Packaging scripts: MIT. PowerShell itself: MIT, &copy; Microsoft Corporation.</p>
+  <ul>
+    <li><a href="/install.html">Install</a></li>
+    <li><a href="/privacy.html">Privacy</a></li>
+    <li><a href="https://github.com/EliorMachlev/pwsh-termux/blob/main/SECURITY.md">Security policy</a></li>
+    <li><a href="https://github.com/EliorMachlev/pwsh-termux/blob/main/docs/markDown/legal/terms-of-service.md">Terms</a></li>
+    <li><a href="https://github.com/EliorMachlev/pwsh-termux/blob/main/docs/markDown/legal/accessibility-statement.md">Accessibility</a></li>
+    <li><a href="https://github.com/EliorMachlev/pwsh-termux/releases">Releases</a></li>
+  </ul>
+</div></footer>
+</body>
+</html>

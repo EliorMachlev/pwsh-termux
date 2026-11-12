@@ -1,0 +1,14 @@
+# pwsh-termux
+
+> An unofficial apt repository that packages Microsoft's PowerShell 7 (stable and preview) for Termux on arm64 Android. It follows Microsoft's GitHub releases daily, verifies each download against Microsoft's SHA-256 hashes, patches the binary to run on Termux's glibc, signs the repository (Ed25519) and publishes it to GitHub Pages. Not affiliated with or endorsed by Microsoft.
+
+## Use it
+- [Install](https://pwsh-termux.machlev.org/install.html): add the key and the `deb https://pwsh-termux.machlev.org stable main` source, then `pkg install pwsh` (stable) or `pkg install pwsh-preview`.
+- Requires: Termux, aarch64, `pkg install glibc-repo`.
+
+## Project
+- [Source and README](https://github.com/EliorMachlev/pwsh-termux)
+- [Documentation](https://github.com/EliorMachlev/pwsh-termux/blob/main/docs/markDown/README.md)
+- [Security policy](https://github.com/EliorMachlev/pwsh-termux/blob/main/SECURITY.md)
+- [Privacy](https://pwsh-termux.machlev.org/privacy.html)
+- [Releases (every built .deb)](https://github.com/EliorMachlev/pwsh-termux/releases)

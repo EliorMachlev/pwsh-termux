@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://pwsh-termux.machlev.org/sitemap.xml
