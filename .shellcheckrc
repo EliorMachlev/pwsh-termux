@@ -1,0 +1,6 @@
+# The scripts in scripts/ source scripts/lib/common.sh by a path relative to
+# themselves: resolve it from the script's folder and follow it, so a caller's
+# use of the library's helpers and constants is checked. This enables checks;
+# it disables none (the library is also checked on its own: scripts/lib/*.sh).
+source-path=SCRIPTDIR
+external-sources=true

@@ -4,7 +4,7 @@
 
 ## Checklist
 
-- [ ] `shellcheck --shell=bash --severity=style scripts/*.sh` is clean
+- [ ] `shellcheck --shell=bash --severity=style scripts/*.sh scripts/lib/*.sh` is clean
 - [ ] `python3 .github/scripts/site-check.py docs` passes
 - [ ] Changed a script? I ran it locally (see `docs/markDown/engineering/build.md`) and say what I ran above
 - [ ] Nothing is suppressed beyond `docs/markDown/engineering/exceptions.md`
