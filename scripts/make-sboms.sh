@@ -79,7 +79,7 @@ for deb in "${debs[@]}"; do
     grep -q 'This SPDX Document is valid.' "$TMP/verify.log" \
       || { echo "::error::$f did not validate" >&2; exit 1; }
   done
-  "$tools/sbom-tool" validate -b "$root" -m "$drop" -o "$TMP/msft-validation.json" -mi SPDX:3.0 -V Error
+  "$tools/sbom-tool" validate -b "$root" -m "$drop/_manifest" -o "$TMP/msft-validation.json" -mi SPDX:3.0 -V Error
   python3 - "$TMP/msft-validation.json" <<'PY'
 import json, sys
 r = json.load(open(sys.argv[1]))
