@@ -24,74 +24,87 @@
 # Prints one line per primary key on stdout: <fingerprint> <role>, role being
 # current, next or recovery. Also binary OpenPGP only, no secret material.
 set -euo pipefail
+source "$(dirname "$0")/lib/common.sh"
 
-ROOT=$(cd "$(dirname "$0")/.." && pwd)
-DEFAULT=$ROOT/keys/pwsh-termux-archive-keyring.gpg
-FILE=${1:-$DEFAULT}
-DIR=$(dirname "$FILE")
-
-log() { printf '[check-keys] %s\n' "$*" >&2; }
-die() { printf '[check-keys] ERROR: %s\n' "$*" >&2; exit 1; }
-
-if [ "$FILE" -ef "$DEFAULT" ]; then
+# The production keys/ folder holds the keyring file and the markers only.
+require_only_allowed_files_in_keys_dir() {
+  local path
   shopt -s nullglob dotglob
-  for f in "$ROOT/keys"/*; do
-    case $(basename "$f") in
-      pwsh-termux-archive-keyring.gpg|RECOVERY|ROTATION) ;;
-      *) die "keys/ holds an unexpected file: $(basename "$f")" ;;
-    esac
+  for path in "$KEYS_DIR"/*; do
+    is_allowed_in_keys_dir "$(basename "$path")" \
+      || die "keys/ holds an unexpected file: $(basename "$path")"
   done
-fi
-
-# marker <name>: the fingerprint in $DIR/<name>, or nothing if it is absent.
-marker() {
-  local m="$DIR/$1"
-  [ -e "$m" ] || return 0
-  [ -f "$m" ] || die "$m is not a regular file"
-  [ "$(wc -l < "$m")" -eq 1 ] || die "$m must be one line: a fingerprint"
-  local fpr
-  fpr=$(tr -d '[:space:]' < "$m")
-  [[ "$fpr" =~ ^[0-9A-F]{40}$ ]] || die "$m does not hold a fingerprint (40 upper-case hex digits)"
-  printf '%s\n' "$fpr"
 }
-recovery=$(marker RECOVERY)
-next=$(marker ROTATION)
 
-[ -f "$FILE" ] || die "$FILE is not a regular file"
-[ -s "$FILE" ] || die "$FILE is empty"
-# apt reads a signed-by .gpg file as binary OpenPGP; an armored file needs
-# the .asc extension, which this repository does not use.
-[ "$(head -c 5 "$FILE")" != "-----" ] || die "$FILE is armored; it must be binary OpenPGP (gpg --dearmor)"
-packets=$(gpg --batch --list-packets "$FILE" 2>/dev/null) || die "$FILE is not a readable OpenPGP file"
-if grep -q '^:secret' <<<"$packets"; then
-  die "$FILE contains secret key material; remove it from the tree and rotate the key"
-fi
-
-# Primary keys: the fpr line that follows each pub line (not a subkey's).
-mapfile -t fprs < <(gpg --batch --show-keys --with-colons "$FILE" 2>/dev/null \
-  | awk -F: '$1 == "pub" {want = 1; next} $1 == "fpr" && want {print $10; want = 0}')
-
-has() { local f; for f in "${fprs[@]}"; do [ "$f" = "$1" ] && return 0; done; return 1; }
-if [ -n "$recovery" ]; then
-  has "$recovery" || die "keys/RECOVERY names $recovery, which is not in $FILE"
-fi
-if [ -n "$next" ]; then
-  [ "$next" != "$recovery" ] || die "keys/ROTATION and keys/RECOVERY name the same key; the recovery key is never an online key"
-  has "$next" || die "keys/ROTATION names $next, which is not in $FILE"
-fi
-
-current=()
-for f in "${fprs[@]}"; do
-  if [ "$f" != "$recovery" ] && [ "$f" != "$next" ]; then current+=("$f"); fi
-done
-if [ "${#current[@]}" -ne 1 ]; then
-  if [ -n "$next" ] && [ "${#current[@]}" -eq 0 ]; then
-    die "keys/ROTATION is stale: $next is the only online key left; remove keys/ROTATION"
+# require_binary_public_keyring <file>: a non-empty, binary OpenPGP file with
+# no secret key material.
+require_binary_public_keyring() {
+  local keyring_file=$1 packets
+  [ -f "$keyring_file" ] || die "$keyring_file is not a regular file"
+  [ -s "$keyring_file" ] || die "$keyring_file is empty"
+  # apt reads a signed-by .gpg file as binary OpenPGP; an armored file needs
+  # the .asc extension, which this repository does not use.
+  [ "$(head -c 5 "$keyring_file")" != "-----" ] \
+    || die "$keyring_file is armored; it must be binary OpenPGP (gpg --dearmor)"
+  packets=$(gpg --batch --list-packets "$keyring_file" 2>/dev/null) \
+    || die "$keyring_file is not a readable OpenPGP file"
+  if grep -q '^:secret' <<<"$packets"; then
+    die "$keyring_file contains secret key material; remove it from the tree and rotate the key"
   fi
-  die "$FILE must hold exactly one current online key besides the keys named in keys/RECOVERY and keys/ROTATION; it holds ${#current[@]} (${#fprs[@]} keys in all)"
-fi
+}
 
-printf '%s current\n' "${current[0]}"
-[ -z "$next" ] || printf '%s next\n' "$next"
-[ -z "$recovery" ] || printf '%s recovery\n' "$recovery"
-log "${#fprs[@]} public key(s): current${next:+, next}${recovery:+, recovery}"
+# contains <needle> <item...>: true if the needle is one of the items.
+contains() {
+  local needle=$1 item; shift
+  for item in "$@"; do [ "$item" = "$needle" ] && return 0; done
+  return 1
+}
+
+main() {
+  local keyring_file=${1:-$DEFAULT_KEYRING_FILE}
+  local marker_dir recovery next
+  local -a fingerprints current
+  marker_dir=$(dirname "$keyring_file")
+
+  if is_production_keyring "$keyring_file"; then
+    require_only_allowed_files_in_keys_dir
+  fi
+  recovery=$(read_fingerprint_marker "$marker_dir/$MARKER_RECOVERY")
+  next=$(read_fingerprint_marker "$marker_dir/$MARKER_ROTATION")
+
+  require_binary_public_keyring "$keyring_file"
+  mapfile -t fingerprints < <(primary_fingerprints "$keyring_file")
+
+  if [ -n "$recovery" ]; then
+    contains "$recovery" "${fingerprints[@]}" \
+      || die "keys/$MARKER_RECOVERY names $recovery, which is not in $keyring_file"
+  fi
+  if [ -n "$next" ]; then
+    [ "$next" != "$recovery" ] \
+      || die "keys/$MARKER_ROTATION and keys/$MARKER_RECOVERY name the same key; the recovery key is never an online key"
+    contains "$next" "${fingerprints[@]}" \
+      || die "keys/$MARKER_ROTATION names $next, which is not in $keyring_file"
+  fi
+
+  # The current key: every key that no marker names. There must be one.
+  current=()
+  local fingerprint
+  for fingerprint in "${fingerprints[@]}"; do
+    if [ "$fingerprint" != "$recovery" ] && [ "$fingerprint" != "$next" ]; then
+      current+=("$fingerprint")
+    fi
+  done
+  if [ "${#current[@]}" -ne 1 ]; then
+    if [ -n "$next" ] && [ "${#current[@]}" -eq 0 ]; then
+      die "keys/$MARKER_ROTATION is stale: $next is the only online key left; remove keys/$MARKER_ROTATION"
+    fi
+    die "$keyring_file must hold exactly one current online key besides the keys named in keys/$MARKER_RECOVERY and keys/$MARKER_ROTATION; it holds ${#current[@]} (${#fingerprints[@]} keys in all)"
+  fi
+
+  printf '%s %s\n' "${current[0]}" "$ROLE_CURRENT"
+  [ -z "$next" ] || printf '%s %s\n' "$next" "$ROLE_NEXT"
+  [ -z "$recovery" ] || printf '%s %s\n' "$recovery" "$ROLE_RECOVERY"
+  log "${#fingerprints[@]} public key(s): $ROLE_CURRENT${next:+, $ROLE_NEXT}${recovery:+, $ROLE_RECOVERY}"
+}
+
+main "$@"

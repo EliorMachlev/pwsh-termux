@@ -16,31 +16,46 @@
 # local gpg home and its fingerprint is the one in keys/RECOVERY. It then
 # checks the result with verify-recovery-repo.sh.
 set -euo pipefail
+source "$(dirname "$0")/lib/common.sh"
 
-REPO=${1:?repository folder (build-repo.sh output, unsigned)}
-HERE=$(cd "$(dirname "$0")" && pwd)
-KEYRING_FILE=${KEYRING_FILE:-$HERE/../keys/pwsh-termux-archive-keyring.gpg}
-DIST=$REPO/dists/stable
+REPO_DIR=${1:?repository folder (build-repo.sh output, unsigned)}
+KEYRING_FILE=${KEYRING_FILE:-$SCRIPTS_DIR/../keys/$KEYRING_BASENAME}
+DIST_DIR=$(repo_dist_dir "$REPO_DIR")
+readonly DIST_DIR
 
-log() { printf '[recovery-sign] %s\n' "$*" >&2; }
-die() { printf '[recovery-sign] ERROR: %s\n' "$*" >&2; exit 1; }
+refuse_in_ci() {
+  if [ -n "${CI:-}" ] || [ -n "${GITHUB_ACTIONS:-}" ]; then
+    die "the recovery key is offline only: run this on your own machine, never in CI"
+  fi
+}
 
-if [ -n "${CI:-}" ] || [ -n "${GITHUB_ACTIONS:-}" ]; then
-  die "the recovery key is offline only: run this on your own machine, never in CI"
-fi
-recovery=$(bash "$HERE/check-keys.sh" "$KEYRING_FILE" | awk '$2 == "recovery" {print $1}')
-[ -n "$recovery" ] || die "no recovery key: keys/RECOVERY is not set up"
-secret=$(gpg --batch --list-secret-keys --with-colons -- "$recovery" 2>/dev/null \
-  | awk -F: '$1 == "sec" {want = 1; next} $1 == "fpr" && want {print $10; exit}' || true)
-[ "$secret" = "$recovery" ] || die "the secret of the recovery key $recovery is not in this gpg home"
-[ -f "$DIST/Release" ] || die "$DIST/Release not found (run build-repo.sh first)"
+# require_recovery_secret <fingerprint>: its secret is in this gpg home.
+require_recovery_secret() {
+  local recovery=$1 secret
+  secret=$(secret_key_fingerprint "$recovery" 2>/dev/null || true)
+  [ "$secret" = "$recovery" ] || die "the secret of the recovery key $recovery is not in this gpg home"
+}
 
-gpgargs=(--batch --yes --local-user "$recovery")
-if [ -n "${GPG_PASSPHRASE_FILE:-}" ]; then
-  gpgargs+=(--pinentry-mode loopback --passphrase-file "$GPG_PASSPHRASE_FILE")
-fi
-gpg "${gpgargs[@]}" --clearsign -o "$DIST/InRelease" "$DIST/Release"
-gpg "${gpgargs[@]}" -abs -o "$DIST/Release.gpg" "$DIST/Release"
+# sign_with_recovery_key <fingerprint>: gpg asks for the passphrase unless
+# GPG_PASSPHRASE_FILE is set.
+sign_with_recovery_key() {
+  local -a gpg_options=(--batch --yes --local-user "$1")
+  if [ -n "${GPG_PASSPHRASE_FILE:-}" ]; then
+    gpg_options+=(--pinentry-mode loopback --passphrase-file "$GPG_PASSPHRASE_FILE")
+  fi
+  sign_release "$DIST_DIR" "${gpg_options[@]}"
+}
 
-KEYRING_FILE=$KEYRING_FILE bash "$HERE/verify-recovery-repo.sh" "$REPO"
-log "signed $REPO with the recovery key $recovery"
+main() {
+  local recovery
+  refuse_in_ci
+  recovery=$(require_recovery_fingerprint "$KEYRING_FILE")
+  require_recovery_secret "$recovery"
+  [ -f "$DIST_DIR/Release" ] || die "$DIST_DIR/Release not found (run build-repo.sh first)"
+
+  sign_with_recovery_key "$recovery"
+  KEYRING_FILE=$KEYRING_FILE bash "$SCRIPTS_DIR/verify-recovery-repo.sh" "$REPO_DIR"
+  log "signed $REPO_DIR with the recovery key $recovery"
+}
+
+main

@@ -15,66 +15,98 @@
 #   - pwsh-termux.gpg is keys/pwsh-termux-archive-keyring.gpg byte for byte,
 #     and pwsh-termux-keyring.deb is listed in Packages and ships that file.
 set -euo pipefail
+source "$(dirname "$0")/lib/common.sh"
 
-REPO=${1:?repository folder}
-HERE=$(cd "$(dirname "$0")" && pwd)
-KEYRING_FILE=${KEYRING_FILE:-$HERE/../keys/pwsh-termux-archive-keyring.gpg}
-KEYRING_MEMBER=./data/data/com.termux/files/usr/share/keyrings/pwsh-termux-archive-keyring.gpg
-DIST=$REPO/dists/stable
+REPO_DIR=${1:?repository folder}
+KEYRING_FILE=${KEYRING_FILE:-$SCRIPTS_DIR/../keys/$KEYRING_BASENAME}
+DIST_DIR=$(repo_dist_dir "$REPO_DIR")
+INDEX_SUBDIR=$(repo_index_subdir)
+PACKAGES_FILE=$DIST_DIR/$INDEX_SUBDIR/Packages
+KEY_FILE=$(repo_key_file "$REPO_DIR")
+KEYRING_DEB=$(repo_keyring_deb "$REPO_DIR")
+readonly DIST_DIR INDEX_SUBDIR PACKAGES_FILE KEY_FILE KEYRING_DEB
 
-log() { printf '[verify-recovery-repo] %s\n' "$*" >&2; }
-die() { printf '[verify-recovery-repo] ERROR: %s\n' "$*" >&2; exit 1; }
+# Removed on exit.
+WORK_DIR=
 
-recovery=$(bash "$HERE/check-keys.sh" "$KEYRING_FILE" | awk '$2 == "recovery" {print $1}')
-[ -n "$recovery" ] || die "no recovery key: keys/RECOVERY is not set up"
-for f in "$DIST/Release" "$DIST/InRelease" "$DIST/Release.gpg" "$REPO/pwsh-termux.gpg" "$REPO/pwsh-termux-keyring.deb"; do
-  [ -f "$f" ] && [ ! -L "$f" ] || die "missing or not a regular file: $f"
-done
+require_repo_files() {
+  local path
+  for path in "$DIST_DIR/Release" "$DIST_DIR/InRelease" "$DIST_DIR/Release.gpg" "$KEY_FILE" "$KEYRING_DEB"; do
+    [ -f "$path" ] && [ ! -L "$path" ] || die "missing or not a regular file: $path"
+  done
+}
 
-work=$(mktemp -d)
-trap 'rm -rf "$work"' EXIT
+# export_recovery_key <fingerprint> <out-file>: a keyring with the recovery
+# key only, from the keyring file.
+export_recovery_key() {
+  local recovery=$1 out_file=$2
+  mkdir -m 700 "$WORK_DIR/gnupg"
+  gpg --batch --homedir "$WORK_DIR/gnupg" --import "$KEYRING_FILE" 2>/dev/null
+  gpg --batch --homedir "$WORK_DIR/gnupg" --export -- "$recovery" > "$out_file"
+  [ -s "$out_file" ] || die "could not export the recovery key $recovery"
+}
 
-# A keyring with the recovery key only.
-mkdir -m 700 "$work/gnupg"
-gpg --batch --homedir "$work/gnupg" --import "$KEYRING_FILE" 2>/dev/null
-gpg --batch --homedir "$work/gnupg" --export -- "$recovery" > "$work/recovery.gpg"
-[ -s "$work/recovery.gpg" ] || die "could not export the recovery key $recovery"
-
-gpgv --keyring "$work/recovery.gpg" --output - "$DIST/InRelease" 2>/dev/null > "$work/inrelease.txt" \
-  || die "InRelease is not signed by the recovery key $recovery"
-gpgv --keyring "$work/recovery.gpg" "$DIST/Release.gpg" "$DIST/Release" 2>/dev/null \
-  || die "Release.gpg is not a signature of Release by the recovery key $recovery"
-cmp -s "$work/inrelease.txt" "$DIST/Release" || die "InRelease does not sign the same text as Release"
+# verify_signatures <fingerprint> <recovery-keyring>: InRelease and
+# Release.gpg are the recovery key's signatures of Release.
+verify_signatures() {
+  local recovery=$1 recovery_keyring=$2
+  gpgv_quiet "$recovery_keyring" --output - "$DIST_DIR/InRelease" > "$WORK_DIR/inrelease.txt" \
+    || die "InRelease is not signed by the recovery key $recovery"
+  gpgv_quiet "$recovery_keyring" "$DIST_DIR/Release.gpg" "$DIST_DIR/Release" \
+    || die "Release.gpg is not a signature of Release by the recovery key $recovery"
+  cmp -s "$WORK_DIR/inrelease.txt" "$DIST_DIR/Release" || die "InRelease does not sign the same text as Release"
+}
 
 # Release -> index files.
-listed=0
-while read -r sha size path; do
-  f="$DIST/$path"
-  [ -f "$f" ] || die "Release lists $path, which is missing"
-  [ "$(sha256sum < "$f" | cut -d' ' -f1)" = "$sha" ] && [ "$(stat -c %s "$f")" = "$size" ] \
-    || die "$path does not match Release"
-  listed=$((listed + 1))
-done < <(awk '/^SHA256:/ {on = 1; next} /^[^ ]/ {on = 0} on {print $1, $2, $3}' "$DIST/Release")
-[ "$listed" -gt 0 ] || die "Release lists no index files"
-packages="$DIST/main/binary-aarch64/Packages"
-grep -q " main/binary-aarch64/Packages$" "$DIST/Release" || die "Release does not list $packages"
+verify_index_files() {
+  local listed=0 sha size path index_file
+  while read -r sha size path; do
+    index_file="$DIST_DIR/$path"
+    [ -f "$index_file" ] || die "Release lists $path, which is missing"
+    [ "$(sha256_of "$index_file")" = "$sha" ] && [ "$(file_size "$index_file")" = "$size" ] \
+      || die "$path does not match Release"
+    listed=$((listed + 1))
+  done < <(awk '/^SHA256:/ {on = 1; next} /^[^ ]/ {on = 0} on {print $1, $2, $3}' "$DIST_DIR/Release")
+  [ "$listed" -gt 0 ] || die "Release lists no index files"
+  grep -q " $INDEX_SUBDIR/Packages$" "$DIST_DIR/Release" || die "Release does not list $PACKAGES_FILE"
+}
 
 # Packages -> every .deb in pool/, and nothing else.
-awk '/^Filename: / {f = $2} /^SHA256: / {print f, $2}' "$packages" > "$work/debs.txt"
-while read -r rel sha; do
-  [ -f "$REPO/$rel" ] || die "Packages lists $rel, which is missing"
-  [ "$(sha256sum < "$REPO/$rel" | cut -d' ' -f1)" = "$sha" ] || die "$rel does not match Packages"
-done < "$work/debs.txt"
-( cd "$REPO" && find pool -type f -o -type l ) | sort > "$work/pool.txt"
-cut -d' ' -f1 "$work/debs.txt" | sort > "$work/listed.txt"
-cmp -s "$work/pool.txt" "$work/listed.txt" || die "pool/ holds files that Packages does not list"
+verify_pool() {
+  local pool_path sha
+  awk '/^Filename: / {f = $2} /^SHA256: / {print f, $2}' "$PACKAGES_FILE" > "$WORK_DIR/debs.txt"
+  while read -r pool_path sha; do
+    [ -f "$REPO_DIR/$pool_path" ] || die "Packages lists $pool_path, which is missing"
+    [ "$(sha256_of "$REPO_DIR/$pool_path")" = "$sha" ] || die "$pool_path does not match Packages"
+  done < "$WORK_DIR/debs.txt"
+  ( cd "$REPO_DIR" && find pool -type f -o -type l ) | sort > "$WORK_DIR/pool.txt"
+  cut -d' ' -f1 "$WORK_DIR/debs.txt" | sort > "$WORK_DIR/listed.txt"
+  cmp -s "$WORK_DIR/pool.txt" "$WORK_DIR/listed.txt" || die "pool/ holds files that Packages does not list"
+}
 
-# The key files.
-cmp -s "$REPO/pwsh-termux.gpg" "$KEYRING_FILE" || die "pwsh-termux.gpg is not $KEYRING_FILE"
-keyring_sha=$(sha256sum < "$REPO/pwsh-termux-keyring.deb" | cut -d' ' -f1)
-cut -d' ' -f2 "$work/debs.txt" | grep -qx "$keyring_sha" \
-  || die "pwsh-termux-keyring.deb is not a package listed in Packages"
-dpkg-deb --fsys-tarfile "$REPO/pwsh-termux-keyring.deb" | tar -xOf - "$KEYRING_MEMBER" | cmp -s - "$KEYRING_FILE" \
-  || die "pwsh-termux-keyring.deb does not ship $KEYRING_FILE"
+# The key files: the keyring file, and a listed keyring package that ships it.
+verify_key_files() {
+  cmp -s "$KEY_FILE" "$KEYRING_FILE" || die "$PUBLISHED_KEY_GPG is not $KEYRING_FILE"
+  cut -d' ' -f2 "$WORK_DIR/debs.txt" | grep -qx "$(sha256_of "$KEYRING_DEB")" \
+    || die "$PUBLISHED_KEYRING_DEB is not a package listed in Packages"
+  deb_ships_keyring "$KEYRING_DEB" "$KEYRING_FILE" \
+    || die "$PUBLISHED_KEYRING_DEB does not ship $KEYRING_FILE"
+}
 
-log "signed by the recovery key $recovery; index, pool and key files consistent"
+main() {
+  local recovery
+  recovery=$(require_recovery_fingerprint "$KEYRING_FILE")
+  require_repo_files
+
+  WORK_DIR=$(mktemp -d)
+  trap 'rm -rf "$WORK_DIR"' EXIT
+  export_recovery_key "$recovery" "$WORK_DIR/recovery.gpg"
+  verify_signatures "$recovery" "$WORK_DIR/recovery.gpg"
+  verify_index_files
+  verify_pool
+  verify_key_files
+
+  log "signed by the recovery key $recovery; index, pool and key files consistent"
+}
+
+main
