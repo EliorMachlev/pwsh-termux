@@ -22,14 +22,20 @@ updates:
         patterns:
           - "*"
 
-  # zizmor, hash-pinned in .github/zizmor/requirements.txt
+  # The two hash-pinned Python tools, each compiled from its requirements.in
+  # with pip-compile: zizmor (.github/zizmor) and typos (.github/docs-checks).
+  # They are the only other dependencies: make-sboms.sh pins its generators
+  # by version and SHA-256 by hand, and Dependabot has no ecosystem for them.
   - package-ecosystem: "pip"
-    directory: "/.github/zizmor"
+    directories:
+      - "/.github/zizmor"
+      - "/.github/docs-checks"
     schedule:
       interval: "weekly"
       day: "monday"
       time: "05:00"
       timezone: "Etc/UTC"
+    open-pull-requests-limit: 10
     labels:
       - "dependencies"
     commit-message:
@@ -37,19 +43,7 @@ updates:
       include: "scope"
     cooldown:
       default-days: 7
-
-  # typos, hash-pinned in .github/docs-checks/requirements.txt
-  - package-ecosystem: "pip"
-    directory: "/.github/docs-checks"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-      time: "05:00"
-      timezone: "Etc/UTC"
-    labels:
-      - "dependencies"
-    commit-message:
-      prefix: "chore(deps)"
-      include: "scope"
-    cooldown:
-      default-days: 7
+    groups:
+      python-tools:
+        patterns:
+          - "*"

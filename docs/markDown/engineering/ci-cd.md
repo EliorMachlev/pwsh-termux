@@ -31,7 +31,7 @@ Workflows are in [`.github/workflows/`](../../../.github/workflows). They share 
 
 ## Dependabot
 
-[`dependabot.yml`](../../../.github/dependabot.yml) updates, weekly: the pinned GitHub Actions (one grouped pull request), and the two hash-pinned Python requirement files (`.github/zizmor`, `.github/docs-checks`). Every update waits a 7-day cooldown after a release before it is proposed.
+[`dependabot.yml`](../../../.github/dependabot.yml) updates, weekly (Mondays): the pinned GitHub Actions, as one grouped pull request that moves both the SHA and its version comment, and the two hash-pinned Python requirement files (`.github/zizmor`, `.github/docs-checks`), as a second grouped pull request across both folders. Every update waits a 7-day cooldown after a release before it is proposed. Those are the only package ecosystems in the repository; the SBOM generators in `make-sboms.sh` are pinned by version and SHA-256 by hand. Every `uses:` is a full commit SHA with a `# vX.Y.Z` comment (local reusable workflows excepted), which is what lets Dependabot update them; Dependency Review and zizmor check each such pull request like any other.
 
 ## Secrets
 
