@@ -73,6 +73,7 @@ jobs:
           touch repo/.nojekyll
           bash scripts/verify-recovery-repo.sh repo
           bash scripts/assemble-site.sh docs repo
+          python3 .github/scripts/site-check.py repo
 
       - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:

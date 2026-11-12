@@ -40,7 +40,6 @@ KEYRING_FILE=${KEYRING_FILE:-$DEFAULT_KEYRING_FILE}
 TERMUX_PREFIX=${TERMUX_PREFIX:-$DEFAULT_TERMUX_PREFIX}
 
 readonly SITE_URL=https://pwsh-termux.machlev.org
-readonly PROJECT_GITHUB_URL=https://github.com/EliorMachlev/pwsh-termux
 readonly KEYRING_PATH=$TERMUX_PREFIX/$KEYRING_INSTALL_SUBDIR/$KEYRING_BASENAME
 readonly SOURCES_LIST_DIR=$TERMUX_PREFIX/etc/apt/sources.list.d
 # Same file name as the manual install: two sources for one URI with

@@ -37,10 +37,14 @@
     </div>
   </section>
 
-  <pre><code>pkg install -y glibc-repo &amp;&amp; \
+  <pre class="copy" aria-label="Install command"><code>pkg install -y glibc-repo &amp;&amp; \
 curl -fsSL https://pwsh-termux.machlev.org/pwsh-termux-keyring.deb -o $TMPDIR/pwsh-termux-keyring.deb &amp;&amp; \
 dpkg -i $TMPDIR/pwsh-termux-keyring.deb &amp;&amp; \
 pkg update &amp;&amp; pkg install pwsh</code></pre>
+  <p class="hint">Tap or click the command once to select all of it, then copy it.</p>
+<!-- generated:status -->
+<p class="status">The versions the repository serves now are in its <a href="https://github.com/EliorMachlev/pwsh-termux/releases">releases</a>.</p>
+<!-- /generated:status -->
   <p>Needs Termux on an arm64 (aarch64) device. The line also enables the glibc repository and installs the repository&rsquo;s signing key and source as one package, trusted for this repository only. <a href="/install.html">The fingerprint check and a manual alternative &rarr;</a></p>
 
   <h2>What you get</h2>

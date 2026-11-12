@@ -190,6 +190,8 @@ jobs:
         run: |
           bash scripts/build-repo.sh debs repo
           bash scripts/assemble-site.sh docs repo
+          python3 .github/scripts/site-check.py repo
+          grep -q 'Now serving <code>pwsh</code>' repo/index.html repo/install.html
           grep -q '^Package: pwsh$' repo/dists/stable/main/binary-aarch64/Packages
           grep -q '^Package: pwsh-termux-keyring$' repo/dists/stable/main/binary-aarch64/Packages
           cmp repo/pwsh-termux-keyring.deb debs/pwsh-termux-keyring_*_all.deb

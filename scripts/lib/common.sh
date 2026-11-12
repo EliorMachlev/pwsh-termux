@@ -23,6 +23,7 @@ readonly SCRIPT_NAME
 readonly EXIT_FAILURE=1
 
 readonly PROJECT_NAME=pwsh-termux
+readonly PROJECT_GITHUB_URL=https://github.com/EliorMachlev/$PROJECT_NAME
 readonly DEFAULT_TERMUX_PREFIX=/data/data/com.termux/files/usr
 
 # The public keyring users trust (keys/), and where the keyring package
@@ -50,6 +51,12 @@ readonly APT_ARCH=aarch64
 readonly PUBLISHED_KEY_GPG=$PROJECT_NAME.gpg          # the keyring file, binary
 readonly PUBLISHED_KEY_ASC=$PROJECT_NAME.asc          # the keyring file, armored
 readonly PUBLISHED_KEYRING_DEB=$KEYRING_PACKAGE.deb   # the keyring package, fixed name
+
+# project_blob_url <path>: the file on GitHub, on main.
+project_blob_url() { printf '%s\n' "$PROJECT_GITHUB_URL/blob/main/$1"; }
+
+# project_commit_url <sha>: the commit on GitHub.
+project_commit_url() { printf '%s\n' "$PROJECT_GITHUB_URL/commit/$1"; }
 
 # ---------------------------------------------------------------------------
 # Logging

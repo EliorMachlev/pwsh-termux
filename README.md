@@ -58,7 +58,9 @@ pkg install gnupg
 gpg --show-keys $PREFIX/share/keyrings/pwsh-termux-archive-keyring.gpg
 ```
 
-Optionally, check the package's build provenance: `gh attestation verify $TMPDIR/pwsh-termux-keyring.deb --repo EliorMachlev/pwsh-termux --signer-workflow EliorMachlev/pwsh-termux/.github/workflows/build-packages.yaml`. Troubleshooting, updating and removing: the [install page](https://pwsh-termux.machlev.org/install.html).
+Optionally, check the package's build provenance: `gh attestation verify $TMPDIR/pwsh-termux-keyring.deb --repo EliorMachlev/pwsh-termux --signer-workflow EliorMachlev/pwsh-termux/.github/workflows/build-packages.yaml --deny-self-hosted-runners`, and the signed index itself with `gpgv`: [verify it yourself](https://pwsh-termux.machlev.org/install.html#verify).
+
+To uninstall: `pkg remove pwsh pwsh-preview` and `pkg remove pwsh-termux-keyring` (the key and the source). When the signing key changes (a planned rotation, or a recovery with the offline key), `pkg upgrade` brings the new keyring; only a key added by hand needs downloading again ([questions](https://pwsh-termux.machlev.org/install.html#faq)). Troubleshooting (a missing `glibc-repo`, `NO_PUBKEY`, a non-arm64 device, an *expired* Release file): the [install page](https://pwsh-termux.machlev.org/install.html#troubleshooting).
 
 | Package | Command | Follows |
 |---|---|---|
@@ -92,6 +94,7 @@ The whole pipeline is [`.github/workflows/update.yaml`](.github/workflows/update
 - **arm64 only**, and only on Termux with the glibc repository: the packages are built for `aarch64` against Termux's glibc paths.
 - **The repository holds the current stable and preview only.** Older builds are release assets, not apt candidates.
 - **PowerShell is unchanged**, including Microsoft's telemetry and update notice. How to switch them off: the [install page](https://pwsh-termux.machlev.org/install.html).
+- **The signed index is valid for 14 days** (`Valid-Until`) and is re-signed daily. If the pipeline were broken for longer, `pkg update` would report the Release file as *expired* rather than serve stale packages ([why](SECURITY.md#index-freshness-valid-until)).
 - **Post-quantum signing** is not yet possible with apt; see [issue #1](https://github.com/EliorMachlev/pwsh-termux/issues/1).
 
 ## 🧱 Built with

@@ -134,6 +134,7 @@ jobs:
           export SIGN_KEY
           bash scripts/build-repo.sh artifacts/packages repo
           bash scripts/assemble-site.sh docs repo
+          python3 .github/scripts/site-check.py repo
 
       - name: Archive each .deb, its SBOMs, provenance and the public key as a release
         env:
