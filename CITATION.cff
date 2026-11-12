@@ -1,0 +1,17 @@
+cff-version: 1.2.0
+message: If you use pwsh-termux, please cite it as below.
+type: software
+title: pwsh-termux
+abstract: An unofficial, signed apt repository that packages Microsoft's PowerShell 7 (stable and preview) for Termux on arm64 Android, verified against Microsoft's hashes, patched for Termux's glibc and updated automatically.
+authors:
+  - given-names: Elior
+    family-names: Machlev
+license: MIT
+repository-code: https://github.com/EliorMachlev/pwsh-termux
+url: https://pwsh-termux.machlev.org/
+keywords:
+  - powershell
+  - termux
+  - android
+  - apt
+  - packaging

@@ -1,90 +1,118 @@
+<div align="center">
+
+<a href="https://pwsh-termux.machlev.org/">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="art/brand/mark-dark.svg">
+    <img alt="The pwsh-termux mark: a terminal prompt chevron and cursor. Opens the pwsh-termux website" src="art/brand/mark-light.svg" width="128">
+  </picture>
+</a>
+
 # pwsh-termux
 
-Unofficial apt repository that packages Microsoft's official
-[PowerShell](https://github.com/PowerShell/PowerShell) `linux-arm64` releases for
-**Termux (glibc)**, so `pkg install pwsh` and `pkg upgrade` just work.
+**PowerShell 7 for Termux, installed with `pkg`.**<br>
+An unofficial apt repository that follows Microsoft's PowerShell releases, verifies them, makes them run on Termux's glibc, signs them and keeps them up to date.
 
-> Not affiliated with or endorsed by Microsoft. "PowerShell" is a Microsoft trademark.
+[![Latest release](https://img.shields.io/github/v/release/EliorMachlev/pwsh-termux?include_prereleases&label=release)](https://github.com/EliorMachlev/pwsh-termux/releases)
+[![Update packages](https://github.com/EliorMachlev/pwsh-termux/actions/workflows/update.yaml/badge.svg?event=schedule)](https://github.com/EliorMachlev/pwsh-termux/actions/workflows/update.yaml)
+[![CI](https://github.com/EliorMachlev/pwsh-termux/actions/workflows/ci.yaml/badge.svg?branch=main&event=push)](https://github.com/EliorMachlev/pwsh-termux/actions/workflows/ci.yaml)
+[![CodeQL](https://github.com/EliorMachlev/pwsh-termux/actions/workflows/codeql.yaml/badge.svg?branch=main&event=push)](https://github.com/EliorMachlev/pwsh-termux/actions/workflows/codeql.yaml)
 
-## Install
+[![OpenSSF Scorecard](https://img.shields.io/ossf-scorecard/github.com/EliorMachlev/pwsh-termux?label=openssf+scorecard)](https://securityscorecards.dev/viewer/?uri=github.com/EliorMachlev/pwsh-termux)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+[![Termux aarch64](https://img.shields.io/badge/Termux-aarch64%20%C2%B7%20glibc-3DDC84?logo=android&logoColor=white)](docs/markDown/product/packages.md)
+[![Signed apt repository](https://img.shields.io/badge/apt-signed%20(Ed25519)-blue)](SECURITY.md#signing-key)
 
-```sh
-pkg install glibc-repo          # glibc package repository (if not already enabled)
+**[Website](https://pwsh-termux.machlev.org/)** · [Install](https://pwsh-termux.machlev.org/install.html) · [Privacy](https://pwsh-termux.machlev.org/privacy.html) · [Releases](https://github.com/EliorMachlev/pwsh-termux/releases) · [Docs](docs/markDown/README.md)
 
-curl -fsSL https://eliormachlev.github.io/pwsh-termux/pwsh-termux.gpg \
+</div>
+
+---
+
+## ✨ Highlights
+
+| Feature | What you get |
+|---|---|
+| 📦 **Install with `pkg`** | `pkg install pwsh` after adding one repository; `pkg upgrade` keeps it current. No manual downloads, no launcher scripts. |
+| 🔁 **Follows Microsoft** | A daily workflow reads Microsoft's GitHub releases and publishes the newest **stable** as `pwsh` and, while one is newer than stable, the newest **preview or release candidate** as `pwsh-preview`. Releases are chosen by version, not date, because Microsoft backports patches to older lines. |
+| ✅ **Verified** | Each tarball is checked against the SHA-256 in Microsoft's own `hashes.sha256` (published as UTF-16, which the build decodes) before anything is built from it. |
+| 🔏 **Signed** | The apt index is signed with a dedicated Ed25519 key, and apt verifies it on every `pkg update`. The fingerprint is in [SECURITY.md](SECURITY.md#signing-key). |
+| 🧩 **Runs natively on Termux** | The official glibc binary is patched to use Termux's glibc loader, so `pwsh` starts directly: no proot, no `glibc-runner` wrapper ([why](docs/markDown/engineering/architecture/packaging.md#why-patchelf-and-not-glibc-runner)). |
+| 🗃️ **Archived** | Every built `.deb` is kept as a GitHub release asset, so an older version is one download away. |
+| 🪪 **Honest about what it is** | Unofficial, not affiliated with Microsoft; the package ships Microsoft's files unchanged apart from two ELF headers ([NOTICE.md](NOTICE.md)). |
+
+## 📦 Get it
+
+You need Termux on an **arm64 (aarch64)** device. Then:
+
+```bash
+pkg install glibc-repo          # the glibc package repository, if you have not enabled it yet
+
+curl -fsSL https://pwsh-termux.machlev.org/pwsh-termux.gpg \
   -o $PREFIX/etc/apt/trusted.gpg.d/pwsh-termux.gpg
-echo "deb https://eliormachlev.github.io/pwsh-termux stable main" \
+echo "deb https://pwsh-termux.machlev.org stable main" \
   > $PREFIX/etc/apt/sources.list.d/pwsh-termux.list
 
 pkg update
-pkg install pwsh            # stable
-pkg install pwsh-preview    # optional: newest preview/RC, installs as `pwsh-preview`
+pkg install pwsh                # stable
+pkg install pwsh-preview        # optional: newest preview / release candidate
 ```
 
-The repository is hosted at https://github.com/EliorMachlev/pwsh-termux.
+Check the key you downloaded has the fingerprint `7086 C70B 4A25 576F E0C0 CE77 E43F B41F 02D0 1FC8` (`gpg --show-keys $PREFIX/etc/apt/trusted.gpg.d/pwsh-termux.gpg`). Troubleshooting, updating and removing: the [install page](https://pwsh-termux.machlev.org/install.html).
 
-## How it works
+| Package | Command | Follows |
+|---|---|---|
+| `pwsh` | `pwsh` | The highest stable PowerShell 7 release |
+| `pwsh-preview` | `pwsh-preview` | The highest preview / release candidate, only while it is newer than stable; installs side by side with `pwsh` |
 
-A scheduled GitHub Actions workflow (`.github/workflows/update.yml`):
+Both depend on `glibc`, `gcc-libs-glibc`, `libicu-glibc`, `openssl-glibc` and `zlib-glibc` from Termux's glibc repository. Details: [packages](docs/markDown/product/packages.md).
 
-1. `scripts/find-releases.sh` picks the highest **stable** release and, if a newer
-   one exists, the highest **prerelease** (Microsoft's `prerelease` flag). It chooses by
-   version, not date, because Microsoft backports patches to older lines.
-2. `scripts/build-deb.sh` downloads the `linux-arm64` tarball, **verifies it against
-   Microsoft's `hashes.sha256`**, patches every ELF executable to use Termux's glibc
-   loader (`patchelf`), and builds a `.deb` (`Depends: glibc, gcc-libs-glibc,
-   libicu-glibc, openssl-glibc, zlib-glibc`). Prerelease versions map to Debian `~`
-   versions (`7.7.0-rc.1` -> `7.7.0~rc.1`) so they upgrade cleanly to the final release.
-3. `scripts/build-repo.sh` writes the apt index and GPG-signs it.
-4. The repo is deployed to GitHub Pages; each `.deb` is also archived as a GitHub Release asset.
+## 🔧 How it works
 
-The apt repo only ever contains the *current* stable and preview versions (the build is
-stateless, so no large binaries accumulate in git history). Older versions are available as
-release assets.
-
-### Why patchelf and not glibc-runner?
-
-`grun` runs programs as `ld.so <program>`. PowerShell's .NET launcher locates `pwsh.dll`
-next to the executable, which under `grun` is the loader, so it fails. Patching the
-interpreter makes the kernel start `pwsh` directly.
-
-## Signing key
-
-The repository is signed with an **Ed25519** (OpenPGP v4) key.
-
-- **Quantum resistance:** none is available for apt repositories today. GnuPG 2.5 only
-  implements the post-quantum *encryption* algorithm ML-KEM (Kyber), with no post-quantum
-  signature algorithm, and apt only accepts RSA, Ed25519, Ed448 and the NIST/Brainpool
-  curves (`APT::Key::Assert-Pubkey-Algo`). Every key apt accepts is breakable by a large
-  quantum computer, so the realistic mitigation is rotating the key and revoking it if
-  needed. The package contents are additionally bound by SHA-256 hashes in the signed
-  `Release` file.
-- **Why not Ed448?** It passes `gpgv`, but GnuPG 2.5 generates it as a v5 key whose
-  64-character fingerprint apt 2.8 cannot match (`Signed-By`), and apt reports `BADSIG`.
-  Re-test this after apt gains OpenPGP v5/v6 support.
-
-## One-time setup for maintainers
-
-1. Create a **dedicated, passphrase-less** signing key and keep the private half out of git:
-   ```sh
-   gpg --batch --passphrase '' --quick-generate-key "pwsh-termux <noreply@users.noreply.github.com>" ed25519 sign never
-   gpg --armor --export-secret-keys <fingerprint>     # paste into the secret below
-   ```
-2. Repository **Settings -> Secrets and variables -> Actions**: add secret `GPG_PRIVATE_KEY`.
-3. Repository **Settings -> Pages**: set *Source* to **GitHub Actions**.
-4. Run the **Update packages** workflow once (Actions tab -> Run workflow).
-
-Scheduled workflows are disabled by GitHub after 60 days without repository activity; re-enable
-them or push a commit occasionally.
-
-## Local build
-
-```sh
-# Termux
-PATCHELF=$PREFIX/glibc/bin/patchelf DEB_COMPRESSION=gzip bash scripts/build-deb.sh pwsh v7.7.0 out
-bash scripts/build-repo.sh out repo          # unsigned unless SIGN_KEY is set
+```text
+Microsoft's GitHub releases
+        │  scripts/find-releases.sh   highest stable, newer preview
+        ▼
+official linux-arm64 tarball ──► SHA-256 check against hashes.sha256
+        │  scripts/build-deb.sh       patch ELF loader, build the .deb
+        ▼
+pwsh_<version>_aarch64.deb
+        │  scripts/build-repo.sh      apt index, Ed25519 signature
+        │  scripts/assemble-site.sh   merge the website (docs/)
+        ▼
+GitHub Pages  ──►  https://pwsh-termux.machlev.org/   (+ each .deb as a release asset)
 ```
 
-## License
+The whole pipeline is [`.github/workflows/update.yaml`](.github/workflows/update.yaml); [architecture](docs/markDown/engineering/architecture/README.md) explains each stage.
 
-Scripts: MIT. PowerShell itself: MIT, (c) Microsoft Corporation; its license is included in each package.
+## ⚠️ Limits worth knowing
+
+- **arm64 only**, and only on Termux with the glibc repository: the packages are built for `aarch64` against Termux's glibc paths.
+- **The repository holds the current stable and preview only.** Older builds are release assets, not apt candidates.
+- **PowerShell is unchanged**, including Microsoft's telemetry and update notice. How to switch them off: the [install page](https://pwsh-termux.machlev.org/install.html).
+- **Not post-quantum.** No quantum-resistant signature is possible in apt today; see [SECURITY.md](SECURITY.md#signing-key).
+
+## 🧱 Built with
+
+Bash · `dpkg-deb` · [patchelf](https://github.com/NixOS/patchelf) · `jq` · Python (the site checks) · [GnuPG](https://gnupg.org/) · GitHub Actions and Pages
+
+Checked on every change by shellcheck, actionlint, a real package build, CodeQL (workflows), zizmor, Gitleaks and the docs checks (lychee, typos); every action is pinned to a commit and Dependabot keeps the pins current. See [CI / CD](docs/markDown/engineering/ci-cd.md).
+
+## 📚 Documentation
+
+Start at the [documentation index](docs/markDown/README.md): [architecture](docs/markDown/engineering/architecture/README.md), [build](docs/markDown/engineering/build.md), [release](docs/markDown/engineering/release.md), [CI / CD](docs/markDown/engineering/ci-cd.md), [security](docs/markDown/engineering/security.md) and the [website](docs/markDown/engineering/website.md). The [website](https://pwsh-termux.machlev.org/) is the user-facing version.
+
+## 🤝 Contributing
+
+Bug fixes are welcome; for new features, open an issue first. See the [contributor guide](docs/markDown/engineering/contributing.md).
+
+Found a vulnerability? Please report it privately, as [SECURITY.md](SECURITY.md) describes.
+
+## ⚖️ Legal
+
+[Privacy Policy](docs/markDown/legal/privacy-policy.md) · [Terms of Service](docs/markDown/legal/terms-of-service.md) · [Accessibility Statement](docs/markDown/legal/accessibility-statement.md) · [Compliance Posture](docs/markDown/legal/compliance-posture.md) · [SECURITY.md](SECURITY.md)
+
+## 📄 License
+
+pwsh-termux packages [PowerShell](https://github.com/PowerShell/PowerShell) by Microsoft; [NOTICE.md](NOTICE.md) sums up what is and is not changed. "PowerShell" is a trademark of Microsoft, and this project is not affiliated with or endorsed by Microsoft.
+
+PowerShell © Microsoft Corporation, MIT. Packaging scripts © pwsh-termux contributors, licensed under [MIT](LICENSE).
