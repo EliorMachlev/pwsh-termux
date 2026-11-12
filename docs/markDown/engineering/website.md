@@ -29,7 +29,7 @@ Each page has Open Graph and Twitter card tags and a canonical link. [`robots.tx
 
 ## Updating `security.txt`
 
-`Expires` is one year ahead when written. `site.yaml` runs weekly and fails when fewer than 30 days remain, as a reminder to extend it (RFC 9116 asks for an expiry).
+RFC 9116 asks for an `Expires` under a year ahead. [`renew-security-txt.yaml`](../../../.github/workflows/renew-security-txt.yaml) moves it to about eleven months ahead on the 1st of any month when fewer than four months are left, commits to `main` and starts the deploy. Renewing does not review the contact: do that when you see the commit. `site.yaml` still fails when fewer than 30 days remain, in case the renewal stops working.
 
 ## See also
 

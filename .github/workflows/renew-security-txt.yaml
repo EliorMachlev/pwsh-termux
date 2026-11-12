@@ -1,0 +1,73 @@
+name: Renew security.txt
+
+# RFC 9116 wants security.txt's Expires less than a year away, so someone has
+# to renew it. On the 1st of every month this moves the date to about eleven
+# months ahead if fewer than four months are left, commits it and starts the
+# deploy (a push made with GITHUB_TOKEN starts no other workflow).
+# Checking the file's contents is still the maintainer's job: renewing only
+# confirms the contact is the same as last time.
+on:
+  schedule:
+    - cron: "17 5 1 * *"
+  workflow_dispatch:
+
+concurrency:
+  group: renew-security-txt
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  renew:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write          # commit the new date to main
+      actions: write           # start "Update packages" to deploy it
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Move the date if fewer than four months are left
+        id: bump
+        run: |
+          python3 - <<'PY'
+          import os, re
+          from datetime import datetime, timedelta, timezone
+          path = "docs/.well-known/security.txt"
+          text = open(path, encoding="utf-8").read()
+          m = re.search(r"^Expires: (\S+)$", text, re.M)
+          current = datetime.fromisoformat(m.group(1).replace("Z", "+00:00"))
+          now = datetime.now(timezone.utc)
+          changed = current - now < timedelta(days=120)
+          if changed:
+              new = (now + timedelta(days=335)).strftime("%Y-%m-%dT00:00:00.000Z")
+              open(path, "w", encoding="utf-8").write(text.replace(m.group(1), new))
+              print(f"Expires: {m.group(1)} -> {new}")
+          else:
+              print(f"Expires {m.group(1)}: more than four months left, nothing to do")
+          open(os.environ["GITHUB_OUTPUT"], "a").write(f"changed={'true' if changed else 'false'}\n")
+          PY
+
+      - name: Check the website
+        if: steps.bump.outputs.changed == 'true'
+        run: python3 .github/scripts/site-check.py docs
+
+      - name: Commit and deploy
+        if: steps.bump.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -am "chore: renew security.txt"
+          git push "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git" HEAD:main
+          gh workflow run update.yaml --ref main
