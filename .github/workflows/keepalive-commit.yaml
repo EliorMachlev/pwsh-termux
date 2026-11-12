@@ -1,0 +1,96 @@
+name: Keep-alive commit
+
+# GitHub disables a public repository's scheduled workflows after 60 days
+# without repository activity, and only commits on the default branch are
+# known to count. keepalive.yaml renews the schedules through the API; this
+# workflow adds the documented kind of activity: when main has had no commit
+# for 30 days, it pushes one commit that only sets keep.alive to the current
+# UTC time (scripts/keepalive-commit.sh), as github-actions[bot], with
+# "[skip ci]". The first run creates keep.alive.
+#
+# main's ruleset requires signed commits and a Pages deployment, and GitHub
+# Actions cannot bypass a ruleset in a personal repository, so the push uses
+# a deploy key that only main's ruleset lets bypass it. The key is the secret
+# KEEPALIVE_DEPLOY_KEY of the environment `keepalive`, which only main may
+# use; the job also refuses any other ref itself. The key goes into an
+# ssh-agent and is never written to disk, so the checkout keeps
+# persist-credentials: false and holds no credential. After the push the job
+# posts the commit status keepalive/pushed, which audit-main.yaml requires of
+# every unsigned commit on main. Pull requests that touch this run a dry run
+# over https, with no environment and no key.
+# docs/markDown/engineering/ci-cd.md, "Keep-alive commit", has the model.
+on:
+  schedule:
+    - cron: "17 5 * * 1"      # Mondays
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - ".github/workflows/keepalive-commit.yaml"
+      - "scripts/keepalive-commit.sh"
+      - "scripts/lib/**"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  # Pull requests: build and check the commit on the real main, push nothing.
+  dry-run:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Build and check a keep-alive commit (dry run)
+        env:
+          GH_REPO: ${{ github.repository }}
+          KEEPALIVE_REMOTE: https://github.com/${{ github.repository }}.git
+        run: bash scripts/keepalive-commit.sh --dry-run --ignore-age
+
+  push:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    environment: keepalive     # holds KEEPALIVE_DEPLOY_KEY; main only
+    permissions:
+      contents: read
+      statuses: write          # the keepalive/pushed status on the new commit
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
+        with:
+          egress-policy: audit
+
+      - name: Refuse any ref but main
+        env:
+          REF: ${{ github.ref }}
+        run: |
+          if [ "$REF" != refs/heads/main ]; then
+            echo "::error::the keep-alive commit is pushed only from main, not $REF"
+            exit 1
+          fi
+
+      # The script and the library only; main's tip is fetched by the script.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Push the keep-alive commit if main is quiet
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          KEEPALIVE_DEPLOY_KEY: ${{ secrets.KEEPALIVE_DEPLOY_KEY }}
+        run: bash scripts/keepalive-commit.sh
