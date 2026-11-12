@@ -56,7 +56,7 @@ $PSVersionTable.PSVersion</code></pre></li>
   <p>For the preview channel, <code>pkg install pwsh-preview</code> installs <code>pwsh-preview</code> next to <code>pwsh</code>. It only exists while Microsoft&rsquo;s newest preview is newer than the newest stable release.</p>
 
   <h2>Check the signing key</h2>
-  <p>The key you downloaded should have this fingerprint (compare it with the one in the <a href="https://github.com/EliorMachlev/pwsh-termux/blob/main/SECURITY.md">security policy</a> on GitHub, which is a separate channel):</p>
+  <p>The key you downloaded should have this fingerprint (compare it with the one in the <a href="https://github.com/EliorMachlev/pwsh-termux/blob/main/SECURITY.md">security policy</a> on GitHub, which is a separate channel, or with the key attached to each <a href="https://github.com/EliorMachlev/pwsh-termux/releases">release</a>):</p>
 <pre><code>7086 C70B 4A25 576F E0C0  CE77 E43F B41F 02D0 1FC8</code></pre>
   <p>To see it yourself: <code>pkg install gnupg</code>, then <code>gpg --show-keys $PREFIX/etc/apt/trusted.gpg.d/pwsh-termux.gpg</code>.</p>
 

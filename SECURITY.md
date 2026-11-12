@@ -52,7 +52,7 @@ The apt repository is signed with a dedicated key. Its public half is published 
 |---|---|
 | Algorithm | Ed25519 (OpenPGP v4) |
 | Fingerprint | `7086 C70B 4A25 576F E0C0  CE77 E43F B41F 02D0 1FC8` |
-| Public key | <https://pwsh-termux.machlev.org/pwsh-termux.gpg> (binary) and `.asc` (armored) |
+| Public key | <https://pwsh-termux.machlev.org/pwsh-termux.gpg> (binary) and `.asc` (armored). Copies are attached to every [release](https://github.com/EliorMachlev/pwsh-termux/releases) with a `FINGERPRINT.txt`; a release keeps the key that was current when it was made. |
 | Expiry | None; replaced by rotation (below) |
 
 Check the downloaded key against this fingerprint: `gpg --show-keys $PREFIX/etc/apt/trusted.gpg.d/pwsh-termux.gpg`. This page and the website are separate channels, so a mismatch between them is itself a warning sign.
