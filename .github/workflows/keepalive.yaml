@@ -1,0 +1,77 @@
+name: Schedule keep-alive
+
+# GitHub disables a public repository's scheduled workflows after 60 days
+# without repository activity; update.yaml's daily re-sign must not stop (the
+# index's Valid-Until is 14 days ahead). This renews every scheduled workflow
+# through the REST API (PUT .../enable, scripts/keep-schedules-alive.sh): no
+# commit, no personal token, only this job's GITHUB_TOKEN with actions:
+# write. update.yaml and staleness.yaml do the same daily; this one is the
+# small third leg, on other days and hours, with nothing else that can fail.
+# Any one of the three still running renews the other two. A workflow turned
+# off by hand stays off; one GitHub disabled is enabled again and the run
+# fails, so the maintainer hears of it. SECURITY.md, "Index freshness", and
+# docs/markDown/engineering/ci-cd.md say what is verified and what is assumed.
+on:
+  schedule:
+    - cron: "29 2 * * 0,3"    # Sunday and Wednesday
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - ".github/workflows/keepalive.yaml"
+      - "scripts/keep-schedules-alive.sh"
+      - "scripts/lib/**"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  # Pull requests: the same run against the real API, reading only.
+  dry-run:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read            # list the workflows and their states
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Renew the scheduled workflows (dry run)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: bash scripts/keep-schedules-alive.sh refresh --dry-run
+
+  refresh:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: write           # PUT .../actions/workflows/<file>/enable
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Renew the scheduled workflows
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: bash scripts/keep-schedules-alive.sh refresh

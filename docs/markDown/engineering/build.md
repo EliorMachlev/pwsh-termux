@@ -91,6 +91,16 @@ The same `$O` with `sourceparts` pointed at `$X$PREFIX/etc/apt/sources.list.d` r
 
 Use Ed25519 for the test key: an Ed448 key looks fine to `gpg` but apt 2.8 reports a bad signature ([SECURITY.md](../../../SECURITY.md#signing-key)).
 
+## Test the schedule keep-alive
+
+```bash
+bash scripts/test-keepalive.sh                                   # offline, with a stub gh
+GH_REPO=EliorMachlev/pwsh-termux bash scripts/keep-schedules-alive.sh check              # real states, read only
+GH_REPO=EliorMachlev/pwsh-termux bash scripts/keep-schedules-alive.sh refresh --dry-run  # what refresh would enable
+```
+
+Both real calls use your `gh` login and write nothing ([keep-alive](ci-cd.md#schedule-keep-alive)).
+
 ## Check the website
 
 ```bash

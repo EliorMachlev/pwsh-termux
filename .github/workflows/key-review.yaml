@@ -46,7 +46,7 @@ jobs:
           - [ ] **Online key backup**: the copy of \`GPG_PRIVATE_KEY\` held outside GitHub is still readable.
           - [ ] **Fingerprints**: SECURITY.md, docs/install.html and the README match \`keys/\` (\`bash scripts/check-keys.sh\`).
           - [ ] **Rotation plan**: reread "Rotating the signing key" and "Recovery with the offline key" in $RELEASE_DOC and decide whether the online key is rotated this year. A recovery-signed index must be re-signed within every 14 days (Valid-Until).
-          - [ ] **Schedules**: update.yaml (daily re-sign) and staleness.yaml are enabled and green.
+          - [ ] **Schedules**: update.yaml (daily re-sign), staleness.yaml and keepalive.yaml are enabled and green, and no *A scheduled workflow is disabled* issue was opened this year (if one was, the API keep-alive did not hold: see "Schedule keep-alive" in docs/markDown/engineering/ci-cd.md).
           EOF
           )
           found=$(gh issue list --state all --limit 100 --search "in:title \"$ISSUE_TITLE\"" \
