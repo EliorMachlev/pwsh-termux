@@ -35,40 +35,56 @@
 #   repo/pwsh-termux-keyring.deb            (the keyring package under a fixed name)
 # The website is merged in afterwards by assemble-site.sh.
 set -euo pipefail
+source "$(dirname "$0")/lib/common.sh"
 
-DEBS=${1:?debs directory}
-REPO=${2:?repo output directory}
-SUITE=stable COMP=main ARCH=aarch64
-HERE=$(cd "$(dirname "$0")" && pwd)
-ROOT=$(cd "$HERE/.." && pwd)
-KEYRING_FILE=${KEYRING_FILE:-$ROOT/keys/pwsh-termux-archive-keyring.gpg}
-KEYRING_MEMBER=./data/data/com.termux/files/usr/share/keyrings/pwsh-termux-archive-keyring.gpg
+DEBS_DIR=${1:?debs directory}
+REPO_DIR=${2:?repo output directory}
+KEYRING_FILE=${KEYRING_FILE:-$DEFAULT_KEYRING_FILE}
 
-log() { printf '[build-repo] %s\n' "$*" >&2; }
-die() { printf '[build-repo] ERROR: %s\n' "$*" >&2; exit 1; }
+readonly RELEASE_ORIGIN=$PROJECT_NAME
+readonly RELEASE_DESCRIPTION="Unofficial PowerShell packages for Termux (glibc)"
+DIST_DIR=$(repo_dist_dir "$REPO_DIR")
+INDEX_DIR=$DIST_DIR/$(repo_index_subdir)
+RELEASE_FILE=$DIST_DIR/Release
+readonly DIST_DIR INDEX_DIR RELEASE_FILE
 
+# Set by find_debs: every .deb, and the keyring package among them (0 or 1).
+debs=()
+keyring_debs=()
+# Set by read_key_roles: the keys that may sign, and the recovery key.
+online_fprs=
+recovery_fpr=
+# Set by check_signer: the signing key's fingerprint.
+sign_fpr=
 
-shopt -s nullglob
-debs=("$DEBS"/*.deb)
-[ "${#debs[@]}" -gt 0 ] || die "no .deb files in $DEBS"
-keyring_debs=("$DEBS"/pwsh-termux-keyring_*.deb)
-[ "${#keyring_debs[@]}" -le 1 ] || die "more than one pwsh-termux-keyring package in $DEBS"
+find_debs() {
+  shopt -s nullglob
+  debs=("$DEBS_DIR"/*.deb)
+  [ "${#debs[@]}" -gt 0 ] || die "no .deb files in $DEBS_DIR"
+  keyring_debs=("$DEBS_DIR"/"$KEYRING_PACKAGE"_*.deb)
+  [ "${#keyring_debs[@]}" -le 1 ] || die "more than one $KEYRING_PACKAGE package in $DEBS_DIR"
+}
 
 # The keyring file's keys and their roles (current, next, recovery).
-key_roles=$(bash "$HERE/check-keys.sh" "$KEYRING_FILE")
-online_fprs=$(awk '$2 == "current" || $2 == "next" {print $1}' <<<"$key_roles")
-recovery_fpr=$(awk '$2 == "recovery" {print $1}' <<<"$key_roles")
+read_key_roles() {
+  local key_roles
+  key_roles=$(check_keyring "$KEYRING_FILE")
+  online_fprs=$(online_fingerprints <<<"$key_roles")
+  recovery_fpr=$(fingerprints_with_role "$ROLE_RECOVERY" <<<"$key_roles")
+}
 
 # The keyring package, when present, must ship exactly the keyring file.
-if [ "${#keyring_debs[@]}" -eq 1 ]; then
-  dpkg-deb --fsys-tarfile "${keyring_debs[0]}" | tar -xOf - "$KEYRING_MEMBER" | cmp -s - "$KEYRING_FILE" \
-    || die "${keyring_debs[0]} does not ship $KEYRING_FILE"
-fi
+check_keyring_package_contents() {
+  if [ "${#keyring_debs[@]}" -eq 1 ]; then
+    deb_ships_keyring "${keyring_debs[0]}" "$KEYRING_FILE" \
+      || die "${keyring_debs[0]} does not ship $KEYRING_FILE"
+  fi
+}
 
-if [ -n "${SIGN_KEY:-}" ]; then
-  [ "${#keyring_debs[@]}" -eq 1 ] || die "signing, but $DEBS has no pwsh-termux-keyring package (build-keyring.sh)"
-  sign_fpr=$(gpg --batch --list-secret-keys --with-colons -- "$SIGN_KEY" \
-    | awk -F: '$1 == "sec" {want = 1; next} $1 == "fpr" && want {print $10; exit}')
+# The signing key is the online key (never the recovery key, whose secret
+# must not even be in this gpg home).
+check_signer() {
+  sign_fpr=$(secret_key_fingerprint "$SIGN_KEY")
   [ -n "$sign_fpr" ] || die "no secret key for SIGN_KEY in the keyring"
   [ "$sign_fpr" != "$recovery_fpr" ] \
     || die "refusing to sign with the recovery key $recovery_fpr: it is offline only (scripts/recovery-sign.sh)"
@@ -77,82 +93,124 @@ if [ -n "${SIGN_KEY:-}" ]; then
   fi
   grep -qx -- "$sign_fpr" <<<"$online_fprs" \
     || die "the signing key $sign_fpr is not the online key in $KEYRING_FILE ($(tr '\n' ' ' <<<"$online_fprs")); see release.md, rotating the signing key"
+}
 
+# The keyring package is the file whose attestation the caller verified.
+check_keyring_package_is_verified() {
   [ -n "${KEYRING_DEB_SHA256:-}" ] \
     || die "signing, but KEYRING_DEB_SHA256 (the attestation-verified digest of the keyring package) is not set"
-  [ "$(sha256sum < "${keyring_debs[0]}" | cut -d' ' -f1)" = "$KEYRING_DEB_SHA256" ] \
+  [ "$(sha256_of "${keyring_debs[0]}")" = "$KEYRING_DEB_SHA256" ] \
     || die "${keyring_debs[0]} is not the file whose provenance was verified (KEYRING_DEB_SHA256)"
+}
 
+check_before_signing() {
+  [ "${#keyring_debs[@]}" -eq 1 ] || die "signing, but $DEBS_DIR has no $KEYRING_PACKAGE package (build-keyring.sh)"
+  check_signer
+  check_keyring_package_is_verified
   log "keyring package is the verified file; signing key $sign_fpr is the key in $KEYRING_FILE"
-fi
-
-rm -rf "$REPO"
-mkdir -p "$REPO"
+}
 
 # The published key files are the keyring file itself, so the manual install
 # and the package trust the same keys.
-cp "$KEYRING_FILE" "$REPO/pwsh-termux.gpg"
-gpg --batch --no-default-keyring --import-options import-export --armor \
-  --import "$KEYRING_FILE" > "$REPO/pwsh-termux.asc" 2>/dev/null
-gpg --batch --dearmor < "$REPO/pwsh-termux.asc" | cmp -s - "$REPO/pwsh-termux.gpg" \
-  || die "pwsh-termux.asc is not the armored pwsh-termux.gpg"
-if [ "${#keyring_debs[@]}" -eq 1 ]; then
-  cp "${keyring_debs[0]}" "$REPO/pwsh-termux-keyring.deb"   # a fixed name for the install line
-fi
+write_key_files() {
+  local key_file armored_key_file
+  key_file=$(repo_key_file "$REPO_DIR")
+  armored_key_file=$(repo_armored_key_file "$REPO_DIR")
+  cp "$KEYRING_FILE" "$key_file"
+  gpg --batch --no-default-keyring --import-options import-export --armor \
+    --import "$KEYRING_FILE" > "$armored_key_file" 2>/dev/null
+  gpg --batch --dearmor < "$armored_key_file" | cmp -s - "$key_file" \
+    || die "$PUBLISHED_KEY_ASC is not the armored $PUBLISHED_KEY_GPG"
+  if [ "${#keyring_debs[@]}" -eq 1 ]; then
+    cp "${keyring_debs[0]}" "$(repo_keyring_deb "$REPO_DIR")"   # a fixed name for the install line
+  fi
+}
 
-bindir="$REPO/dists/$SUITE/$COMP/binary-$ARCH"
-mkdir -p "$bindir"
+# packages_entry <deb> <pool-path>: the deb's control fields and where and
+# what the file is.
+packages_entry() {
+  local deb=$1 pool_path=$2
+  dpkg-deb -f "$deb"
+  echo "Filename: $pool_path"
+  echo "Size: $(file_size "$deb")"
+  echo "MD5sum: $(md5sum "$deb" | cut -d' ' -f1)"
+  echo "SHA256: $(sha256_of "$deb")"
+  echo
+}
 
-: > "$bindir/Packages"
-for deb in "${debs[@]}"; do
-  pkg=$(dpkg-deb -f "$deb" Package)
-  mkdir -p "$REPO/pool/$COMP/$pkg"
-  cp "$deb" "$REPO/pool/$COMP/$pkg/"
-  rel="pool/$COMP/$pkg/$(basename "$deb")"
-  {
-    dpkg-deb -f "$deb"
-    echo "Filename: $rel"
-    echo "Size: $(stat -c %s "$deb")"
-    echo "MD5sum: $(md5sum "$deb" | cut -d' ' -f1)"
-    echo "SHA256: $(sha256sum "$deb" | cut -d' ' -f1)"
-    echo
-  } >> "$bindir/Packages"
-done
-gzip -9kn "$bindir/Packages"
-command -v xz >/dev/null && xz -9ke "$bindir/Packages"
-
-rel="$REPO/dists/$SUITE/Release"
-{
-  echo "Origin: pwsh-termux"
-  echo "Label: pwsh-termux"
-  echo "Suite: $SUITE"
-  echo "Codename: $SUITE"
-  echo "Architectures: $ARCH"
-  echo "Components: $COMP"
-  echo "Date: $(LC_ALL=C date -u '+%a, %d %b %Y %H:%M:%S UTC')"
-  echo "Description: Unofficial PowerShell packages for Termux (glibc)"
-  echo "SHA256:"
-  for f in "$bindir"/Packages*; do
-    p=${f#"$REPO/dists/$SUITE/"}
-    echo " $(sha256sum "$f" | cut -d' ' -f1) $(stat -c %s "$f") $p"
+# Each .deb into pool/, and the Packages index (plain, .gz and, with xz, .xz).
+write_pool_and_packages() {
+  local deb package pool_subdir
+  mkdir -p "$INDEX_DIR"
+  : > "$INDEX_DIR/Packages"
+  for deb in "${debs[@]}"; do
+    package=$(dpkg-deb -f "$deb" Package)
+    pool_subdir=$(repo_pool_subdir "$package")
+    mkdir -p "$REPO_DIR/$pool_subdir"
+    cp "$deb" "$REPO_DIR/$pool_subdir/"
+    packages_entry "$deb" "$pool_subdir/$(basename "$deb")" >> "$INDEX_DIR/Packages"
   done
-} > "$rel"
+  gzip -9kn "$INDEX_DIR/Packages"
+  if command -v xz >/dev/null; then
+    xz -9ke "$INDEX_DIR/Packages"
+  fi
+}
 
-if [ -n "${SIGN_KEY:-}" ]; then
-  gpgargs=(--batch --yes --pinentry-mode loopback --local-user "$SIGN_KEY")
-  [ -n "${GPG_PASSPHRASE_FILE:-}" ] && gpgargs+=(--passphrase-file "$GPG_PASSPHRASE_FILE")
-  gpg "${gpgargs[@]}" --clearsign -o "$REPO/dists/$SUITE/InRelease" "$rel"
-  gpg "${gpgargs[@]}" -abs -o "$REPO/dists/$SUITE/Release.gpg" "$rel"
+write_release() {
+  local index_file
+  {
+    echo "Origin: $RELEASE_ORIGIN"
+    echo "Label: $RELEASE_ORIGIN"
+    echo "Suite: $APT_SUITE"
+    echo "Codename: $APT_SUITE"
+    echo "Architectures: $APT_ARCH"
+    echo "Components: $APT_COMPONENT"
+    echo "Date: $(LC_ALL=C date -u '+%a, %d %b %Y %H:%M:%S UTC')"
+    echo "Description: $RELEASE_DESCRIPTION"
+    echo "SHA256:"
+    for index_file in "$INDEX_DIR"/Packages*; do
+      echo " $(sha256_of "$index_file") $(file_size "$index_file") ${index_file#"$DIST_DIR/"}"
+    done
+  } > "$RELEASE_FILE"
+}
+
+sign_and_verify_release() {
+  local -a gpg_options=(--batch --yes --pinentry-mode loopback --local-user "$SIGN_KEY")
+  if [ -n "${GPG_PASSPHRASE_FILE:-}" ]; then
+    gpg_options+=(--passphrase-file "$GPG_PASSPHRASE_FILE")
+  fi
+  sign_release "$DIST_DIR" "${gpg_options[@]}"
   # What apt will do with the published key: verify both signatures with gpgv
   # against the keyring file alone.
-  gpgv --keyring "$(realpath "$KEYRING_FILE")" "$REPO/dists/$SUITE/InRelease" 2>/dev/null \
+  gpgv_quiet "$(realpath "$KEYRING_FILE")" "$DIST_DIR/InRelease" \
     || die "InRelease does not verify against $KEYRING_FILE"
-  gpgv --keyring "$(realpath "$KEYRING_FILE")" "$REPO/dists/$SUITE/Release.gpg" "$rel" 2>/dev/null \
+  gpgv_quiet "$(realpath "$KEYRING_FILE")" "$DIST_DIR/Release.gpg" "$RELEASE_FILE" \
     || die "Release.gpg does not verify against $KEYRING_FILE"
   log "signed with $sign_fpr and verified against $KEYRING_FILE"
-else
-  log "WARNING: SIGN_KEY not set, repository is UNSIGNED"
-fi
+}
 
-touch "$REPO/.nojekyll"
-log "repository written to $REPO"
+main() {
+  find_debs
+  read_key_roles
+  check_keyring_package_contents
+  if [ -n "${SIGN_KEY:-}" ]; then
+    check_before_signing
+  fi
+
+  rm -rf "$REPO_DIR"
+  mkdir -p "$REPO_DIR"
+  write_key_files
+  write_pool_and_packages
+  write_release
+
+  if [ -n "${SIGN_KEY:-}" ]; then
+    sign_and_verify_release
+  else
+    log "WARNING: SIGN_KEY not set, repository is UNSIGNED"
+  fi
+
+  touch "$REPO_DIR/.nojekyll"
+  log "repository written to $REPO_DIR"
+}
+
+main

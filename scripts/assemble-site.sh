@@ -9,25 +9,42 @@
 #   deploy never pairs a new page with a stylesheet a browser still has cached
 #   (GitHub Pages lets browsers keep assets for hours but pages for minutes).
 set -euo pipefail
+source "$(dirname "$0")/lib/common.sh"
 
-DOCS=${1:?docs directory}
-REPO=${2:?repo directory (output of build-repo.sh)}
+DOCS_DIR=${1:?docs directory}
+REPO_DIR=${2:?repo directory (output of build-repo.sh)}
 
-log() { printf '[assemble-site] %s\n' "$*" >&2; }
-die() { printf '[assemble-site] ERROR: %s\n' "$*" >&2; exit 1; }
+readonly HANDBOOK_SUBDIR=markDown          # docs/markDown stays on GitHub
+readonly CACHE_BUSTED_ASSETS=(style.css favicon.svg)
+readonly ASSET_HASH_LENGTH=12
 
-[ -f "$DOCS/index.html" ] || die "$DOCS/index.html not found"
-[ -d "$REPO/dists" ] || die "$REPO is not an apt repository (run build-repo.sh first)"
+# Everything in docs/ except the Markdown handbook.
+copy_site() {
+  tar -C "$DOCS_DIR" --exclude="./$HANDBOOK_SUBDIR" -cf - . | tar -C "$REPO_DIR" -xf -
+}
 
-tar -C "$DOCS" --exclude=./markDown -cf - . | tar -C "$REPO" -xf -
-
-shopt -s nullglob
-for asset in style.css favicon.svg; do
-  [ -f "$REPO/$asset" ] || die "$asset missing from the site"
-  hash=$(sha256sum "$REPO/$asset" | cut -c1-12)
-  for page in "$REPO"/*.html; do
+# stamp_asset <asset>: every page references it as /<asset>?v=<content hash>.
+stamp_asset() {
+  local asset=$1 hash page
+  [ -f "$REPO_DIR/$asset" ] || die "$asset missing from the site"
+  hash=$(sha256sum "$REPO_DIR/$asset" | cut -c"1-$ASSET_HASH_LENGTH")
+  for page in "$REPO_DIR"/*.html; do
     sed -i "s#\"/$asset\"#\"/$asset?v=$hash\"#g" "$page"
   done
   log "$asset -> ?v=$hash"
-done
-log "site merged into $REPO"
+}
+
+main() {
+  local asset
+  [ -f "$DOCS_DIR/index.html" ] || die "$DOCS_DIR/index.html not found"
+  [ -d "$REPO_DIR/dists" ] || die "$REPO_DIR is not an apt repository (run build-repo.sh first)"
+
+  copy_site
+  shopt -s nullglob
+  for asset in "${CACHE_BUSTED_ASSETS[@]}"; do
+    stamp_asset "$asset"
+  done
+  log "site merged into $REPO_DIR"
+}
+
+main

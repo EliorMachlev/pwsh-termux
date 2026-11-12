@@ -100,7 +100,7 @@ python3 .github/scripts/site-check.py docs
 ## Lint
 
 ```bash
-shellcheck --shell=bash --severity=style scripts/*.sh        # pkg install shellcheck
+shellcheck --shell=bash --severity=style scripts/*.sh scripts/lib/*.sh        # pkg install shellcheck
 python3 -I -m py_compile .github/scripts/site-check.py
 ```
 

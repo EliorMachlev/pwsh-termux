@@ -1,7 +1,8 @@
 name: CI
 
 # The packaging scripts and the workflows, checked on every change:
-#   shellcheck  every script under scripts/
+#   shellcheck  every script under scripts/, and the shared library
+#               scripts/lib/common.sh they source (.shellcheckrc follows it)
 #   actionlint  every workflow (syntax, expressions, shell in run: steps)
 #   keys        keys/ follows the key rules (one online key, plus the keys
 #               keys/RECOVERY and keys/ROTATION name), SECURITY.md lists them,
@@ -20,6 +21,7 @@ on:
       - 'docs/**'
       - '.github/scripts/**'
       - '.github/workflows/**'
+      - '.shellcheckrc'
   push:
     branches: [main]
     paths:
@@ -29,6 +31,7 @@ on:
       - 'docs/**'
       - '.github/scripts/**'
       - '.github/workflows/**'
+      - '.shellcheckrc'
   workflow_dispatch:
 
 concurrency:
@@ -59,7 +62,7 @@ jobs:
         with:
           persist-credentials: false
       - name: shellcheck
-        run: shellcheck --shell=bash --severity=style scripts/*.sh
+        run: shellcheck --shell=bash --severity=style scripts/*.sh scripts/lib/*.sh
 
   actionlint:
     runs-on: ubuntu-latest
