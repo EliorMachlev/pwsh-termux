@@ -174,7 +174,7 @@ expect refuse "no commit date from the API"                run check
 echo "== the real workflows"
 states active active active
 expect accept "refresh --dry-run over .github/workflows"   env -u WORKFLOWS_DIR bash "$KEEPALIVE" refresh --dry-run
-for file in update.yaml staleness.yaml keepalive.yaml key-review.yaml; do
+for file in update.yaml staleness.yaml keepalive.yaml key-review.yaml keepalive-commit.yaml audit-main.yaml; do
   expect_line "  finds $file"                              "$file unknown: skipped (not on the default branch yet)"
 done
 if grep -q '^ci.yaml ' "$T/out.log"; then fail "  ci.yaml has no schedule"; else pass "  not ci.yaml (no schedule)"; fi
