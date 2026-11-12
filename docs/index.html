@@ -37,12 +37,11 @@
     </div>
   </section>
 
-  <pre><code>curl -fsSL https://pwsh-termux.machlev.org/pwsh-termux.gpg \
-  -o $PREFIX/etc/apt/trusted.gpg.d/pwsh-termux.gpg
-echo "deb https://pwsh-termux.machlev.org stable main" \
-  &gt; $PREFIX/etc/apt/sources.list.d/pwsh-termux.list
+  <pre><code>pkg install -y glibc-repo &amp;&amp; \
+curl -fsSL https://pwsh-termux.machlev.org/pwsh-termux-keyring.deb -o $TMPDIR/pwsh-termux-keyring.deb &amp;&amp; \
+dpkg -i $TMPDIR/pwsh-termux-keyring.deb &amp;&amp; \
 pkg update &amp;&amp; pkg install pwsh</code></pre>
-  <p>Needs Termux on an arm64 (aarch64) device with the glibc repository (<code>pkg install glibc-repo</code>). <a href="/install.html">Step by step, with checks &rarr;</a></p>
+  <p>Needs Termux on an arm64 (aarch64) device. The line also enables the glibc repository and installs the repository&rsquo;s signing key and source as one package, trusted for this repository only. <a href="/install.html">The fingerprint check and a manual alternative &rarr;</a></p>
 
   <h2>What you get</h2>
   <div class="grid">

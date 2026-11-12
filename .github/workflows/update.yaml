@@ -3,7 +3,8 @@ name: Update packages
 # Follows Microsoft's PowerShell releases (stable and preview), builds a Termux
 # .deb of each from the official linux-arm64 tarball, signs an apt repository,
 # merges the website (docs/) into it and deploys the lot to GitHub Pages at
-# https://pwsh-termux.machlev.org/. Each .deb, with the public key, is also kept as a release asset.
+# https://pwsh-termux.machlev.org/. Each pwsh/pwsh-preview .deb, with the public key and the
+# keyring package, is also kept as a release asset.
 #
 # One-time setup (secret, Pages source, custom domain): docs/markDown/engineering/release.md
 on:
@@ -14,6 +15,7 @@ on:
     branches: [main]
     paths:
       - "scripts/**"
+      - "keys/**"
       - "docs/**"
       - ".github/workflows/update.yaml"
       - ".github/workflows/build-packages.yaml"
@@ -52,6 +54,9 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          # Full history: build-repo.sh rebuilds the keyring package and must
+          # date it by the same commit as the build job (see build-keyring.sh).
+          fetch-depth: 0
 
       - name: Install tools
         run: sudo apt-get update && sudo apt-get install -y gnupg xz-utils
@@ -65,7 +70,10 @@ jobs:
           path: artifacts
 
       # The key is imported and used in this one step: it never reaches
-      # GITHUB_ENV or a later step.
+      # GITHUB_ENV or a later step. build-repo.sh refuses to sign unless the
+      # key is in keys/ and in the attested keyring package, and it rebuilds
+      # that package from keys/ and requires the same bytes. It publishes the
+      # attested package, not the rebuild.
       - name: Build the signed apt repository and assemble the site
         env:
           GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
@@ -84,32 +92,30 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          # The public key is attached to every release as a second channel
-          # next to the website. A release keeps the key that was current when
-          # it was made; a rotation does not rewrite old releases.
+          # The public key and the keyring package are attached to every
+          # release as a second channel next to the website. A release keeps
+          # the key that was current when it was made; a rotation does not
+          # rewrite old releases. A release is created once, with all its files,
+          # and never changed afterwards (so immutable releases can be on).
           mkdir keyfiles
-          cp repo/pwsh-termux.gpg repo/pwsh-termux.asc keyfiles/
+          cp repo/pwsh-termux.gpg repo/pwsh-termux.asc repo/pwsh-termux-keyring.deb \
+            artifacts/packages/pwsh-termux-keyring_*.json keyfiles/
           gpg --show-keys --with-colons keyfiles/pwsh-termux.gpg \
-            | awk -F: '/^fpr:/ {print $10; exit}' > keyfiles/FINGERPRINT.txt
+            | awk -F: '$1 == "pub" {want = 1; next} $1 == "fpr" && want {print $10; want = 0}' > keyfiles/FINGERPRINT.txt
           for deb in artifacts/packages/*.deb; do
             base=${deb%.deb}
             name=$(dpkg-deb -f "$deb" Package)
             ver=$(dpkg-deb -f "$deb" Version)
+            # The keyring package is not a PowerShell release; it rides along.
+            [ "$name" = pwsh-termux-keyring ] && continue
             tag="${name}-${ver//\~/-}"          # git tags cannot contain '~'
+            gh release view "$tag" >/dev/null 2>&1 && continue
             files=("$deb" "$base".*.json artifacts/packages/SHA256SUMS artifacts/provenance/*.intoto.jsonl keyfiles/*)
-            if gh release view "$tag" >/dev/null 2>&1; then
-              # One-time: a release made before SBOMs and provenance existed
-              # gets them, with the .deb they describe.
-              if ! gh release view "$tag" --json assets --jq '.assets[].name' | grep -q '\.intoto\.jsonl$'; then
-                gh release upload "$tag" --clobber "${files[@]}"
-              fi
-              continue
-            fi
             flags=()
             [ "$name" = pwsh-preview ] && flags+=(--prerelease)
             gh release create "$tag" "${files[@]}" "${flags[@]}" \
               --title "$name $ver" \
-              --notes "Unofficial Termux repackaging of Microsoft PowerShell. Install from the apt repository: https://pwsh-termux.machlev.org/install.html. Attached: the .deb, its SBOMs (CycloneDX and three SPDX files), SHA256SUMS, the build provenance (verify with gh attestation verify, see SECURITY.md) and the signing key (fingerprint in FINGERPRINT.txt and SECURITY.md)."
+              --notes "Unofficial Termux repackaging of Microsoft PowerShell. Install from the apt repository: https://pwsh-termux.machlev.org/install.html. Attached: the .deb, its SBOMs (CycloneDX and three SPDX files), SHA256SUMS, the build provenance (verify with gh attestation verify, see SECURITY.md), the signing key (fingerprints in FINGERPRINT.txt and SECURITY.md) and pwsh-termux-keyring.deb (with its SBOMs), the package the install line downloads."
           done
 
       - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0

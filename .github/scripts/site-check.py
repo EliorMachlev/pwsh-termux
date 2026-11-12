@@ -21,7 +21,7 @@ SITE = f"https://{DOMAIN}"
 
 # Paths the apt repository adds when the site is deployed (see assemble-site.sh);
 # they do not exist under docs/ but are linked from the pages.
-GENERATED = ("/pwsh-termux.gpg", "/pwsh-termux.asc", "/dists/", "/pool/")
+GENERATED = ("/pwsh-termux.gpg", "/pwsh-termux.asc", "/pwsh-termux-keyring.deb", "/dists/", "/pool/")
 
 # Directives every page's policy must contain, exactly.
 REQUIRED_CSP = ("default-src 'none'", "base-uri 'none'", "form-action 'none'")

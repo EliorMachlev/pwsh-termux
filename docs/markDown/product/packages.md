@@ -1,13 +1,14 @@
 # Packages
 
-Two packages come from the repository (`deb https://pwsh-termux.machlev.org stable main`, architecture `aarch64`).
+Three packages come from the repository (`deb [signed-by=…] https://pwsh-termux.machlev.org stable main`): `pwsh` and `pwsh-preview` for `aarch64`, and `pwsh-termux-keyring` for `all`.
 
 | Package | Command | Installs to | Follows |
 |---|---|---|---|
 | `pwsh` | `pwsh` | `$PREFIX/opt/pwsh` | The highest stable PowerShell release |
 | `pwsh-preview` | `pwsh-preview` | `$PREFIX/opt/pwsh-preview` | The highest preview or release candidate, while it is newer than stable |
+| `pwsh-termux-keyring` | none | `$PREFIX/share/keyrings/pwsh-termux-archive-keyring.gpg`, `$PREFIX/etc/apt/sources.list.d/pwsh-termux.list` | The public keys in [`keys/`](../../../keys) and the `signed-by` source line; its own version (`KEYRING_VERSION`), not tied to a PowerShell release ([details](../engineering/architecture/repository.md#the-keyring-package)) |
 
-`$PREFIX` is `/data/data/com.termux/files/usr`. Each package also installs a symlink `$PREFIX/bin/<command>` pointing into its `opt` folder, and `$PREFIX/share/doc/<package>/copyright`. The two packages share no files and install side by side.
+`$PREFIX` is `/data/data/com.termux/files/usr`. `pwsh` and `pwsh-preview` also install a symlink `$PREFIX/bin/<command>` pointing into their `opt` folder; every package installs `$PREFIX/share/doc/<package>/copyright`. `pwsh` and `pwsh-preview` share no files and install side by side.
 
 ## Which release becomes which package
 
@@ -32,7 +33,7 @@ The revision (`-1`) is for packaging fixes that do not change PowerShell; it is 
 
 ## Dependencies
 
-`glibc`, `gcc-libs-glibc`, `libicu-glibc`, `openssl-glibc` and `zlib-glibc`, all from [Termux's glibc repository](https://github.com/termux/glibc-packages) (`pkg install glibc-repo`). `libicu-glibc` is needed because .NET refuses to start without ICU unless globalization is switched to invariant mode, which the package does not do.
+`pwsh` and `pwsh-preview` depend on `glibc`, `gcc-libs-glibc`, `libicu-glibc`, `openssl-glibc` and `zlib-glibc`, all from [Termux's glibc repository](https://github.com/termux/glibc-packages) (`pkg install glibc-repo`); `pwsh-termux-keyring` depends on nothing. `libicu-glibc` is needed because .NET refuses to start without ICU unless globalization is switched to invariant mode, which the package does not do.
 
 ## What the repository holds
 

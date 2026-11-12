@@ -45,26 +45,28 @@ An unofficial apt repository that follows Microsoft's PowerShell releases, verif
 You need Termux on an **arm64 (aarch64)** device. Then:
 
 ```bash
-pkg install glibc-repo          # the glibc package repository, if you have not enabled it yet
-
-curl -fsSL https://pwsh-termux.machlev.org/pwsh-termux.gpg \
-  -o $PREFIX/etc/apt/trusted.gpg.d/pwsh-termux.gpg
-echo "deb https://pwsh-termux.machlev.org stable main" \
-  > $PREFIX/etc/apt/sources.list.d/pwsh-termux.list
-
-pkg update
-pkg install pwsh                # stable
+pkg install -y glibc-repo && curl -fsSL https://pwsh-termux.machlev.org/pwsh-termux-keyring.deb -o $TMPDIR/pwsh-termux-keyring.deb && dpkg -i $TMPDIR/pwsh-termux-keyring.deb && pkg update && pkg install pwsh
 pkg install pwsh-preview        # optional: newest preview / release candidate
 ```
 
-Check the key you downloaded has the fingerprint `7086 C70B 4A25 576F E0C0 CE77 E43F B41F 02D0 1FC8` (`gpg --show-keys $PREFIX/etc/apt/trusted.gpg.d/pwsh-termux.gpg`). Troubleshooting, updating and removing: the [install page](https://pwsh-termux.machlev.org/install.html).
+That line enables the glibc repository, installs `pwsh-termux-keyring` (the repository's public signing key in `$PREFIX/share/keyrings/` and an apt source that trusts it for this repository only, with `signed-by`; `pkg remove` takes both out again) and then installs `pwsh`. To add the key and the source by hand instead, see the [install page](https://pwsh-termux.machlev.org/install.html#by-hand).
+
+Check the key has the fingerprint in [SECURITY.md](SECURITY.md#signing-key), `7086 C70B 4A25 576F E0C0 CE77 E43F B41F 02D0 1FC8`:
+
+```bash
+pkg install gnupg
+gpg --show-keys $PREFIX/share/keyrings/pwsh-termux-archive-keyring.gpg
+```
+
+Optionally, check the package's build provenance: `gh attestation verify $TMPDIR/pwsh-termux-keyring.deb --repo EliorMachlev/pwsh-termux --signer-workflow EliorMachlev/pwsh-termux/.github/workflows/build-packages.yaml`. Troubleshooting, updating and removing: the [install page](https://pwsh-termux.machlev.org/install.html).
 
 | Package | Command | Follows |
 |---|---|---|
 | `pwsh` | `pwsh` | The highest stable PowerShell 7 release |
 | `pwsh-preview` | `pwsh-preview` | The highest preview / release candidate, only while it is newer than stable; installs side by side with `pwsh` |
+| `pwsh-termux-keyring` | none | The repository's public signing keys ([`keys/`](keys)) and apt source; the install line installs it |
 
-Both depend on `glibc`, `gcc-libs-glibc`, `libicu-glibc`, `openssl-glibc` and `zlib-glibc` from Termux's glibc repository. Details: [packages](docs/markDown/product/packages.md).
+`pwsh` and `pwsh-preview` depend on `glibc`, `gcc-libs-glibc`, `libicu-glibc`, `openssl-glibc` and `zlib-glibc` from Termux's glibc repository. Details: [packages](docs/markDown/product/packages.md).
 
 ## 🔧 How it works
 
@@ -75,7 +77,8 @@ Microsoft's GitHub releases
 official linux-arm64 tarball ──► SHA-256 check against hashes.sha256
         │  scripts/build-deb.sh       patch ELF loader, build the .deb
         ▼
-pwsh_<version>_aarch64.deb
+pwsh_<version>_aarch64.deb      + pwsh-termux-keyring_<version>_all.deb
+        │                               (scripts/build-keyring.sh, from keys/)
         │  scripts/build-repo.sh      apt index, Ed25519 signature
         │  scripts/assemble-site.sh   merge the website (docs/)
         ▼

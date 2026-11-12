@@ -29,48 +29,57 @@
 </div></header>
 <main id="main"><div class="wrap">
   <h1>Install</h1>
-  <p class="lead">Four commands, then <code>pkg</code> keeps PowerShell up to date.</p>
+  <p class="lead">One line, then <code>pkg</code> keeps PowerShell up to date.</p>
 
   <h2>Requirements</h2>
   <ul>
     <li>Termux on an <strong>arm64 (aarch64)</strong> device. Check with <code>uname -m</code>.</li>
-    <li>The Termux glibc repository, which provides the glibc libraries PowerShell needs: <code>pkg install glibc-repo</code>.</li>
+    <li>The Termux glibc repository, which provides the glibc libraries PowerShell needs. The line below enables it.</li>
     <li>About 200&nbsp;MB of free space (the package is about 50&nbsp;MB to download).</li>
   </ul>
 
-  <h2>Steps</h2>
-  <ol class="steps">
-    <li><p>Add the repository&rsquo;s signing key:</p>
-<pre><code>curl -fsSL https://pwsh-termux.machlev.org/pwsh-termux.gpg \
-  -o $PREFIX/etc/apt/trusted.gpg.d/pwsh-termux.gpg</code></pre></li>
-    <li><p>Add the repository:</p>
-<pre><code>echo "deb https://pwsh-termux.machlev.org stable main" \
-  &gt; $PREFIX/etc/apt/sources.list.d/pwsh-termux.list</code></pre></li>
-    <li><p>Install:</p>
-<pre><code>pkg update
-pkg install pwsh</code></pre></li>
-    <li><p>Run it:</p>
+  <h2>Install</h2>
+<pre><code>pkg install -y glibc-repo &amp;&amp; \
+curl -fsSL https://pwsh-termux.machlev.org/pwsh-termux-keyring.deb -o $TMPDIR/pwsh-termux-keyring.deb &amp;&amp; \
+dpkg -i $TMPDIR/pwsh-termux-keyring.deb &amp;&amp; \
+pkg update &amp;&amp; pkg install pwsh</code></pre>
+  <p>The second command downloads <code>pwsh-termux-keyring</code>, a small package with the repository&rsquo;s public signing key and its apt source. The key goes to <code>$PREFIX/share/keyrings/</code>, not to apt&rsquo;s global trust store, and the source names it with <code>signed-by</code>, so apt trusts it for this repository only. <code>pkg</code> then checks every later download against it; <code>pkg remove pwsh-termux-keyring</code> undoes it. Then run it:</p>
 <pre><code>pwsh
-$PSVersionTable.PSVersion</code></pre></li>
-  </ol>
+$PSVersionTable.PSVersion</code></pre>
   <p>For the preview channel, <code>pkg install pwsh-preview</code> installs <code>pwsh-preview</code> next to <code>pwsh</code>. It only exists while Microsoft&rsquo;s newest preview is newer than the newest stable release.</p>
 
-  <h2>Check the signing key</h2>
-  <p>The key you downloaded should have this fingerprint (compare it with the one in the <a href="https://github.com/EliorMachlev/pwsh-termux/blob/main/SECURITY.md">security policy</a> on GitHub, which is a separate channel, or with the key attached to each <a href="https://github.com/EliorMachlev/pwsh-termux/releases">release</a>):</p>
+  <h2 id="check">Check the signing key</h2>
+  <p>The key you installed should have this fingerprint. Compare it with the one in the <a href="https://github.com/EliorMachlev/pwsh-termux/blob/main/SECURITY.md#signing-key">security policy</a> on GitHub, which is a separate channel, or with the key attached to each <a href="https://github.com/EliorMachlev/pwsh-termux/releases">release</a>:</p>
 <pre><code>7086 C70B 4A25 576F E0C0  CE77 E43F B41F 02D0 1FC8</code></pre>
-  <p>To see it yourself: <code>pkg install gnupg</code>, then <code>gpg --show-keys $PREFIX/etc/apt/trusted.gpg.d/pwsh-termux.gpg</code>.</p>
+  <p>To print it yourself:</p>
+<pre><code>pkg install gnupg
+gpg --show-keys $PREFIX/share/keyrings/pwsh-termux-archive-keyring.gpg</code></pre>
+  <p>Optionally, check where the package was built. Each <code>pwsh-termux-keyring.deb</code> has a signed build provenance from this project&rsquo;s workflow; with the <a href="https://cli.github.com/">GitHub CLI</a> (<code>pkg install gh</code>, signed in):</p>
+<pre><code>gh attestation verify $TMPDIR/pwsh-termux-keyring.deb --repo EliorMachlev/pwsh-termux \
+  --signer-workflow EliorMachlev/pwsh-termux/.github/workflows/build-packages.yaml</code></pre>
+
+  <h2 id="by-hand">Add the key by hand instead</h2>
+  <p>If you would rather not install a package for it, these commands write the same two files with the same content:</p>
+<pre><code>mkdir -p $PREFIX/share/keyrings
+curl -fsSL https://pwsh-termux.machlev.org/pwsh-termux.gpg \
+  -o $PREFIX/share/keyrings/pwsh-termux-archive-keyring.gpg
+echo "deb [signed-by=$PREFIX/share/keyrings/pwsh-termux-archive-keyring.gpg] https://pwsh-termux.machlev.org stable main" \
+  &gt; $PREFIX/etc/apt/sources.list.d/pwsh-termux.list
+pkg update
+pkg install pwsh</code></pre>
+  <p>A key added by hand is not updated by <code>pkg upgrade</code>. When the key is rotated, download it again (the <a href="https://github.com/EliorMachlev/pwsh-termux/blob/main/SECURITY.md#signing-key">security policy</a> announces it), or install the keyring package.</p>
 
   <h2>Update and remove</h2>
-<pre><code>pkg upgrade            # updates everything, including pwsh
+<pre><code>pkg upgrade            # updates everything, including pwsh and the key package
 pkg remove pwsh        # remove PowerShell</code></pre>
-  <p>To also drop the repository: delete <code>$PREFIX/etc/apt/sources.list.d/pwsh-termux.list</code> and <code>$PREFIX/etc/apt/trusted.gpg.d/pwsh-termux.gpg</code>.</p>
+  <p>To also drop the repository: <code>pkg remove pwsh-termux-keyring</code>, which removes the key and the source. If you added them by hand, delete <code>$PREFIX/etc/apt/sources.list.d/pwsh-termux.list</code> and <code>$PREFIX/share/keyrings/pwsh-termux-archive-keyring.gpg</code>.</p>
 
   <h2>If something goes wrong</h2>
   <table>
     <thead><tr><th>Symptom</th><th>Cause and fix</th></tr></thead>
     <tbody>
-      <tr><td><code>pkg update</code> says <em>NO_PUBKEY</em> or the repository is <em>not signed</em></td><td>The key from step 1 is missing or empty. Repeat step 1 and check the file is not an error page.</td></tr>
-      <tr><td><code>Unable to locate package pwsh</code></td><td>Step 2 was skipped, or <code>pkg update</code> was not run afterwards.</td></tr>
+      <tr><td><code>pkg update</code> says <em>NO_PUBKEY</em> or the repository is <em>not signed</em></td><td>The key is missing, empty or outdated. Run the install line again; if you added the key by hand, download it again and check the file is not an error page.</td></tr>
+      <tr><td><code>Unable to locate package pwsh</code></td><td>The keyring package is not installed (the source line comes with it), or <code>pkg update</code> was not run afterwards.</td></tr>
       <tr><td><code>depends on glibc, but it is not installable</code></td><td>The glibc repository is not enabled: <code>pkg install glibc-repo</code>, then <code>pkg update</code>.</td></tr>
       <tr><td>Installed but <code>pwsh</code> says it cannot execute or a library is missing</td><td>Run <code>pkg install --reinstall pwsh</code>; if it persists, <a href="https://github.com/EliorMachlev/pwsh-termux/issues">open an issue</a> with the output of <code>pkg list-installed | grep -E 'glibc|icu|pwsh'</code>.</td></tr>
     </tbody>
