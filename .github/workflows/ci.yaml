@@ -10,6 +10,10 @@ name: CI
 #               the recovery scripts and the index's Valid-Until window
 #   keepalive   scripts/test-keepalive.sh: the schedule keep-alive
 #               (keep-schedules-alive.sh) against a stub gh, offline
+#   keepalive-commit  scripts/test-keepalive-commit.sh: the keep-alive
+#               commit (keepalive-commit.sh) and the audit of main
+#               (audit-main-commits.sh), with local git repositories and a
+#               stub gh, offline
 #   package     a real build of the current stable PowerShell (twice, compared
 #               byte for byte) and of the keyring package (reproducible,
 #               from keys/) into an apt
@@ -137,6 +141,24 @@ jobs:
           persist-credentials: false
       - name: Test the schedule keep-alive
         run: bash scripts/test-keepalive.sh
+
+  # Local git repositories with a bare remote, a stub gh, offline, no key:
+  # the keep-alive commit (pushed, skipped, dry run, retried, refused) and
+  # its guard; the audit of main and its issue.
+  keepalive-commit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Test the keep-alive commit and the audit of main
+        run: bash scripts/test-keepalive-commit.sh
 
   package:
     runs-on: ubuntu-24.04

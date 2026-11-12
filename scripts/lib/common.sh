@@ -298,3 +298,90 @@ repo_armored_key_file() { printf '%s\n' "$1/$PUBLISHED_KEY_ASC"; }
 
 # repo_keyring_deb <repo-dir>: the keyring package under its fixed name.
 repo_keyring_deb() { printf '%s\n' "$1/$PUBLISHED_KEYRING_DEB"; }
+
+# ---------------------------------------------------------------------------
+# The keep-alive commit on main (keepalive-commit.sh pushes it with a deploy
+# key; audit-main-commits.sh accepts it, unsigned, only in exactly this shape)
+# ---------------------------------------------------------------------------
+
+# The one file it changes, a regular file holding one UTC timestamp and a
+# newline (21 bytes): "2026-11-12T16:00:00Z".
+readonly KEEPALIVE_FILE=keep.alive
+readonly KEEPALIVE_FILE_MODE=100644
+readonly KEEPALIVE_FILE_SIZE=21
+readonly KEEPALIVE_TIMESTAMP_FORMAT='%Y-%m-%dT%H:%M:%SZ'
+readonly KEEPALIVE_TIMESTAMP_REGEX='^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]Z$'
+# Its author and committer: the identity of GITHUB_TOKEN's app, which is also
+# the creator GitHub records for the commit status the workflow posts.
+readonly GITHUB_ACTIONS_BOT_LOGIN='github-actions[bot]'
+readonly GITHUB_ACTIONS_BOT_ID=41898282
+readonly GITHUB_ACTIONS_BOT_EMAIL="$GITHUB_ACTIONS_BOT_ID+$GITHUB_ACTIONS_BOT_LOGIN@users.noreply.github.com"
+readonly GITHUB_ACTIONS_BOT_IDENTITY="$GITHUB_ACTIONS_BOT_LOGIN <$GITHUB_ACTIONS_BOT_EMAIL>"
+readonly KEEPALIVE_COMMIT_MESSAGE='chore(keepalive): refresh keep.alive [skip ci]'
+# The commit status the workflow posts on the commit after pushing it: the
+# audit's proof that the workflow, not someone else with the key, pushed it.
+readonly KEEPALIVE_STATUS_CONTEXT=keepalive/pushed
+readonly KEEPALIVE_STATUS_STATE=success
+
+# is_keepalive_timestamp <text>: true if it is one timestamp in exactly that
+# format, and a real date (no 31 February).
+is_keepalive_timestamp() {
+  [[ "$1" =~ $KEEPALIVE_TIMESTAMP_REGEX ]] || return 1
+  [ "$(date -u -d "$1" +"$KEEPALIVE_TIMESTAMP_FORMAT" 2>/dev/null)" = "$1" ]
+}
+
+# keepalive_commit_problems <commit>: in the current git repository, why the
+# commit is not a keep-alive commit, one reason per line; nothing if it is
+# one. A keep-alive commit has exactly one parent, changes exactly one path,
+# keep.alive (added or modified, a regular file of one timestamp line), has
+# github-actions[bot] as author and committer, and the fixed message.
+keepalive_commit_problems() {
+  local commit=$1 parents changed mode size content identities message
+  parents=$(git rev-list --parents -n 1 "$commit" | wc -w)
+  if [ "$parents" -ne 2 ]; then
+    echo "has $((parents - 1)) parent(s), not 1"
+    return 0
+  fi
+  changed=$(git diff-tree -r --no-commit-id --no-renames --name-only -z "$commit" | tr '\0' '\n')
+  if [ "$changed" != "$KEEPALIVE_FILE" ]; then
+    echo "changes $(printf '%s' "$changed" | grep -c '') path(s), not only $KEEPALIVE_FILE: $(printf '%s' "$changed" | head -n 5 | paste -sd ' ' -)"
+  else
+    mode=$(git ls-tree "$commit" -- "$KEEPALIVE_FILE" | cut -d' ' -f1)
+    size=$(git cat-file -s "$commit:$KEEPALIVE_FILE" 2>/dev/null || echo 0)
+    content=$(git cat-file blob "$commit:$KEEPALIVE_FILE" 2>/dev/null | head -c 64 | tr -c '[:print:]\n' '?' || true)
+    if [ "$mode" != "$KEEPALIVE_FILE_MODE" ]; then
+      echo "$KEEPALIVE_FILE is deleted or not a regular file (mode ${mode:-none})"
+    elif [ "$size" -ne "$KEEPALIVE_FILE_SIZE" ] || ! is_keepalive_timestamp "$content"; then
+      echo "$KEEPALIVE_FILE is not one timestamp line ($size bytes)"
+    fi
+  fi
+  identities=$(git show -s --format='%an <%ae>%n%cn <%ce>' "$commit")
+  if [ "$identities" != "$(printf '%s\n%s' "$GITHUB_ACTIONS_BOT_IDENTITY" "$GITHUB_ACTIONS_BOT_IDENTITY")" ]; then
+    echo "author or committer is not $GITHUB_ACTIONS_BOT_LOGIN: $(paste -sd '/' - <<<"$identities")"
+  fi
+  # The raw message, every newline kept (the x stops $() dropping them).
+  message=$(git cat-file commit "$commit" | sed '1,/^$/d'; echo x)
+  if [ "$message" != "$KEEPALIVE_COMMIT_MESSAGE"$'\n'x ]; then
+    echo "message is not '$KEEPALIVE_COMMIT_MESSAGE'"
+  fi
+}
+
+# post_keepalive_status <owner/repo> <commit> <run-url>: the keepalive/pushed
+# success status on the commit, through the REST API with GH_TOKEN (a
+# workflow's GITHUB_TOKEN with statuses: write).
+post_keepalive_status() {
+  gh api --silent -X POST "repos/$1/statuses/$2" \
+    -f state="$KEEPALIVE_STATUS_STATE" -f context="$KEEPALIVE_STATUS_CONTEXT" \
+    -f description="Pushed by the keep-alive workflow" -f target_url="$3"
+}
+
+# has_keepalive_status <owner/repo> <commit>: true if GitHub holds the
+# keepalive/pushed success status on the commit, created by
+# github-actions[bot] (by login and by account id).
+has_keepalive_status() {
+  gh api --paginate "repos/$1/commits/$2/statuses?per_page=100" \
+    | jq -se --arg context "$KEEPALIVE_STATUS_CONTEXT" --arg state "$KEEPALIVE_STATUS_STATE" \
+        --arg login "$GITHUB_ACTIONS_BOT_LOGIN" --argjson id "$GITHUB_ACTIONS_BOT_ID" '
+      add // [] | any(.[]; .context == $context and .state == $state
+                         and .creator.login == $login and .creator.id == $id)' >/dev/null
+}

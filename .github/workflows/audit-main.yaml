@@ -1,0 +1,85 @@
+name: Audit main
+
+# The keep-alive deploy key (keepalive-commit.yaml) can push to main past the
+# ruleset, so every commit on main is checked (scripts/audit-main-commits.sh):
+# it must be signed and verified by a trusted account (pull request merges by
+# web-flow, the owner), or be exactly the keep-alive commit with the
+# keepalive/pushed status that only a workflow's GITHUB_TOKEN can create.
+# Anything else opens (or updates) the issue "Unexpected unsigned commit on
+# main", which closes on the next clean run; the job then fails. On a push it
+# also checks the pushed range; daily and by hand, the last 90 days and the
+# newest 50 commits. This is detection, not prevention: whoever can push to
+# main can change this file too (docs/markDown/engineering/security.md).
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "53 6 * * *"      # daily
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read           # the commits and their signature verification
+      statuses: read           # the keepalive/pushed status
+    outputs:
+      findings: ${{ steps.audit.outputs.findings }}
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0       # the whole history: the baseline and the pushed range
+
+      # The findings go to the reporting job base64-encoded, as one line.
+      - name: Audit the commits on main
+        id: audit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          PUSH_AFTER: ${{ github.event.after }}
+        run: |
+          range=()
+          if [ -n "$PUSH_BEFORE" ] && [ -n "$PUSH_AFTER" ]; then range=("$PUSH_BEFORE" "$PUSH_AFTER"); fi
+          findings=$(bash scripts/audit-main-commits.sh audit "${range[@]}")
+          if [ -n "$findings" ]; then printf '%s\n' "$findings"; fi
+          echo "findings=$(printf '%s' "$findings" | base64 -w0)" >> "$GITHUB_OUTPUT"
+
+  report:
+    needs: audit
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: write            # open, update and close the audit issue
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Open, update or close the issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          FINDINGS: ${{ needs.audit.outputs.findings }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: printf '%s' "$FINDINGS" | base64 -d | bash scripts/audit-main-commits.sh report
