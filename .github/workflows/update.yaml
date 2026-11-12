@@ -13,7 +13,9 @@ name: Update packages
 # Packages and every .deb stay byte-identical and only InRelease changes:
 # clients re-download that small file and are offered no upgrade. If this
 # workflow stops for more than 14 days, apt on every device refuses the
-# expired index (staleness.yaml opens an issue 7 days before that).
+# expired index (staleness.yaml opens an issue 7 days before that). Its
+# keepalive job renews every scheduled workflow, so GitHub's 60-day
+# inactivity rule does not stop it (scripts/keep-schedules-alive.sh).
 #
 # One-time setup (secret, Pages source, custom domain): docs/markDown/engineering/release.md
 on:
@@ -190,3 +192,30 @@ jobs:
 
       - id: deployment
         uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
+
+  # Renews every scheduled workflow, this one included, so GitHub does not
+  # disable them after 60 days without repository activity
+  # (scripts/keep-schedules-alive.sh; staleness.yaml and keepalive.yaml do
+  # the same). Independent of the other jobs: it runs even when a build
+  # fails. Its own token, with actions: write and no signing key.
+  keepalive:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: write           # PUT .../actions/workflows/<file>/enable
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Renew the scheduled workflows
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: bash scripts/keep-schedules-alive.sh refresh

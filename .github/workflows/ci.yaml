@@ -8,6 +8,8 @@ name: CI
 #               keys/RECOVERY and keys/ROTATION name), SECURITY.md lists them,
 #               and scripts/test-keys.sh tests the rules, the publish checks,
 #               the recovery scripts and the index's Valid-Until window
+#   keepalive   scripts/test-keepalive.sh: the schedule keep-alive
+#               (keep-schedules-alive.sh) against a stub gh, offline
 #   package     a real build of the current stable PowerShell (twice, compared
 #               byte for byte) and of the keyring package (reproducible,
 #               from keys/) into an apt
@@ -117,6 +119,24 @@ jobs:
       # Valid-Until window (a re-sign changes InRelease, not Packages).
       - name: Test the key rules and the publish checks
         run: bash scripts/test-keys.sh
+
+  # A stub gh, offline: which workflows count as scheduled, what refresh
+  # enables and leaves alone (never one turned off by hand), when refresh and
+  # check fail, and that --dry-run writes nothing.
+  keepalive:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Test the schedule keep-alive
+        run: bash scripts/test-keepalive.sh
 
   package:
     runs-on: ubuntu-24.04

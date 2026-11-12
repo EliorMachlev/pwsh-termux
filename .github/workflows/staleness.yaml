@@ -5,9 +5,12 @@ name: Index staleness
 # device refuses the index once the date passes (SECURITY.md, "Index
 # freshness"). This checks the live https://pwsh-termux.machlev.org/dists/stable/InRelease
 # every day: it must download, verify against keys/ (gpgv, as apt), and have
-# at least 7 days left (scripts/check-index-freshness.sh). If not, it opens an
-# issue, or comments on the one already open (never a second one); when the
-# index is healthy again, it comments and closes that issue.
+# at least 7 days left (scripts/check-index-freshness.sh). It also checks
+# that GitHub has not disabled any scheduled workflow for inactivity
+# (scripts/keep-schedules-alive.sh check). Each problem has its own issue:
+# opened, or commented on if already open (never a second one), and closed
+# with a comment once healthy again. A second job then renews every
+# scheduled workflow, as update.yaml and keepalive.yaml also do.
 on:
   schedule:
     - cron: "41 7 * * *"      # daily, three hours after update.yaml
@@ -22,7 +25,8 @@ permissions:
 
 env:
   INRELEASE_URL: https://pwsh-termux.machlev.org/dists/stable/InRelease
-  ISSUE_TITLE: "The live apt index is stale or unreachable"
+  INDEX_ISSUE_TITLE: "The live apt index is stale or unreachable"
+  SCHEDULES_ISSUE_TITLE: "A scheduled workflow is disabled"
 
 jobs:
   check:
@@ -30,7 +34,8 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: read
-      issues: write            # open, comment on and close the staleness issue
+      issues: write            # open, comment on and close the two issues
+      actions: read            # the scheduled workflows' states
     steps:
       - name: Harden the runner
         uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
@@ -59,32 +64,85 @@ jobs:
           fi
           echo "summary=$(tr '\n' ' ' <<<"$result")" >> "$GITHUB_OUTPUT"
 
-      - name: Open, update or close the issue
+      # Never fails the step either.
+      - name: Check the scheduled workflows
+        id: schedules
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-          HEALTHY: ${{ steps.check.outputs.healthy }}
-          SUMMARY: ${{ steps.check.outputs.summary }}
+        run: |
+          if result=$(bash scripts/keep-schedules-alive.sh check 2>&1); then
+            echo "healthy=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "healthy=false" >> "$GITHUB_OUTPUT"
+          fi
+          echo "$result"
+          echo "summary=$(sed -z 's/\n$//; s/\n/; /g' <<<"$result")" >> "$GITHUB_OUTPUT"
+
+      - name: Open, update or close the issues
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          INDEX_HEALTHY: ${{ steps.check.outputs.healthy }}
+          INDEX_SUMMARY: ${{ steps.check.outputs.summary }}
+          SCHEDULES_HEALTHY: ${{ steps.schedules.outputs.healthy }}
+          SCHEDULES_SUMMARY: ${{ steps.schedules.outputs.summary }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
-          echo "$SUMMARY"
-          existing=$(gh issue list --state open --limit 100 --search "in:title \"$ISSUE_TITLE\"" \
-            --json number,title --jq '.[] | select(.title == env.ISSUE_TITLE) | .number' | head -n1)
-          if [ "$HEALTHY" = true ]; then
-            if [ -n "$existing" ]; then
-              gh issue close "$existing" --comment "Healthy again: $SUMMARY ($RUN_URL)"
+          # sync_issue <title> <healthy> <summary> <what-it-means>: close the
+          # open issue with that title if healthy; otherwise open it, or
+          # comment on it. Fails if not healthy.
+          sync_issue() {
+            local title=$1 healthy=$2 summary=$3 advice=$4 existing body
+            echo "$title: healthy=$healthy: $summary"
+            existing=$(ISSUE_TITLE=$title gh issue list --state open --limit 100 --search "in:title \"$title\"" \
+              --json number,title --jq '.[] | select(.title == env.ISSUE_TITLE) | .number' | head -n1)
+            if [ "$healthy" = true ]; then
+              if [ -n "$existing" ]; then
+                gh issue close "$existing" --comment "Healthy again: $summary ($RUN_URL)"
+              fi
+              return 0
             fi
-            exit 0
-          fi
-          body=$(printf '%s\n' \
-            "The scheduled check of $INRELEASE_URL failed:" "" \
-            "> $SUMMARY" "" \
-            "apt refuses the index once its Valid-Until passes, and update.yaml re-signs it daily, so this usually means update.yaml has been failing or is disabled. Check its recent runs and fix or re-run it; during a recovery, re-sign offline (docs/markDown/engineering/release.md, \"Recovery with the offline key\")." "" \
-            "Run: $RUN_URL")
-          if [ -n "$existing" ]; then
-            gh issue comment "$existing" --body "$body"
-          else
-            gh issue create --title "$ISSUE_TITLE" --body "$body"
-          fi
-          echo "::error::$SUMMARY"
-          exit 1
+            body=$(printf '%s\n' "The scheduled check failed:" "" "> $summary" "" "$advice" "" "Run: $RUN_URL")
+            if [ -n "$existing" ]; then
+              gh issue comment "$existing" --body "$body"
+            else
+              gh issue create --title "$title" --body "$body"
+            fi
+            echo "::error::$title: $summary"
+            return 1
+          }
+          status=0
+          sync_issue "$INDEX_ISSUE_TITLE" "$INDEX_HEALTHY" "$INDEX_SUMMARY" \
+            "apt refuses the index once its Valid-Until passes, and update.yaml re-signs it daily, so this usually means update.yaml has been failing or is disabled. Check its recent runs and fix or re-run it; during a recovery, re-sign offline (docs/markDown/engineering/release.md, \"Recovery with the offline key\")." \
+            || status=1
+          sync_issue "$SCHEDULES_ISSUE_TITLE" "$SCHEDULES_HEALTHY" "$SCHEDULES_SUMMARY" \
+            "GitHub disables a public repository's scheduled workflows after 60 days without repository activity. The keep-alive (keepalive.yaml, and a job in update.yaml and in this workflow) renews them through the API; this run's keepalive job has just tried to enable them again. If update.yaml was among them, run it by hand now (the index expires 14 days after its last re-sign) and check the index issue. If this recurs, the API renewal does not count as activity: make any commit on main (a Dependabot merge will do) and see docs/markDown/engineering/ci-cd.md, \"A scheduled workflow stops running\"." \
+            || status=1
+          exit "$status"
+
+  # Renews every scheduled workflow (scripts/keep-schedules-alive.sh), after
+  # the check above has seen their states, and whether it passed or not.
+  keepalive:
+    needs: check
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: write           # PUT .../actions/workflows/<file>/enable
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Renew the scheduled workflows
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: bash scripts/keep-schedules-alive.sh refresh
