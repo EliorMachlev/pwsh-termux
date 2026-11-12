@@ -4,7 +4,8 @@
 # answers from fixtures and records every call, no network and no key.
 #
 #   keepalive-commit.sh  pushes one keep.alive commit on an old main; skips
-#                        a young main; --dry-run pushes nothing; retries when
+#                        a young main unless --ignore-age; --dry-run pushes
+#                        nothing; retries when
 #                        main moves during the push, gives up when it keeps
 #                        moving or when a refused push is not a race; refuses
 #                        an SSH remote without the key and a run off main;
@@ -169,7 +170,9 @@ new_remote 2
 expect accept "--dry-run --ignore-age on a young main builds and checks it" push_run --dry-run --ignore-age
 expect_log "  says what it would push"                        "dry run: would push"
 check "  pushes nothing"                                      [ "$(remote_tip)" = "$(git -C "$T/seed" rev-parse HEAD)" ]
-expect refuse "--ignore-age without --dry-run"                push_run --ignore-age
+expect accept "--ignore-age on a young main pushes (the set-up test)" push_run --ignore-age
+check "  main moved"                                          [ "$(remote_tip)" = "$(cat "$T/out.log")" ]
+expect refuse "--ignore-age --dry-run (the order is fixed)"   push_run --ignore-age --dry-run
 expect refuse "an unknown option"                             push_run --force
 
 echo "== keepalive-commit.sh: races and refusals"

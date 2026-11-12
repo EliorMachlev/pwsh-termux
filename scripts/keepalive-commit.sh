@@ -8,7 +8,7 @@
 # .github/workflows/keepalive-commit.yaml, weekly, in the main-only
 # environment `keepalive` that holds the key.
 #
-# Usage: keepalive-commit.sh [--dry-run [--ignore-age]]
+# Usage: keepalive-commit.sh [--dry-run] [--ignore-age]
 #        keepalive-commit.sh check <commit> <parent>
 # Env:   GH_REPO               owner/repo (required)
 #        GH_TOKEN              the workflow's GITHUB_TOKEN with statuses: write
@@ -32,8 +32,9 @@
 #      starts again from 1, at most KEEPALIVE_PUSH_RETRIES times;
 #   6. posts the commit status keepalive/pushed (success) on it, which
 #      audit-main-commits.sh requires of every keep-alive commit.
-# --dry-run does 1 to 4 and pushes nothing; --ignore-age (dry run only) skips
-# step 2 so a pull request can test the build against the real main.
+# --dry-run does 1 to 4 and pushes nothing. --ignore-age skips step 2: the
+# pull request dry run builds against the real main with it, and the
+# maintainer starts the workflow with it once to test the ruleset set-up.
 # `check` runs step 4 alone on a commit in the current repository (tests).
 # Prints the new commit's SHA on stdout when it pushes (or would).
 set -euo pipefail
@@ -53,13 +54,14 @@ readonly GITHUB_SSH_HOST_KEY='ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0Sd
 # The deploy key's lifetime in the agent, in seconds: the job's length.
 readonly AGENT_KEY_LIFETIME_SECONDS=900
 
-usage() { die "usage: keepalive-commit.sh [--dry-run [--ignore-age]] | check <commit> <parent>"; }
+usage() { die "usage: keepalive-commit.sh [--dry-run] [--ignore-age] | check <commit> <parent>"; }
 
 DRY_RUN=false
 IGNORE_AGE=false
 case "${1:-} ${2:-}" in
   " ") ;;
   "--dry-run ") DRY_RUN=true ;;
+  "--ignore-age ") IGNORE_AGE=true ;;
   "--dry-run --ignore-age") DRY_RUN=true IGNORE_AGE=true ;;
   "check "*) [ $# -eq 3 ] || usage ;;
   *) usage ;;

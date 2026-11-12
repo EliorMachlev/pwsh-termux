@@ -23,6 +23,11 @@ on:
   schedule:
     - cron: "17 5 * * 1"      # Mondays
   workflow_dispatch:
+    inputs:
+      ignore_age:
+        description: "Push even if main had a commit in the last 30 days (to test the ruleset set-up once)"
+        type: boolean
+        default: false
   pull_request:
     paths:
       - ".github/workflows/keepalive-commit.yaml"
@@ -93,4 +98,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           KEEPALIVE_DEPLOY_KEY: ${{ secrets.KEEPALIVE_DEPLOY_KEY }}
-        run: bash scripts/keepalive-commit.sh
+          IGNORE_AGE: ${{ inputs.ignore_age }}
+        run: |
+          options=()
+          if [ "$IGNORE_AGE" = true ]; then options=(--ignore-age); fi
+          bash scripts/keepalive-commit.sh "${options[@]}"
