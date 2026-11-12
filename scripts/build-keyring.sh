@@ -1,16 +1,19 @@
 #!/usr/bin/env bash
-# Build the pwsh-termux-keyring .deb: the repository's public signing key and
-# the apt source that trusts it for this repository only (signed-by), so a
-# user sets the repository up by installing one package and removes it with
-# one `pkg remove`. The key comes from keys/pwsh-termux-archive-keyring.gpg,
-# which is committed to Git and holds exactly one key, the one that signs (two
-# only while keys/ROTATION marks a planned rotation; check-keys.sh). The build
-# is deterministic (same key file and script, same bytes).
+# Build the pwsh-termux-keyring .deb: the repository's public keys and the
+# apt source that trusts them for this repository only (signed-by), so a user
+# sets the repository up by installing one package and removes it with one
+# `pkg remove`. The keys come from keys/pwsh-termux-archive-keyring.gpg, which
+# is committed to Git: the online signing key, the offline recovery key once
+# keys/RECOVERY names it, and the next online key while keys/ROTATION names it
+# (check-keys.sh). The build is deterministic (same key file and script, same
+# bytes).
 #
-# A planned rotation reaches users through `pkg upgrade`: the next key is
-# shipped in this package while the old key still signs the index. A
-# compromised key cannot be replaced that way; users then reinstall this
-# package by hand. See docs/markDown/engineering/release.md.
+# New keys reach users through `pkg upgrade`: a planned rotation ships the
+# next key while the current one still signs; after a lost or compromised
+# online key, the maintainer signs the index that carries the new keyring with
+# the recovery key. Only a user who misses those windows, or a compromise with
+# no recovery key, needs a manual reinstall. See
+# docs/markDown/engineering/release.md.
 #
 # Usage: build-keyring.sh <outdir>
 # Prints the path of the built .deb on stdout (everything else goes to stderr)
@@ -70,7 +73,7 @@ install -m 644 "$KEYRING_FILE" "$stage$KEYRING_PATH"
 # different Signed-By values are an apt error.
 printf '%s\n' "$SOURCE_LINE" > "$stage$TERMUX_PREFIX/etc/apt/sources.list.d/pwsh-termux.list"
 {
-  echo "Public signing key and apt source of the unofficial pwsh-termux repository"
+  echo "Public keys and apt source of the unofficial pwsh-termux repository"
   echo "(https://pwsh-termux.machlev.org). MIT license: see the project's LICENSE at"
   echo "https://github.com/EliorMachlev/pwsh-termux."
 } > "$stage$TERMUX_PREFIX/share/doc/$PKG/copyright"
@@ -90,12 +93,11 @@ Installed-Size: $installed_kb
 Section: misc
 Priority: optional
 Homepage: https://pwsh-termux.machlev.org/
-Description: Signing key and apt source for the pwsh-termux repository
- Installs the public key that signs the pwsh-termux apt repository and a
- source line that trusts it for this repository only (signed-by).
- A planned key rotation arrives with pkg upgrade; after a key
- compromise, reinstall this package from the site as the advisory says.
- Removing it removes both files.
+Description: Signing keys and apt source for the pwsh-termux repository
+ Installs the public keys of the pwsh-termux apt repository and a source
+ line that trusts them for this repository only (signed-by).
+ New keys arrive with pkg upgrade (planned rotation, and recovery with
+ the offline key once it is set up). Removing it removes both files.
 CTRL
 
 # Every timestamp is SOURCE_DATE_EPOCH, and xz runs single-threaded (its

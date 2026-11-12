@@ -16,9 +16,11 @@
 #
 # When signing, it fails closed unless all of these hold:
 #   - the keyring file (keys/) passes check-keys.sh, and the signing key is
-#     the one key in it, or, while keys/ROTATION marks a planned rotation,
-#     one of its two keys; a secret replaced without keys/, or the reverse,
-#     stops here;
+#     its current online key, or, while keys/ROTATION marks a planned
+#     rotation, the next one; a secret replaced without keys/, or the
+#     reverse, stops here;
+#   - the signing key is not the recovery key (keys/RECOVERY), and no secret
+#     for the recovery key is in this gpg home at all (it never belongs in CI);
 #   - the debs folder holds one pwsh-termux-keyring package, and its SHA-256
 #     is KEYRING_DEB_SHA256 (the file whose attestation was verified);
 #   - that package ships exactly the keyring file, byte for byte;
@@ -52,8 +54,10 @@ debs=("$DEBS"/*.deb)
 keyring_debs=("$DEBS"/pwsh-termux-keyring_*.deb)
 [ "${#keyring_debs[@]}" -le 1 ] || die "more than one pwsh-termux-keyring package in $DEBS"
 
-# The keyring file's keys: one, or two during a marked rotation.
-key_fprs=$(bash "$HERE/check-keys.sh" "$KEYRING_FILE" | cut -d' ' -f1)
+# The keyring file's keys and their roles (current, next, recovery).
+key_roles=$(bash "$HERE/check-keys.sh" "$KEYRING_FILE")
+online_fprs=$(awk '$2 == "current" || $2 == "next" {print $1}' <<<"$key_roles")
+recovery_fpr=$(awk '$2 == "recovery" {print $1}' <<<"$key_roles")
 
 # The keyring package, when present, must ship exactly the keyring file.
 if [ "${#keyring_debs[@]}" -eq 1 ]; then
@@ -66,8 +70,13 @@ if [ -n "${SIGN_KEY:-}" ]; then
   sign_fpr=$(gpg --batch --list-secret-keys --with-colons -- "$SIGN_KEY" \
     | awk -F: '$1 == "sec" {want = 1; next} $1 == "fpr" && want {print $10; exit}')
   [ -n "$sign_fpr" ] || die "no secret key for SIGN_KEY in the keyring"
-  grep -qx -- "$sign_fpr" <<<"$key_fprs" \
-    || die "the signing key $sign_fpr is not the key in $KEYRING_FILE ($(tr '\n' ' ' <<<"$key_fprs")); see release.md, rotating the signing key"
+  [ "$sign_fpr" != "$recovery_fpr" ] \
+    || die "refusing to sign with the recovery key $recovery_fpr: it is offline only (scripts/recovery-sign.sh)"
+  if [ -n "$recovery_fpr" ] && gpg --batch --list-secret-keys -- "$recovery_fpr" >/dev/null 2>&1; then
+    die "the secret of the recovery key $recovery_fpr is in this gpg home; it must never be where the online key is"
+  fi
+  grep -qx -- "$sign_fpr" <<<"$online_fprs" \
+    || die "the signing key $sign_fpr is not the online key in $KEYRING_FILE ($(tr '\n' ' ' <<<"$online_fprs")); see release.md, rotating the signing key"
 
   [ -n "${KEYRING_DEB_SHA256:-}" ] \
     || die "signing, but KEYRING_DEB_SHA256 (the attestation-verified digest of the keyring package) is not set"

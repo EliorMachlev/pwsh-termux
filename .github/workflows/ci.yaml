@@ -3,9 +3,10 @@ name: CI
 # The packaging scripts and the workflows, checked on every change:
 #   shellcheck  every script under scripts/
 #   actionlint  every workflow (syntax, expressions, shell in run: steps)
-#   keys        keys/ follows the key rules (one public key, or two with a
-#               ROTATION marker), SECURITY.md's fingerprint is in it, and
-#               scripts/test-keys.sh tests the rules and the publish checks
+#   keys        keys/ follows the key rules (one online key, plus the keys
+#               keys/RECOVERY and keys/ROTATION name), SECURITY.md lists them,
+#               and scripts/test-keys.sh tests the rules, the publish checks
+#               and the recovery scripts
 #   package     a real build of the current stable PowerShell and of the
 #               keyring package (reproducible, from keys/) into an apt
 #               repository, unsigned and signed with a throwaway key, then
@@ -96,15 +97,19 @@ jobs:
           persist-credentials: false
       - name: The key rules, with the fingerprints
         run: bash scripts/check-keys.sh | tee fingerprints.txt
-      - name: SECURITY.md names a key that is in keys/
+      - name: SECURITY.md lists the keys in keys/
         run: |
           fpr=$(awk -F'|' '$2 ~ /Fingerprint/ {gsub(/[` ]/, "", $3); print $3; exit}' SECURITY.md)
           test -n "$fpr"
           echo "SECURITY.md: $fpr"
-          cut -d' ' -f1 fingerprints.txt | grep -qx "$fpr"
-      # Throwaway keys and a stub gh: steady state, rotation states, wrong
-      # signer, stale or wrong marker, altered, unverified and unattested
-      # keyring packages.
+          awk '$2 == "current" || $2 == "next" {print $1}' fingerprints.txt | grep -qx "$fpr"
+          recovery=$(awk '$2 == "recovery" {print $1}' fingerprints.txt)
+          if [ -n "$recovery" ]; then
+            tr -d ' ' < SECURITY.md | grep -q "$recovery"
+          fi
+      # Throwaway keys and a stub gh: every allowed key shape and the refused
+      # ones, the signer rules (never the recovery key), altered, unverified
+      # and unattested keyring packages, and recovery signing.
       - name: Test the key rules and the publish checks
         run: bash scripts/test-keys.sh
 

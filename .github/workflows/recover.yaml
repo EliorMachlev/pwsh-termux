@@ -1,0 +1,96 @@
+name: Deploy a recovery-signed repository
+
+# Used only after the online signing key is compromised or lost
+# (docs/markDown/engineering/release.md, "Recovery with the offline key").
+# The maintainer builds the repository and signs it on their own machine with
+# the offline recovery key (scripts/recovery-sign.sh), attaches it to a
+# release tagged recovery-* as recovery-repo.tar.gz, and starts this workflow
+# with that tag. It has no signing key and cannot sign anything: it deploys
+# the apt repository only if scripts/verify-recovery-repo.sh accepts it
+# (InRelease and Release.gpg signed by the recovery key alone, the index and
+# pool consistent, the key files equal to keys/), then adds the public key
+# files from keys/ and the website from docs/ itself.
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag holding recovery-repo.tar.gz (recovery-...)"
+        required: true
+        type: string
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Download the recovery repository
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          [[ "$TAG" =~ ^recovery-[0-9A-Za-z._-]+$ ]] || { echo "::error::not a recovery-* tag: $TAG"; exit 1; }
+          mkdir download upload
+          gh release download "$TAG" --pattern recovery-repo.tar.gz --dir download
+          tar -xzf download/recovery-repo.tar.gz -C upload --no-same-owner --no-same-permissions
+          if [ -n "$(find upload -type l -print -quit)" ]; then
+            echo "::error::the tarball contains symlinks"; exit 1
+          fi
+
+      - name: Verify it against the recovery key alone
+        run: bash scripts/verify-recovery-repo.sh upload
+
+      # Only the signed parts are taken from the tarball; the key files and
+      # the website come from this commit.
+      - name: Assemble the site
+        run: |
+          mkdir repo
+          cp -r upload/dists upload/pool upload/pwsh-termux-keyring.deb repo/
+          cp keys/pwsh-termux-archive-keyring.gpg repo/pwsh-termux.gpg
+          gpg --batch --no-default-keyring --import-options import-export --armor \
+            --import keys/pwsh-termux-archive-keyring.gpg > repo/pwsh-termux.asc
+          gpg --batch --dearmor < repo/pwsh-termux.asc | cmp - repo/pwsh-termux.gpg
+          touch repo/.nojekyll
+          bash scripts/verify-recovery-repo.sh repo
+          bash scripts/assemble-site.sh docs repo
+
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: repo
+          include-hidden-files: true   # .well-known/security.txt
+
+  deploy:
+    needs: verify
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
+        with:
+          egress-policy: audit
+
+      - id: deployment
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1

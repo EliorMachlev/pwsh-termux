@@ -48,7 +48,7 @@ The CI runner is x86 and cannot execute the arm64 binary, so this step is the on
 
 ```bash
 bash scripts/check-keys.sh                 # the key rules; prints the fingerprint
-bash scripts/test-keys.sh                  # the rules and the publish checks, with throwaway keys
+bash scripts/test-keys.sh                  # the rules, the publish and recovery checks, with throwaway keys
 bash scripts/build-keyring.sh out          # out/pwsh-termux-keyring_<version>_all.deb
 bash scripts/build-keyring.sh out2 && cmp out/pwsh-termux-keyring_*_all.deb out2/pwsh-termux-keyring_*_all.deb
 ```

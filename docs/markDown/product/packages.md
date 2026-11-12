@@ -6,7 +6,7 @@ Three packages come from the repository (`deb [signed-by=…] https://pwsh-termu
 |---|---|---|---|
 | `pwsh` | `pwsh` | `$PREFIX/opt/pwsh` | The highest stable PowerShell release |
 | `pwsh-preview` | `pwsh-preview` | `$PREFIX/opt/pwsh-preview` | The highest preview or release candidate, while it is newer than stable |
-| `pwsh-termux-keyring` | none | `$PREFIX/share/keyrings/pwsh-termux-archive-keyring.gpg`, `$PREFIX/etc/apt/sources.list.d/pwsh-termux.list` | The public signing key in [`keys/`](../../../keys) (two keys only during a planned rotation, which then arrives with `pkg upgrade`) and the `signed-by` source line; its own version (`KEYRING_VERSION`), not tied to a PowerShell release ([details](../engineering/architecture/repository.md#the-keyring-package)) |
+| `pwsh-termux-keyring` | none | `$PREFIX/share/keyrings/pwsh-termux-archive-keyring.gpg`, `$PREFIX/etc/apt/sources.list.d/pwsh-termux.list` | The public keys in [`keys/`](../../../keys): the online signing key, the offline recovery key once it is set up, and during a planned rotation the next online key (so rotations arrive with `pkg upgrade`) and the `signed-by` source line; its own version (`KEYRING_VERSION`), not tied to a PowerShell release ([details](../engineering/architecture/repository.md#the-keyring-package)) |
 
 `$PREFIX` is `/data/data/com.termux/files/usr`. `pwsh` and `pwsh-preview` also install a symlink `$PREFIX/bin/<command>` pointing into their `opt` folder; every package installs `$PREFIX/share/doc/<package>/copyright`. `pwsh` and `pwsh-preview` share no files and install side by side.
 

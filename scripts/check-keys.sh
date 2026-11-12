@@ -5,26 +5,30 @@
 # repository, and a secret key in it would be published.
 #
 # Usage: check-keys.sh [keyring-file]
-#   (default: keys/pwsh-termux-archive-keyring.gpg, and then keys/ may hold
-#   nothing but that file and ROTATION)
+#   (default: keys/pwsh-termux-archive-keyring.gpg; keys/ may then hold
+#   nothing but that file, RECOVERY and ROTATION). The two marker files are
+#   read from the keyring file's folder.
 #
-# The rules, all fail closed:
-#   - binary OpenPGP (not armored), readable, no secret key material;
-#   - no ROTATION file next to the keyring (steady state): exactly one
-#     primary key;
-#   - a ROTATION file (a planned rotation is in progress; one line, the
-#     40-hex fingerprint of the next key): exactly two primary keys, and one
-#     of them is the key it names. A ROTATION file with one key is stale.
-# Which of the keys may sign is build-repo.sh's check (it knows the signer).
+# The keyring holds, as primary keys:
+#   - exactly one CURRENT online key (the one GitHub Actions signs with);
+#   - the RECOVERY key if, and only if, keys/RECOVERY names it (one line, its
+#     40-hex fingerprint): an offline key the maintainer holds, never in CI;
+#   - the NEXT online key if, and only if, keys/ROTATION names it (a planned
+#     rotation is in progress); it is neither the current nor the recovery key.
+# So the allowed shapes are {current}, {current, recovery}, {current, next}
+# and {current, next, recovery}; anything else fails. A ROTATION marker whose
+# key is the only online key left is stale and fails too.
+# Which online key may sign, and that the recovery key never does, is
+# build-repo.sh's check (it knows the signer).
 #
-# Prints one line per primary key on stdout: <fingerprint> <role>, where role
-# is "key" (steady state), or "current" / "next" (during a rotation).
+# Prints one line per primary key on stdout: <fingerprint> <role>, role being
+# current, next or recovery. Also binary OpenPGP only, no secret material.
 set -euo pipefail
 
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 DEFAULT=$ROOT/keys/pwsh-termux-archive-keyring.gpg
 FILE=${1:-$DEFAULT}
-MARKER=$(dirname "$FILE")/ROTATION
+DIR=$(dirname "$FILE")
 
 log() { printf '[check-keys] %s\n' "$*" >&2; }
 die() { printf '[check-keys] ERROR: %s\n' "$*" >&2; exit 1; }
@@ -33,11 +37,25 @@ if [ "$FILE" -ef "$DEFAULT" ]; then
   shopt -s nullglob dotglob
   for f in "$ROOT/keys"/*; do
     case $(basename "$f") in
-      pwsh-termux-archive-keyring.gpg|ROTATION) ;;
+      pwsh-termux-archive-keyring.gpg|RECOVERY|ROTATION) ;;
       *) die "keys/ holds an unexpected file: $(basename "$f")" ;;
     esac
   done
 fi
+
+# marker <name>: the fingerprint in $DIR/<name>, or nothing if it is absent.
+marker() {
+  local m="$DIR/$1"
+  [ -e "$m" ] || return 0
+  [ -f "$m" ] || die "$m is not a regular file"
+  [ "$(wc -l < "$m")" -eq 1 ] || die "$m must be one line: a fingerprint"
+  local fpr
+  fpr=$(tr -d '[:space:]' < "$m")
+  [[ "$fpr" =~ ^[0-9A-F]{40}$ ]] || die "$m does not hold a fingerprint (40 upper-case hex digits)"
+  printf '%s\n' "$fpr"
+}
+recovery=$(marker RECOVERY)
+next=$(marker ROTATION)
 
 [ -f "$FILE" ] || die "$FILE is not a regular file"
 [ -s "$FILE" ] || die "$FILE is empty"
@@ -53,27 +71,27 @@ fi
 mapfile -t fprs < <(gpg --batch --show-keys --with-colons "$FILE" 2>/dev/null \
   | awk -F: '$1 == "pub" {want = 1; next} $1 == "fpr" && want {print $10; want = 0}')
 
-if [ ! -e "$MARKER" ]; then
-  [ "${#fprs[@]}" -eq 1 ] \
-    || die "$FILE holds ${#fprs[@]} primary keys; without a ROTATION file it must hold exactly one, the signing key"
-  printf '%s key\n' "${fprs[0]}"
-  log "one public key (steady state)"
-  exit 0
+has() { local f; for f in "${fprs[@]}"; do [ "$f" = "$1" ] && return 0; done; return 1; }
+if [ -n "$recovery" ]; then
+  has "$recovery" || die "keys/RECOVERY names $recovery, which is not in $FILE"
+fi
+if [ -n "$next" ]; then
+  [ "$next" != "$recovery" ] || die "keys/ROTATION and keys/RECOVERY name the same key; the recovery key is never an online key"
+  has "$next" || die "keys/ROTATION names $next, which is not in $FILE"
 fi
 
-[ -f "$MARKER" ] || die "$MARKER is not a regular file"
-[ "$(wc -l < "$MARKER")" -eq 1 ] || die "$MARKER must be one line: the next key's fingerprint"
-next=$(tr -d '[:space:]' < "$MARKER")
-[[ "$next" =~ ^[0-9A-F]{40}$ ]] || die "$MARKER does not hold a fingerprint (40 upper-case hex digits)"
-[ "${#fprs[@]}" -eq 2 ] \
-  || die "$MARKER is present, so $FILE must hold exactly two primary keys (current and next), not ${#fprs[@]}; remove ROTATION when the old key is dropped"
-found=0
+current=()
 for f in "${fprs[@]}"; do
-  if [ "$f" = "$next" ]; then
-    printf '%s next\n' "$f"; found=1
-  else
-    printf '%s current\n' "$f"
-  fi
+  if [ "$f" != "$recovery" ] && [ "$f" != "$next" ]; then current+=("$f"); fi
 done
-[ "$found" -eq 1 ] || die "$MARKER names $next, which is not one of the two keys in $FILE"
-log "two public keys (rotation to $next in progress)"
+if [ "${#current[@]}" -ne 1 ]; then
+  if [ -n "$next" ] && [ "${#current[@]}" -eq 0 ]; then
+    die "keys/ROTATION is stale: $next is the only online key left; remove keys/ROTATION"
+  fi
+  die "$FILE must hold exactly one current online key besides the keys named in keys/RECOVERY and keys/ROTATION; it holds ${#current[@]} (${#fprs[@]} keys in all)"
+fi
+
+printf '%s current\n' "${current[0]}"
+[ -z "$next" ] || printf '%s next\n' "$next"
+[ -z "$recovery" ] || printf '%s recovery\n' "$recovery"
+log "${#fprs[@]} public key(s): current${next:+, next}${recovery:+, recovery}"

@@ -27,7 +27,8 @@ Run it by hand: **Actions → Update packages → Run workflow**, or `gh workflo
 4. **Run the workflow once**, then check the site.
 5. **Custom domain** ([below](#custom-domain)).
 6. **Private vulnerability reporting** on (Settings → Code security), because [SECURITY.md](../../../SECURITY.md) and `security.txt` point to it.
-7. **Immutable releases** (optional, recommended): Settings → General, *Releases* section, *Enable release immutability*. A published release's tag and assets can then no longer be changed or replaced. The workflow is compatible: it creates each release once with all its files (`gh release create` uploads to a draft and publishes it at the end) and never uploads to an existing release. This is a repository setting; whether it is on is not visible from the code.
+7. **Recovery key** (recommended; [below](#the-recovery-key)). Until it is set up, a compromised or lost online key means every user reinstalls the keyring by hand.
+8. **Immutable releases** (optional, recommended): Settings → General, *Releases* section, *Enable release immutability*. A published release's tag and assets can then no longer be changed or replaced. The workflow is compatible: it creates each release once with all its files (`gh release create` uploads to a draft and publishes it at the end) and never uploads to an existing release. This is a repository setting; whether it is on is not visible from the code.
 
 ## Custom domain
 
@@ -73,20 +74,56 @@ There is no pin or skip list: the repository follows upstream. If a release is b
 
 ## Rotating the signing key
 
-apt accepts an index signed by any key in the `signed-by` file, and the keyring package is part of the signed index. So a planned rotation reaches users through `pkg upgrade`, in four steps. The key rules ([repository](architecture/repository.md#signing)) allow a second key in `keys/` only while `keys/ROTATION` names it; CI and the publish job refuse anything else.
+apt accepts an index signed by any key in the `signed-by` file, and the keyring package is part of the signed index. So a planned rotation reaches users through `pkg upgrade`, in four steps. The key rules ([repository](architecture/repository.md#signing)) allow a second online key in `keys/` only while `keys/ROTATION` names it; CI and the publish job refuse anything else. The recovery key, if set up, stays in `keys/` throughout.
 
 1. **Ship the next key** (a pull request). Generate the new key as in step 1 of the setup; keep both secrets. Append its public half and mark the rotation:
    ```bash
    gpg --export <new-fingerprint> >> keys/pwsh-termux-archive-keyring.gpg
    echo <NEW-FINGERPRINT> > keys/ROTATION            # 40 hex digits, upper case
-   bash scripts/check-keys.sh                        # current + next
+   bash scripts/check-keys.sh                        # current, next (and recovery)
    ```
-   Bump `KEYRING_VERSION` in `scripts/build-keyring.sh`, and add the new fingerprint to [`SECURITY.md`](../../../SECURITY.md#signing-key) as the next key. Merge. The **old** key still signs; the publish run puts a keyring with both keys in the index, and `pkg upgrade` installs it.
-2. **Wait a grace period: 60 days is recommended**, so that users who upgrade rarely still receive step 1. Users who do not run `pkg upgrade` within it must reinstall the keyring by hand after step 3 (the install line), as must users who added the key by hand (download `/pwsh-termux.gpg` again).
-3. **Switch the signer.** Replace the secret (`gh secret set GPG_PRIVATE_KEY < new-signing-secret.asc`) and, in the same step, merge a pull request that only makes the new fingerprint the current one in `SECURITY.md`, `docs/install.html`, the README and `docs/index.html` (it removes nothing from `keys/`). Check that the publish run succeeds signed by the new key: `keys/ROTATION` is still there and names the signer, which the rules allow.
-4. **Drop the old key** (a pull request). `gpg --export <new-fingerprint> > keys/pwsh-termux-archive-keyring.gpg`, `git rm keys/ROTATION`, bump `KEYRING_VERSION` again, remove the old fingerprint from `SECURITY.md`. One key again; destroy the old secret.
+   Bump `KEYRING_VERSION` in `scripts/build-keyring.sh`, and add the new fingerprint to [`SECURITY.md`](../../../SECURITY.md#signing-key) as the next key. Merge. The **current** key still signs; the publish run puts a keyring with both online keys in the index, and `pkg upgrade` installs it.
+2. **Overlap: 180 days.** A user who runs `pkg upgrade` at any time in this window receives step 1. 180 days rather than a few weeks because a phone's Termux may go unused for months, and nothing is lost by waiting: the rotation is planned, the current key is not suspect. The overlap is state in the repository (`keys/ROTATION` stays committed until step 4), not a timer: nothing happens on its own when it ends; the maintainer does step 3.
+3. **Switch the signer.** Replace the secret (`gh secret set GPG_PRIVATE_KEY < new-signing-secret.asc`) and, at the same time, merge a pull request that only makes the new fingerprint the current one in `SECURITY.md`, `docs/install.html`, the README and `docs/index.html` (it removes nothing from `keys/`). Check that the publish run succeeds signed by the new key: `keys/ROTATION` is still there and names the signer, which the rules allow.
+4. **Drop the old key** (a pull request). Rewrite `keys/pwsh-termux-archive-keyring.gpg` with the new online key (and the recovery key, if any): `gpg --export <new-fingerprint> [<recovery-fingerprint>] > keys/pwsh-termux-archive-keyring.gpg`; `git rm keys/ROTATION`; bump `KEYRING_VERSION` again; remove the old fingerprint from `SECURITY.md`. Destroy the old secret.
 
-**If the key is compromised**, none of this applies: whoever holds the old key could sign a keyring of their own, so a new key cannot ride on `pkg upgrade`. Generate a new key, replace `keys/pwsh-termux-archive-keyring.gpg` with its public half only (no `ROTATION`), bump `KEYRING_VERSION`, set the secret and run the workflow at once. Publish the old key's revocation certificate (`gpg --import revocation-cert.asc`, then export the revoked key and attach it to the advisory), update the fingerprint everywhere as in step 3, and announce it in a GitHub security advisory. Every user then reinstalls by hand: the install line again (it downloads the new `pwsh-termux-keyring.deb` from the site; `dpkg -i` replaces the old key file) and compares the new fingerprint with the advisory. Until they do, `pkg update` reports the repository's signature as invalid, which is the intended failure.
+A user who did not run `pkg upgrade` during the overlap, or who added the key by hand, has to reinstall the keyring from the site after step 3.
+
+## The recovery key
+
+An offline Ed25519 key that only the maintainer holds, never on a networked machine, in GitHub or in CI. Its public half is in every installed keyring, so it can sign the way out of a lost or compromised online key ([below](#recovery-with-the-offline-key)). It never signs the repository otherwise: `build-repo.sh` refuses it as a signer and refuses to sign if its secret is in the gpg home.
+
+**It is not set up yet**: the code accepts `keys/` without it, and recovery protection is active only after the maintainer adds it in a pull request. Do not generate it on this phone or on any machine that is online.
+
+1. **Generate it offline**, on a machine that is not and will not be connected to a network (a live system booted without networking is enough), with a strong passphrase:
+   ```bash
+   gpg --quick-generate-key "pwsh-termux recovery key <noreply@users.noreply.github.com>" ed25519 sign never
+   gpg --armor --export-secret-keys <recovery-fingerprint> > recovery-secret.asc     # passphrase-protected
+   gpg --gen-revoke <recovery-fingerprint> > recovery-revoke.asc
+   gpg --export <recovery-fingerprint> > recovery-public.gpg                          # the only file that leaves
+   ```
+2. **Store it**: `recovery-secret.asc` on at least two offline media kept in different places (for example two encrypted USB drives, or one plus a paper copy made with `paperkey`); `recovery-revoke.asc` separately from both; the passphrase written down apart from the media. Never copy the secret to an online machine, a cloud drive, a password manager that syncs, or a GitHub secret.
+3. **Add it** (a pull request): append `recovery-public.gpg` to `keys/pwsh-termux-archive-keyring.gpg`, `echo <RECOVERY-FINGERPRINT> > keys/RECOVERY`, bump `KEYRING_VERSION`, add a *Recovery key* row with its fingerprint to [`SECURITY.md`](../../../SECURITY.md#signing-key) (CI checks it is there), and run `bash scripts/check-keys.sh` (`current`, `recovery`). From the next publish on, `pkg upgrade` gives every user a keyring that trusts it.
+
+## Recovery with the offline key
+
+When the online key is compromised or lost. It needs the recovery key to be set up, and it needs the hosting (GitHub Pages and the domain) and the maintainer's GitHub account to be intact: the recovery key only replaces the online key, nothing else. With the online key compromised **and** the recovery key lost (or never set up), there is no way around it: every user reinstalls the keyring from the site after an advisory.
+
+1. **Stop the online key.** `gh secret delete GPG_PRIVATE_KEY` and `gh workflow disable update.yaml`. Publish a GitHub security advisory; if the key was compromised, attach its revocation certificate.
+2. **New online key** (a pull request). Generate it as in step 1 of the setup (do not set the secret yet). Write `keys/pwsh-termux-archive-keyring.gpg` as the new online key plus the recovery key, with `keys/RECOVERY` unchanged and no `ROTATION`; bump `KEYRING_VERSION`; make the new fingerprint the current one in `SECURITY.md` and the pages. Merge (nothing is published: the pipeline is disabled).
+3. **Build and sign offline**, from that commit, on the machine with the recovery key. Bring in the current `pwsh`/`pwsh-preview` `.deb` files from their releases (check them with `gh attestation verify` first, on an online machine), then:
+   ```bash
+   bash scripts/build-keyring.sh debs                 # the new keyring, from keys/
+   bash scripts/build-repo.sh debs repo               # unsigned
+   bash scripts/recovery-sign.sh repo                 # signs with the recovery key, then verifies
+   tar -czf recovery-repo.tar.gz -C repo .
+   ```
+4. **Deploy it** (online again): `gh release create recovery-<date> recovery-repo.tar.gz --latest=false --title "Recovery <date>" --notes "Repository signed with the recovery key; see the advisory."`, then `gh workflow run recover.yaml -f tag=recovery-<date>`. The workflow has no signing key: it deploys only if `verify-recovery-repo.sh` finds `InRelease` and `Release.gpg` signed by the recovery key alone, `Release`, `Packages` and every `.deb` in `pool/` consistent, and the key files equal to `keys/`; it takes the public key files and the website from the commit, not from the tarball. Adding required reviewers to the `github-pages` environment (Settings → Environments) puts a second confirmation in front of it.
+5. **Users** run `pkg upgrade` as usual: apt accepts the index because it trusts the recovery key, and installs the keyring with the new online key in place of the old one. Nothing manual.
+6. **Recovery window: 180 days**, as for a rotation. Leave the pipeline disabled; for a new PowerShell release in that window, repeat steps 3 and 4.
+7. **Back to normal.** `gh secret set GPG_PRIVATE_KEY < new-signing-secret.asc` and `gh workflow enable update.yaml`. From now on the online key signs again. A user who did not run `pkg upgrade` in the window reinstalls the keyring from the site.
+
+Until a user upgrades, whoever holds a compromised key can still sign an index that user accepts, though serving it to them takes control of their connection or of the hosting.
 
 ## Troubleshooting a failed run
 

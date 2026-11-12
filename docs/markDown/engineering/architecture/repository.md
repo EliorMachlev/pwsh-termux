@@ -36,22 +36,25 @@ When `SIGN_KEY` is set the script produces `InRelease` (`gpg --clearsign`) and `
 
 The public key comes from Git, not from the signing key: [`keys/pwsh-termux-archive-keyring.gpg`](../../../../keys/pwsh-termux-archive-keyring.gpg) is published as `pwsh-termux.gpg` byte for byte, and armored as `pwsh-termux.asc` (checked to dearmor to the same bytes).
 
-**Key rules** ([`scripts/check-keys.sh`](../../../../scripts/check-keys.sh); CI's `keys` job and every signing run apply them, all fail closed). The file is binary OpenPGP with no secret material, and keys/ holds nothing else except, during a rotation, `keys/ROTATION`:
+**Key rules** ([`scripts/check-keys.sh`](../../../../scripts/check-keys.sh); CI's `keys` job and every signing run apply them, all fail closed). The file is binary OpenPGP with no secret material, and `keys/` holds nothing else except two optional one-line marker files, each holding a 40-hex fingerprint:
 
-- **Steady state** (no `keys/ROTATION`): exactly one primary key, and it is the signing key.
-- **Rotation** (`keys/ROTATION` committed, one line: the fingerprint of the next key): exactly two primary keys, one of them the key the marker names, and the signing key is one of the two. A marker next to a single key is stale and refused, so the last rotation step cannot leave it behind.
+- `keys/RECOVERY` names the **recovery key**: an offline key only the maintainer holds, never in GitHub or CI, used only to recover from a lost or compromised online key (below). When the marker exists, that key must be in the keyring.
+- `keys/ROTATION` names the **next online key** during a planned rotation; when it exists, that key must be in the keyring and it is not the recovery key.
+- Every other key is the **current online key**, and there must be exactly one.
+
+So the allowed shapes are `{current}`, `{current, recovery}`, `{current, next}` and `{current, next, recovery}`; a stray extra key, a marker naming a missing key, and a `ROTATION` marker whose key is the only online key left (stale) all fail. The signer must be the current key, or the next one while `ROTATION` exists, and **never the recovery key**: `build-repo.sh` refuses to sign with it, and refuses to sign at all if its secret is in the same gpg home.
 
 **Publish checks.** `update.yaml` has a `verify` job, with a read-only token and no signing key, that runs [`scripts/verify-attestation.sh`](../../../../scripts/verify-attestation.sh) on the keyring package the build job uploaded: `gh attestation verify --repo EliorMachlev/pwsh-termux --signer-workflow …/build-packages.yaml --source-digest <this commit> --deny-self-hosted-runners`. It outputs the file's SHA-256. The `publish` job then runs `build-repo.sh` with the signing key and `KEYRING_DEB_SHA256` set to that digest, and the script refuses to sign unless:
 
-- `keys/` passes the key rules above, and the signing key's fingerprint is the key in it (or one of the two during a marked rotation);
+- `keys/` passes the key rules above, and the signing key is its current online key (or the next one during a marked rotation), not the recovery key, whose secret must not be in the gpg home either;
 - the folder of `.deb` files holds exactly one `pwsh-termux-keyring`, its SHA-256 is `KEYRING_DEB_SHA256` (the file whose provenance was verified), and it ships `keys/pwsh-termux-archive-keyring.gpg` byte for byte;
 - `InRelease` and `Release.gpg` verify with `gpgv` against `keys/` alone, as apt will.
 
 It publishes that verified file as it is. A secret replaced without changing `keys/`, or the reverse, publishes nothing.
 
-What these prove: the package users install was built by this repository's `build-packages.yaml` from the commit being published, and it contains exactly the committed `keys/`, whose key is the one that signs the index. They do not prove that `keys/` holds the *right* key: that rests on review of changes to `keys/` and on users comparing the fingerprint with [SECURITY.md](../../../../SECURITY.md#signing-key).
+What these prove: the package users install was built by this repository's `build-packages.yaml` from the commit being published, and it contains exactly the committed `keys/`, whose online key is the one that signs the index. They do not prove that `keys/` holds the *right* key: that rests on review of changes to `keys/` and on users comparing the fingerprint with [SECURITY.md](../../../../SECURITY.md#signing-key).
 
-`KEYRING_FILE` overrides the key file (and the `ROTATION` next to it) for tests with throwaway keys only ([build](../build.md#build-and-test-a-repository)); the signing step in `update.yaml` clears it. [`scripts/test-keys.sh`](../../../../scripts/test-keys.sh) tests every rule and refusal with throwaway keys and a stub `gh`.
+`KEYRING_FILE` overrides the key file (and the markers next to it) for tests with throwaway keys only ([build](../build.md#build-and-test-a-repository)); the signing step in `update.yaml` clears it. [`scripts/test-keys.sh`](../../../../scripts/test-keys.sh) tests every rule and refusal with throwaway keys and a stub `gh`.
 
 The key is Ed25519 (OpenPGP v4). Ed448 was tried and rejected; see [SECURITY.md](../../../../SECURITY.md#signing-key).
 
@@ -65,7 +68,12 @@ It is built once, in [`build-packages.yaml`](../../../../.github/workflows/build
 
 **Version.** `KEYRING_VERSION` at the top of the script; bump it whenever the content changes (a key added or dropped, the source line, the layout), or `pkg upgrade` will not deliver it.
 
-**Rotation.** apt accepts an index signed by any key in the `signed-by` file, and the keyring package is in the signed index. So a planned rotation first ships a keyring with the old and the next key (marked by `keys/ROTATION`) while the old key still signs, and `pkg upgrade` delivers it; the signing switches to the next key only after a grace period ([release](../release.md#rotating-the-signing-key)). A compromised key cannot hand over to its successor this way, since whoever holds it could sign a keyring of their own: users then reinstall the keyring by hand, after an advisory.
+**Rotation and recovery.** apt accepts an index that *any* key in the `signed-by` file signs, and the keyring package is itself in the signed index, so new keys can reach users through `pkg upgrade` as long as something they already trust signs the index that carries them:
+
+- **Planned rotation**: the next online key is shipped (marked by `keys/ROTATION`) while the current one still signs, and the signer switches only after an overlap of 180 days ([release](../release.md#rotating-the-signing-key)).
+- **Compromised or lost online key**: the maintainer signs a repository carrying a keyring with a new online key using the offline **recovery key**, which every installed keyring already trusts ([`scripts/recovery-sign.sh`](../../../../scripts/recovery-sign.sh)), and deploys it with [`recover.yaml`](../../../../.github/workflows/recover.yaml), which holds no key and deploys only what [`scripts/verify-recovery-repo.sh`](../../../../scripts/verify-recovery-repo.sh) verifies against the recovery key alone ([release](../release.md#recovery-with-the-offline-key)). This works only once the maintainer has added the recovery key (`keys/RECOVERY`), and only while the hosting and the maintainer's GitHub account are intact.
+
+What remains manual (reinstalling the keyring from the site): a user who does not run `pkg upgrade` during an overlap or recovery window, a user who added the key by hand, and the case where the online key is compromised and the recovery key is lost (or not set up yet).
 
 The first install still rests on HTTPS, which is why the docs tell users to compare the fingerprint with [SECURITY.md](../../../../SECURITY.md#signing-key) and offer `gh attestation verify` on the downloaded package.
 
