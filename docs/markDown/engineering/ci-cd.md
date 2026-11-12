@@ -14,7 +14,8 @@ Workflows are in [`.github/workflows/`](../../../.github/workflows). They share 
 
 | Workflow | What it does |
 |---|---|
-| [`update.yaml`](../../../.github/workflows/update.yaml) | **The pipeline.** Finds releases, builds the `.deb` files, builds and signs the repository, merges the website, archives each `.deb` as a release asset, deploys to Pages. Daily, on pushes to `scripts/**`, `docs/**` and itself, and by hand. Refuses to run without `GPG_PRIVATE_KEY`. |
+| [`build-packages.yaml`](../../../.github/workflows/build-packages.yaml) | **Build, SBOMs and provenance** (reusable, called by `update.yaml`). Finds releases, builds the `.deb` files, writes four SBOMs, attests the lot. No signing key. |
+| [`update.yaml`](../../../.github/workflows/update.yaml) | **The pipeline.** Calls `build-packages.yaml`, builds and signs the repository, merges the website, archives each `.deb` with its SBOMs, provenance and the public key as a release, deploys to Pages. Daily, on pushes to `scripts/**`, `docs/**` and itself, and by hand. Refuses to run without `GPG_PRIVATE_KEY`. |
 | [`ci.yaml`](../../../.github/workflows/ci.yaml) | `shellcheck` on `scripts/*.sh`; `actionlint` (a release binary checked against a pinned SHA-256 before it runs); a **package build** of the current stable release with checks of the patched loader and the symlink, an unsigned repository, and the site assembly. |
 | [`site.yaml`](../../../.github/workflows/site.yaml) | [`site-check.py`](../../../.github/scripts/site-check.py): CSP, no scripts, nothing from another site, local links, sitemap, robots, `security.txt`, `CNAME` ([website](website.md)). |
 | [`docs-checks.yaml`](../../../.github/workflows/docs-checks.yaml) | **lychee** (a pinned, checksum-verified release) checks every local link and `#anchor` in the Markdown and pages on each change, and external links weekly; **typos** (hash-pinned) checks spelling. |

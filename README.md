@@ -82,7 +82,7 @@ pwsh_<version>_aarch64.deb
 GitHub Pages  ──►  https://pwsh-termux.machlev.org/   (+ each .deb as a release asset)
 ```
 
-The whole pipeline is [`.github/workflows/update.yaml`](.github/workflows/update.yaml); [architecture](docs/markDown/engineering/architecture/README.md) explains each stage.
+The whole pipeline is [`.github/workflows/update.yaml`](.github/workflows/update.yaml); [architecture](docs/markDown/engineering/architecture/README.md) explains each stage. Every release carries the `.deb`, a CycloneDX and three SPDX SBOMs and signed build provenance ([verify](SECURITY.md#software-bill-of-materials-sbom-and-build-provenance)).
 
 ## ⚠️ Limits worth knowing
 

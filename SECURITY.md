@@ -72,6 +72,19 @@ Each `.deb` holds Microsoft's `linux-arm64` tarball for the release, verified ag
 
 No PowerShell file is otherwise modified. [NOTICE.md](NOTICE.md) lists the details; no separate SBOM is published.
 
+## Software Bill of Materials (SBOM) and build provenance
+
+Each GitHub release carries, for its `.deb`, four SBOMs, all listed in the release's `SHA256SUMS`: `*.cdx.json` (CycloneDX 1.6, from Syft) and three SPDX files from three generators, each at the highest SPDX version the tool writes: `*.build.spdx.json` (SPDX 2.3, the packaging view: the official tarball and its SHA-256, the patching tool, the dependencies), `*.syft.spdx3.json` (SPDX 3.0.1, Syft over the package's files) and `*.msft.spdx3.json` (SPDX 3.0, Microsoft's SBOM tool over the package's files). The generators are pinned by version and SHA-256, and each file is validated when it is written.
+
+The `.deb` and the four SBOMs are attested: GitHub signs a statement of which commit and workflow run built each file ([SLSA build level 3](https://slsa.dev) by GitHub's recipe, in a reusable workflow so the signer is `build-packages.yaml` itself). The statements are on GitHub and attached to the release as `pwsh-termux.intoto.jsonl`. To verify:
+
+```bash
+gh attestation verify pwsh_<version>_aarch64.deb --repo EliorMachlev/pwsh-termux --signer-workflow EliorMachlev/pwsh-termux/.github/workflows/build-packages.yaml
+for f in pwsh_<version>_aarch64.*.json; do gh attestation verify "$f" --repo EliorMachlev/pwsh-termux --signer-workflow EliorMachlev/pwsh-termux/.github/workflows/build-packages.yaml || break; done
+```
+
+`SHA256SUMS` comes from the same release as the files it lists, so only the attestation proves where a file came from. The apt repository's own signature (the key above) is a separate check and covers what `apt` installs.
+
 ## Verifying a download
 
 `apt` checks the signed index and each package's SHA-256 for you. To check a `.deb` from a [release](https://github.com/EliorMachlev/pwsh-termux/releases) by hand, compare `sha256sum <file>` with the `SHA256:` line for that file in <https://pwsh-termux.machlev.org/dists/stable/main/binary-aarch64/Packages>, which is signed in `InRelease`.
