@@ -1,0 +1,56 @@
+name: Bug report
+description: Something doesn't work as expected
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what you saw instead. Paste the exact error output.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. pkg update
+        2. pkg install pwsh
+        3. ...
+    validations:
+      required: true
+  - type: dropdown
+    id: package
+    attributes:
+      label: Package
+      options:
+        - pwsh (stable)
+        - pwsh-preview
+        - Installing, before either is installed
+        - The website
+        - The build scripts or workflows
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Package version
+      description: "`pkg list-installed | grep pwsh`"
+      placeholder: "pwsh/stable 7.7.0-1 aarch64"
+    validations:
+      required: false
+  - type: input
+    id: device
+    attributes:
+      label: Device and Android version
+      placeholder: "Pixel 8, Android 15"
+    validations:
+      required: true
+  - type: textarea
+    id: glibc
+    attributes:
+      label: Related packages
+      description: "Output of `pkg list-installed | grep -E 'glibc|icu|openssl|zlib'`"
+      render: text
+    validations:
+      required: false

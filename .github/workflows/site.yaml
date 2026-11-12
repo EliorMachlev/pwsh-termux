@@ -1,0 +1,44 @@
+name: Site
+
+# The website (docs/*.html, served by GitHub Pages next to the apt
+# repository): site-check.py checks the Content-Security-Policy of every
+# page, that nothing loads from another site, that every local link and asset
+# exists, and that sitemap.xml, robots.txt, security.txt and CNAME agree.
+on:
+  pull_request:
+    paths:
+      - 'docs/**'
+      - '.github/scripts/site-check.py'
+      - '.github/workflows/site.yaml'
+  push:
+    branches: [main]
+    paths:
+      - 'docs/**'
+      - '.github/scripts/site-check.py'
+      - '.github/workflows/site.yaml'
+  schedule:
+    - cron: '15 5 * * 4'   # security.txt's Expires date moves on
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ !contains(fromJSON('["refs/heads/main"]'), github.ref) }}
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Check the website
+        run: python3 .github/scripts/site-check.py docs

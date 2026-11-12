@@ -1,0 +1,117 @@
+name: CI
+
+# The packaging scripts and the workflows, checked on every change:
+#   shellcheck  every script under scripts/
+#   actionlint  every workflow (syntax, expressions, shell in run: steps)
+#   package     a real build of the current stable PowerShell into a .deb and
+#               an apt repository, then the website checks and assembly
+on:
+  pull_request:
+    paths:
+      - 'scripts/**'
+      - 'docs/**'
+      - '.github/scripts/**'
+      - '.github/workflows/**'
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/**'
+      - 'docs/**'
+      - '.github/scripts/**'
+      - '.github/workflows/**'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ !contains(fromJSON('["refs/heads/main"]'), github.ref) }}
+
+permissions:
+  contents: read
+
+env:
+  # actionlint's release binary, checked against this SHA-256 before it runs
+  # (it matched the release's own checksums file when it was pinned). A new
+  # release: update both lines, after checking that file.
+  ACTIONLINT_VERSION: "1.7.12"
+  ACTIONLINT_SHA256: "8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8"
+
+jobs:
+  shellcheck:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: shellcheck
+        run: shellcheck --shell=bash --severity=style scripts/*.sh
+
+  actionlint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install actionlint
+        run: |
+          archive="$RUNNER_TEMP/actionlint.tar.gz"
+          curl -fsSL --retry 6 --retry-delay 10 --retry-all-errors -o "$archive" "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
+          echo "${ACTIONLINT_SHA256}  $archive" | sha256sum --check --strict -
+          tar -xzf "$archive" -C "$RUNNER_TEMP" actionlint
+          echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
+      - name: actionlint
+        run: actionlint -color
+
+  package:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install tools
+        run: sudo apt-get update && sudo apt-get install -y patchelf jq xz-utils
+      - name: Check the website
+        run: python3 .github/scripts/site-check.py docs
+      - name: Find the current stable release
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: bash scripts/find-releases.sh | tee releases.txt
+      - name: Build the .deb
+        run: |
+          tag=$(awk '$1 == "stable" {print $2}' releases.txt)
+          mkdir -p debs
+          bash scripts/build-deb.sh pwsh "$tag" debs
+      - name: Check the .deb
+        run: |
+          deb=$(ls debs/pwsh_*.deb)
+          dpkg-deb -I "$deb"
+          # the binary must name Termux's loader, never the host's
+          tmp=$(mktemp -d)
+          dpkg-deb -x "$deb" "$tmp"
+          interp=$(patchelf --print-interpreter "$tmp"/data/data/com.termux/files/usr/opt/pwsh/pwsh)
+          test "$interp" = /data/data/com.termux/files/usr/glibc/lib/ld-linux-aarch64.so.1
+          test -L "$tmp/data/data/com.termux/files/usr/bin/pwsh"
+      - name: Build the (unsigned) apt repository and assemble the site
+        run: |
+          bash scripts/build-repo.sh debs repo
+          bash scripts/assemble-site.sh docs repo
+          grep -q '^Package: pwsh$' repo/dists/stable/main/binary-aarch64/Packages
+          test -f repo/index.html
+          test ! -e repo/markDown

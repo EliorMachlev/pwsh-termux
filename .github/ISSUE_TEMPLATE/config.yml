@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report a security vulnerability (private)
+    url: https://github.com/EliorMachlev/pwsh-termux/security/advisories/new
+    about: Please don't open a public issue for a vulnerability; see SECURITY.md.
+  - name: A problem with PowerShell itself
+    url: https://github.com/PowerShell/PowerShell/issues
+    about: This project only repackages PowerShell; bugs in PowerShell are Microsoft's to fix.
+  - name: Documentation
+    url: https://github.com/EliorMachlev/pwsh-termux/blob/main/docs/markDown/README.md
+    about: Architecture, build, release and security documentation.

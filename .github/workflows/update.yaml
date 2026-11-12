@@ -1,0 +1,121 @@
+name: Update packages
+
+# Follows Microsoft's PowerShell releases (stable and preview), builds a Termux
+# .deb of each from the official linux-arm64 tarball, signs an apt repository,
+# merges the website (docs/) into it and deploys the lot to GitHub Pages at
+# https://pwsh-termux.machlev.org/. Each .deb is also kept as a release asset.
+#
+# One-time setup (secret, Pages source, custom domain): docs/markDown/engineering/release.md
+on:
+  schedule:
+    - cron: "23 4 * * *"      # daily; Microsoft releases roughly monthly
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "scripts/**"
+      - "docs/**"
+      - ".github/workflows/update.yaml"
+
+# Deploys never overlap and are never cancelled half way.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: write          # create the archive releases for new .deb files
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install tools
+        run: sudo apt-get update && sudo apt-get install -y patchelf jq gnupg xz-utils
+
+      - name: Check the website
+        run: python3 .github/scripts/site-check.py docs
+
+      - name: Find upstream releases
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: bash scripts/find-releases.sh | tee releases.txt
+
+      - name: Build packages
+        run: |
+          mkdir -p debs
+          while read -r channel tag; do
+            case "$channel" in
+              stable)  pkg=pwsh ;;
+              preview) pkg=pwsh-preview ;;
+              *) echo "unknown channel $channel" >&2; exit 1 ;;
+            esac
+            bash scripts/build-deb.sh "$pkg" "$tag" debs
+          done < releases.txt
+
+      # The key is imported and used in this one step: it never reaches
+      # GITHUB_ENV or a later step.
+      - name: Build the signed apt repository and assemble the site
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+        run: |
+          if [ -z "$GPG_PRIVATE_KEY" ]; then
+            echo "::error::GPG_PRIVATE_KEY secret is not set; refusing to publish an unsigned repository"
+            exit 1
+          fi
+          printf '%s\n' "$GPG_PRIVATE_KEY" | gpg --batch --import
+          SIGN_KEY=$(gpg --list-secret-keys --with-colons | awk -F: '/^fpr/{print $10; exit}')
+          export SIGN_KEY
+          bash scripts/build-repo.sh debs repo
+          bash scripts/assemble-site.sh docs repo
+
+      - name: Archive each .deb as a release asset
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for deb in debs/*.deb; do
+            name=$(dpkg-deb -f "$deb" Package)
+            ver=$(dpkg-deb -f "$deb" Version)
+            tag="${name}-${ver//\~/-}"          # git tags cannot contain '~'
+            if gh release view "$tag" >/dev/null 2>&1; then continue; fi
+            flags=()
+            [ "$name" = pwsh-preview ] && flags+=(--prerelease)
+            gh release create "$tag" "$deb" "${flags[@]}" \
+              --title "$name $ver" \
+              --notes "Unofficial Termux repackaging of Microsoft PowerShell. Install from the apt repository: https://pwsh-termux.machlev.org/install.html"
+          done
+
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: repo
+          include-hidden-files: true   # .well-known/security.txt (.git and .github stay excluded)
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
+        with:
+          egress-policy: audit
+
+      - id: deployment
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1

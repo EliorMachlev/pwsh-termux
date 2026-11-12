@@ -11,6 +11,7 @@
 #   repo/dists/stable/{Release,InRelease,Release.gpg}
 #   repo/dists/stable/main/binary-aarch64/Packages{,.gz,.xz}
 #   repo/pwsh-termux.gpg  pwsh-termux.asc   (public key)
+# The website is merged in afterwards by assemble-site.sh.
 set -euo pipefail
 
 DEBS=${1:?debs directory}
@@ -75,12 +76,4 @@ else
 fi
 
 touch "$REPO/.nojekyll"
-cat > "$REPO/index.html" <<'HTML'
-<!doctype html>
-<meta charset="utf-8">
-<title>pwsh-termux apt repository</title>
-<h1>pwsh-termux</h1>
-<p>Unofficial apt repository for PowerShell on Termux. Not affiliated with Microsoft.
-See the project README for install instructions.</p>
-HTML
 log "repository written to $REPO"
