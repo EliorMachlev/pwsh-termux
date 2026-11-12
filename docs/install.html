@@ -49,8 +49,9 @@ $PSVersionTable.PSVersion</code></pre>
   <p>For the preview channel, <code>pkg install pwsh-preview</code> installs <code>pwsh-preview</code> next to <code>pwsh</code>. It only exists while Microsoft&rsquo;s newest preview is newer than the newest stable release.</p>
 
   <h2 id="check">Check the signing key</h2>
-  <p>The key you installed should have this fingerprint. Compare it with the one in the <a href="https://github.com/EliorMachlev/pwsh-termux/blob/main/SECURITY.md#signing-key">security policy</a> on GitHub, which is a separate channel, or with the key attached to each <a href="https://github.com/EliorMachlev/pwsh-termux/releases">release</a>:</p>
-<pre><code>7086 C70B 4A25 576F E0C0  CE77 E43F B41F 02D0 1FC8</code></pre>
+  <p>The file holds two keys. The first signs the repository; the second is an offline recovery key that only signs to move users to a new key if the first is ever lost or stolen. Compare both fingerprints. Compare it with the one in the <a href="https://github.com/EliorMachlev/pwsh-termux/blob/main/SECURITY.md#signing-key">security policy</a> on GitHub, which is a separate channel, or with the key attached to each <a href="https://github.com/EliorMachlev/pwsh-termux/releases">release</a>:</p>
+<pre><code>7086 C70B 4A25 576F E0C0  CE77 E43F B41F 02D0 1FC8   signing key
+937A 3D41 5103 CFF8 9DCD  A982 A4B4 5397 EEB6 D752   recovery key</code></pre>
   <p>To print it yourself:</p>
 <pre><code>pkg install gnupg
 gpg --show-keys $PREFIX/share/keyrings/pwsh-termux-archive-keyring.gpg</code></pre>
