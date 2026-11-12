@@ -1,0 +1,124 @@
+name: Build packages
+
+# The packages' build, with SBOMs and signed provenance: called by
+# update.yaml, never started on its own. It is a reusable workflow so the
+# provenance names THIS file as the signer, not the workflow that was started.
+# A consumer checks a .deb with
+#   gh attestation verify <file>.deb --repo EliorMachlev/pwsh-termux \
+#     --signer-workflow EliorMachlev/pwsh-termux/.github/workflows/build-packages.yaml
+# (SLSA build level 3 by GitHub's recipe,
+# https://docs.github.com/en/actions/how-tos/secure-your-work/use-artifact-attestations/increase-security-rating).
+#
+# - build: no apt signing key and no token to sign provenance with, so nothing
+#   it runs can forge a statement about its own output. It builds the .deb
+#   files and writes their SBOMs (scripts/make-sboms.sh).
+# - attest: has the signing identity and no key; it attests the files exactly
+#   as build uploaded them and uploads the provenance bundle.
+# Signing the apt repository and publishing are update.yaml's job.
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install tools
+        run: sudo apt-get update && sudo apt-get install -y patchelf jq xz-utils
+
+      - name: Find upstream releases
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: bash scripts/find-releases.sh | tee releases.txt
+
+      - name: Build packages
+        run: |
+          mkdir -p debs
+          while read -r channel tag; do
+            case "$channel" in
+              stable)  pkg=pwsh ;;
+              preview) pkg=pwsh-preview ;;
+              *) echo "unknown channel $channel" >&2; exit 1 ;;
+            esac
+            bash scripts/build-deb.sh "$pkg" "$tag" debs
+          done < releases.txt
+
+      - name: Write the SBOMs
+        run: |
+          mkdir release
+          bash scripts/make-sboms.sh debs release
+
+      - name: Checksum the release files
+        run: |
+          cp debs/*.deb release/
+          cd release
+          sha256sum -- *.deb *.json > SHA256SUMS
+          cat SHA256SUMS
+
+      - name: Upload the packages and SBOMs
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: packages
+          path: release/*
+          if-no-files-found: error
+
+  attest:
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      # Signs the provenance with the workflow's identity.
+      id-token: write
+      # Records it on GitHub.
+      attestations: write
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
+        with:
+          egress-policy: audit
+
+      - name: Download the packages
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: packages
+          path: release
+
+      # A signed statement, on GitHub's transparency log, of which commit and
+      # workflow run built each file.
+      - name: Attest the build provenance
+        id: attest
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: |
+            release/*.deb
+            release/*.json
+
+      # The same attestations as a file for the release (OpenSSF Scorecard's
+      # Signed-Releases check looks for a "*.intoto.jsonl" release file).
+      - name: Keep the provenance as a file
+        env:
+          BUNDLE: ${{ steps.attest.outputs.bundle-path }}
+        run: |
+          mkdir provenance
+          cp "$BUNDLE" provenance/pwsh-termux.intoto.jsonl
+
+      - name: Upload the provenance
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: provenance
+          path: provenance/*.intoto.jsonl
+          if-no-files-found: error

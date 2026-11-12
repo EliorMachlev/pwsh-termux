@@ -111,4 +111,14 @@ mkdir -p "$OUT"
 deb="$OUT/${PKG}_${deb_ver}_aarch64.deb"
 dpkg-deb --root-owner-group -Z"$DEB_COMPRESSION" --build "$stage" "$deb" >&2
 log "built $deb"
+
+# A record of the build for the SBOMs (make-sboms.sh); not part of the package.
+python3 - "${deb%.deb}.build.json" "$PKG" "$deb_ver" "$TAG" "$base/$asset" "$actual" \
+  "$("$PATCHELF" --version | awk '{print $2}')" <<'PY'
+import json, sys
+out, pkg, ver, tag, url, sha, patchelf = sys.argv[1:8]
+json.dump({"package": pkg, "version": ver, "upstream_tag": tag,
+           "upstream_url": url, "upstream_sha256": sha,
+           "patchelf_version": patchelf}, open(out, "w"), indent=2)
+PY
 printf '%s\n' "$deb"

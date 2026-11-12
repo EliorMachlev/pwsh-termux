@@ -108,6 +108,12 @@ jobs:
           interp=$(patchelf --print-interpreter "$tmp"/data/data/com.termux/files/usr/opt/pwsh/pwsh)
           test "$interp" = /data/data/com.termux/files/usr/glibc/lib/ld-linux-aarch64.so.1
           test -L "$tmp/data/data/com.termux/files/usr/bin/pwsh"
+      - name: Write the SBOMs (CycloneDX and three SPDX files)
+        run: |
+          bash scripts/make-sboms.sh debs sboms
+          for ext in cdx.json build.spdx.json syft.spdx3.json msft.spdx3.json; do
+            ls sboms/pwsh_*."$ext" > /dev/null
+          done
       - name: Build the (unsigned) apt repository and assemble the site
         run: |
           bash scripts/build-repo.sh debs repo
