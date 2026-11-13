@@ -47,7 +47,7 @@ jobs:
       contents: read
       id-token: write          # the attest job signs provenance with this identity
       attestations: write      # and records it on GitHub
-    uses: ./.github/workflows/build-packages.yaml
+    uses: $/.github/workflows/build-packages.yaml
 
   # Checks the keyring package's build provenance: built by build-packages.yaml,
   # from this commit, on a GitHub-hosted runner. A read-only token and no
@@ -180,6 +180,7 @@ jobs:
       - name: Archive each .deb, its SBOMs, provenance and the public key as a release
         env:
           GH_TOKEN: ${{ github.token }}
+        shell: bash
         run: |
           # The public key and the keyring package are attached to every
           # release as a second channel next to the website. A release keeps

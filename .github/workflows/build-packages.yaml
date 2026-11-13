@@ -43,6 +43,7 @@ jobs:
       - name: Find upstream releases
         env:
           GITHUB_TOKEN: ${{ github.token }}
+        shell: bash
         run: bash scripts/find-releases.sh | tee releases.txt
 
       - name: Build packages

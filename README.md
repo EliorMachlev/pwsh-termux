@@ -101,7 +101,7 @@ The whole pipeline is [`.github/workflows/update.yaml`](.github/workflows/update
 
 Bash · `dpkg-deb` · [patchelf](https://github.com/NixOS/patchelf) · `jq` · Python (the site checks) · [GnuPG](https://gnupg.org/) · GitHub Actions and Pages
 
-Checked on every change by shellcheck, actionlint, a real package build, CodeQL (workflows), zizmor, Gitleaks and the docs checks (lychee, typos); every action is pinned to a commit and Dependabot keeps the pins current. See [CI / CD](docs/markDown/engineering/ci-cd.md).
+Checked on every change by shellcheck, jactionlint, a real package build, CodeQL (workflows), zizmor, Gitleaks and the docs checks (lychee, typos); every action is pinned to a commit and Dependabot keeps the pins current. See [CI / CD](docs/markDown/engineering/ci-cd.md).
 
 ## 📚 Documentation
 

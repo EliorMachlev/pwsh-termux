@@ -64,6 +64,7 @@ jobs:
       # Only the signed parts are taken from the tarball; the key files and
       # the website come from this commit.
       - name: Assemble the site
+        shell: bash
         run: |
           mkdir repo
           cp -r upload/dists upload/pool upload/pwsh-termux-keyring.deb repo/

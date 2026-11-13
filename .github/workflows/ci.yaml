@@ -3,7 +3,9 @@ name: CI
 # The packaging scripts and the workflows, checked on every change:
 #   shellcheck  every script under scripts/, and the shared library
 #               scripts/lib/common.sh they source (.shellcheckrc follows it)
-#   actionlint  every workflow (syntax, expressions, shell in run: steps)
+#   jactionlint every workflow and the Dependabot configuration (syntax,
+#               expressions, ShellCheck on run: steps, and the rules of its
+#               default profile)
 #   keys        keys/ follows the key rules (one online key, plus the keys
 #               keys/RECOVERY and keys/ROTATION name), SECURITY.md lists them,
 #               and scripts/test-keys.sh tests the rules, the publish checks,
@@ -29,6 +31,7 @@ on:
       - '.github/scripts/**'
       - '.github/workflows/**'
       - '.shellcheckrc'
+      - '.github/dependabot.yml'
   push:
     branches: [main]
     paths:
@@ -39,6 +42,7 @@ on:
       - '.github/scripts/**'
       - '.github/workflows/**'
       - '.shellcheckrc'
+      - '.github/dependabot.yml'
   workflow_dispatch:
 
 concurrency:
@@ -49,11 +53,13 @@ permissions:
   contents: read
 
 env:
-  # actionlint's release binary, checked against this SHA-256 before it runs
-  # (it matched the release's own checksums file when it was pinned). A new
-  # release: update both lines, after checking that file.
-  ACTIONLINT_VERSION: "1.7.12"
-  ACTIONLINT_SHA256: "8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8"
+  # jactionlint's release binary (jdx's maintained fork of actionlint,
+  # https://github.com/jdx/jactionlint), checked against this SHA-256 before
+  # it runs (it matched the release's own checksums file when it was pinned).
+  # Dependabot doesn't follow a download: for a new release, update both
+  # lines by hand, after checking that file (ci-cd.md, "Dependabot").
+  JACTIONLINT_VERSION: "2.4.0"
+  JACTIONLINT_SHA256: "26ddba81db28fffc51163175c070ee1a9d1150260de4b5232f01d9b749f32d8e"
 
 jobs:
   shellcheck:
@@ -71,7 +77,7 @@ jobs:
       - name: shellcheck
         run: shellcheck --shell=bash --severity=style scripts/*.sh scripts/lib/*.sh
 
-  actionlint:
+  jactionlint:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -83,15 +89,20 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: Install actionlint
+      - name: Install jactionlint
         run: |
-          archive="$RUNNER_TEMP/actionlint.tar.gz"
-          curl -fsSL --retry 6 --retry-delay 10 --retry-all-errors -o "$archive" "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
-          echo "${ACTIONLINT_SHA256}  $archive" | sha256sum --check --strict -
-          tar -xzf "$archive" -C "$RUNNER_TEMP" actionlint
-          echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
-      - name: actionlint
-        run: actionlint -color
+          archive="$RUNNER_TEMP/jactionlint.tar.gz"
+          curl -fsSL --retry 6 --retry-delay 10 --retry-all-errors -o "$archive" "https://github.com/jdx/jactionlint/releases/download/v${JACTIONLINT_VERSION}/jactionlint_${JACTIONLINT_VERSION}_linux_amd64.tar.gz"
+          echo "${JACTIONLINT_SHA256}  $archive" | sha256sum --check --strict -
+          tar -xzf "$archive" -C "$RUNNER_TEMP" jactionlint
+      # ShellCheck comes with the runner image. The profile is named, so no
+      # config file can change it unseen; --strict-exit fails the job on a
+      # warning or a note as on an error; --no-ignores: no ignore comment,
+      # config-file ignore or baseline hides a finding; --config-file=/dev/null:
+      # no config file turns a rule off. Nothing can be silenced without
+      # editing this line.
+      - name: jactionlint
+        run: '"$RUNNER_TEMP/jactionlint" --profile default --strict-exit --no-ignores --config-file=/dev/null --format github'
 
   keys:
     runs-on: ubuntu-latest
@@ -106,6 +117,7 @@ jobs:
         with:
           persist-credentials: false
       - name: The key rules, with the fingerprints
+        shell: bash
         run: bash scripts/check-keys.sh | tee fingerprints.txt
       - name: SECURITY.md lists the keys in keys/
         run: |
@@ -180,6 +192,7 @@ jobs:
       - name: Find the current stable release
         env:
           GITHUB_TOKEN: ${{ github.token }}
+        shell: bash
         run: bash scripts/find-releases.sh | tee releases.txt
       - name: Build the .deb
         run: |
@@ -200,6 +213,7 @@ jobs:
           bash scripts/build-keyring.sh keyring-again
           cmp debs/pwsh-termux-keyring_*_all.deb keyring-again/pwsh-termux-keyring_*_all.deb
       - name: Check the keyring package
+        shell: bash
         run: |
           deb=$(ls debs/pwsh-termux-keyring_*_all.deb)
           dpkg-deb -I "$deb"
@@ -211,8 +225,8 @@ jobs:
             | cmp - keys/pwsh-termux-archive-keyring.gpg
           dpkg-deb --fsys-tarfile "$deb" \
             | tar -xOf - ./data/data/com.termux/files/usr/etc/apt/sources.list.d/pwsh-termux.list \
-            | grep -qx 'deb \[signed-by=/data/data/com.termux/files/usr/share/keyrings/pwsh-termux-archive-keyring.gpg\] https://pwsh-termux.machlev.org stable main'
-          if dpkg-deb -c "$deb" | grep -q trusted.gpg.d; then exit 1; fi
+            | grep -x 'deb \[signed-by=/data/data/com.termux/files/usr/share/keyrings/pwsh-termux-archive-keyring.gpg\] https://pwsh-termux.machlev.org stable main'
+          if dpkg-deb -c "$deb" | grep trusted.gpg.d; then exit 1; fi
       - name: Check the .deb
         run: |
           deb=$(ls debs/pwsh_*.deb)
@@ -245,6 +259,7 @@ jobs:
       # A real signed repository with the real package, through the test-only
       # KEYRING_FILE (the refusals are in the keys job's test-keys.sh).
       - name: Sign with a throwaway key
+        shell: bash
         run: |
           GNUPGHOME=$(mktemp -d)
           export GNUPGHOME

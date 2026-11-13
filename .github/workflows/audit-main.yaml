@@ -86,6 +86,7 @@ jobs:
           GH_REPO: ${{ github.repository }}
           FINDINGS: ${{ needs.audit.outputs.findings }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        shell: bash
         run: printf '%s' "$FINDINGS" | base64 -d | bash scripts/audit-main-commits.sh report
 
   # The audit job failed, so nothing was checked: say so in an issue rather

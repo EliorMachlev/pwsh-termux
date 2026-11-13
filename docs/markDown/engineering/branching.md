@@ -10,7 +10,7 @@ There is one long-lived branch, **`main`**. It is what the website and the repos
 
 | Workflow | Pull request | Push to `main` | Schedule | Notes |
 |---|---|---|---|---|
-| [CI](../../../.github/workflows/ci.yaml) (shellcheck, actionlint, package build) | yes, when scripts, docs or workflows change | yes | | builds the real stable package |
+| [CI](../../../.github/workflows/ci.yaml) (shellcheck, jactionlint, package build) | yes, when scripts, docs, workflows or `dependabot.yml` change | yes | | builds the real stable package |
 | [Site](../../../.github/workflows/site.yaml) | yes, for `docs/**` | yes | weekly | also catches an expiring `security.txt` |
 | [Docs checks](../../../.github/workflows/docs-checks.yaml) | yes | yes | weekly (adds external links) | lychee, typos |
 | [Zizmor](../../../.github/workflows/zizmor.yaml) | yes, for workflows | yes | weekly | uploads SARIF to code scanning |
