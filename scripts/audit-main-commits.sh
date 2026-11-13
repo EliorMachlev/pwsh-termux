@@ -3,9 +3,12 @@
 # may bypass main's ruleset, so whoever holds it could push anything there
 # unsigned. Every commit on main must therefore be one of:
 #
-#   signed       GitHub reports its signature verified, and its committer is
-#                an account trusted to commit to main: web-flow (pull
-#                request merges, Dependabot) or the repository's owner;
+#   signed       GitHub reports its signature verified, and its committer
+#                is either the repository's owner, or web-flow AND the
+#                commit is the merge commit of a merged pull request into
+#                main (GET /repos/{r}/commits/{sha}/pulls lists one whose
+#                merge_commit_sha is this commit): web-flow also signs
+#                commits made on github.com outside a pull request;
 #   keep-alive   unsigned, but exactly the keep-alive commit
 #                (keepalive_commit_problems in lib/common.sh finds nothing),
 #                AND GitHub holds the commit status keepalive/pushed
@@ -19,9 +22,10 @@
 #
 # Usage: audit-main-commits.sh audit [<before> <after>]
 #        audit-main-commits.sh report
+#        audit-main-commits.sh failed
 # Env:   GH_REPO     owner/repo (required)
-#        GH_TOKEN    contents: read and statuses: read for audit; issues:
-#                    write for report
+#        GH_TOKEN    contents: read, pull-requests: read and statuses: read
+#                    for audit; issues: write for report and failed
 #        RUN_URL     the run, linked from the issue's comments (optional)
 #        AUDIT_BASELINE  TEST ONLY: instead of AUDIT_BASELINE_COMMIT
 #
@@ -35,7 +39,12 @@
 # report: reads those lines on stdin and keeps one issue in step, found by
 #   its exact title: opened when there are findings, its body replaced (and a
 #   comment added) when they change, closed with a comment when there are
-#   none. Exits 1 when there are findings.
+#   none. Exits 1 when there are findings. Also closes the issue that
+#   `failed` opens, since the audit ran to the end again.
+# failed: the audit itself failed (an API error, a missing baseline, a
+#   rewritten main): opens the issue "The audit of main failed", or comments
+#   on it if it is already open. A failed audit checked nothing, so it must
+#   not pass unseen.
 set -euo pipefail
 source "$(dirname "$0")/lib/common.sh"
 
@@ -47,9 +56,12 @@ readonly AUDIT_MIN_COMMITS=50
 # ancestors are unsigned and are not audited. After a finding has been dealt
 # with (reverted, key rotated), move this to the newest commit reviewed.
 readonly AUDIT_BASELINE_COMMIT=c3564f21701f9bdea53a987854f3074e8ffca5ed
-# Accounts whose verified commits may be on main, besides the owner.
-readonly TRUSTED_COMMITTERS=(web-flow)
+# The account GitHub commits pull request merges as (and signs them with);
+# its commits must also be the merge commit of a merged pull request.
+readonly PULL_REQUEST_COMMITTER=web-flow
+readonly MAIN_BRANCH=main
 readonly ISSUE_TITLE="Unexpected unsigned commit on main"
+readonly FAILED_ISSUE_TITLE="The audit of main failed"
 readonly ZERO_SHA=0000000000000000000000000000000000000000
 readonly SHA_REGEX='^[0-9a-f]{40}$'
 
@@ -97,22 +109,30 @@ verified_committer() {
     | jq -r 'if .commit.verification.verified == true then (.committer.login // "(no account)") else empty end'
 }
 
-# is_trusted_committer <login>
-is_trusted_committer() {
-  local login
-  [ "$1" = "$OWNER" ] && return 0
-  for login in "${TRUSTED_COMMITTERS[@]}"; do [ "$1" = "$login" ] && return 0; done
-  return 1
+# merged_pull_request <sha>: the number of a merged pull request into main
+# whose merge commit is <sha>; nothing if there is none.
+merged_pull_request() {
+  gh api --paginate "repos/$GH_REPO/commits/$1/pulls?per_page=100" \
+    | jq -rs --arg sha "$1" --arg base "$MAIN_BRANCH" '
+      [add // [] | .[] | select(.merged_at != null and .merge_commit_sha == $sha
+                               and .base.ref == $base)][0].number // empty'
 }
 
-# audit_commit <sha>: a finding line if the commit is neither signed (by a
-# trusted committer) nor a keep-alive commit with its status.
+# audit_commit <sha>: a finding line if the commit is neither signed by the
+# owner, nor signed by web-flow as a pull request's merge commit, nor a
+# keep-alive commit with its status.
 audit_commit() {
-  local sha=$1 committer problems
+  local sha=$1 committer pull_request problems
   committer=$(verified_committer "$sha") || die "could not read $sha from the GitHub API"
-  if [ -n "$committer" ]; then
-    is_trusted_committer "$committer" \
-      || finding "$sha" "signed and verified, but committed by $committer, not a trusted account"
+  if [ "$committer" = "$OWNER" ]; then
+    return 0
+  elif [ "$committer" = "$PULL_REQUEST_COMMITTER" ]; then
+    pull_request=$(merged_pull_request "$sha") || die "could not read the pull requests of $sha from the GitHub API"
+    [ -n "$pull_request" ] \
+      || finding "$sha" "signed by $PULL_REQUEST_COMMITTER, but not the merge commit of a merged pull request into $MAIN_BRANCH"
+    return 0
+  elif [ -n "$committer" ]; then
+    finding "$sha" "signed and verified, but committed by $committer, not a trusted account"
     return 0
   fi
   problems=$(keepalive_commit_problems "$sha")
@@ -148,23 +168,35 @@ audit() {
 # issue_body <findings>: the issue's text; the same findings give the same text.
 issue_body() {
   printf '%s\n' \
-    "The audit of \`main\` (\`scripts/audit-main-commits.sh\`) found commits that are neither signed and verified by a trusted account nor a keep-alive commit pushed by the keep-alive workflow:" \
+    "The audit of \`main\` (\`scripts/audit-main-commits.sh\`) found commits that are neither signed and verified by the owner, nor a merged pull request's merge commit signed by GitHub, nor a keep-alive commit pushed by the keep-alive workflow:" \
     "" "| Commit | Author | Why |" "|---|---|---|"
   awk -F'\t' '{printf "| `%s` | %s | %s |\n", $1, $2, $3}' <<<"$1"
   printf '%s\n' "" \
     "**This may mean the keep-alive deploy key leaked**: it is the only credential that can push to \`main\` without a signature. Rotate it now (docs/markDown/engineering/release.md, \"Rotating the keep-alive deploy key\"), look at what each commit changed, revert what is not yours, and check the workflow runs and secrets since. Then move \`AUDIT_BASELINE_COMMIT\` in the script past the reviewed commits; this issue closes on the next clean run."
 }
 
-# open_issue_number: the number of the open issue with exactly this title.
+# open_issue_number <title>: the number of the open issue with exactly this
+# title.
 open_issue_number() {
-  gh issue list --state open --limit 100 --search "in:title \"$ISSUE_TITLE\"" --json number,title \
-    | jq -r --arg title "$ISSUE_TITLE" '[.[] | select(.title == $title)][0].number // empty'
+  gh issue list --state open --limit 100 --search "in:title \"$1\"" --json number,title \
+    | jq -r --arg title "$1" '[.[] | select(.title == $title)][0].number // empty'
+}
+
+# close_failed_issue: closes the "audit failed" issue, if open.
+close_failed_issue() {
+  local failed
+  failed=$(open_issue_number "$FAILED_ISSUE_TITLE") || die "could not list the issues"
+  if [ -n "$failed" ]; then
+    gh issue close "$failed" --comment "The audit ran to the end again. ${RUN_URL:-}"
+    log "closed issue #$failed"
+  fi
 }
 
 report() {
   local findings existing body run=${RUN_URL:-}
   findings=$(grep -v '^$' || true)
-  existing=$(open_issue_number) || die "could not list the issues"
+  close_failed_issue
+  existing=$(open_issue_number "$ISSUE_TITLE") || die "could not list the issues"
   if [ -z "$findings" ]; then
     if [ -n "$existing" ]; then
       gh issue close "$existing" --comment "Clean again: every audited commit on main is signed or a keep-alive commit. $run"
@@ -185,8 +217,23 @@ report() {
   die "$(grep -c '' <<<"$findings") unexpected commit(s) on main: $(cut -f1 <<<"$findings" | paste -sd ' ' -)"
 }
 
+# failed: opens the "audit failed" issue, or comments on the open one.
+failed() {
+  local existing run=${RUN_URL:-(no run link)}
+  existing=$(open_issue_number "$FAILED_ISSUE_TITLE") || die "could not list the issues"
+  if [ -z "$existing" ]; then
+    gh issue create --title "$FAILED_ISSUE_TITLE" --body "$(printf '%s\n' \
+      "The audit of \`main\` (\`scripts/audit-main-commits.sh\`, run by \`audit-main.yaml\`) failed before it finished, so the commits on \`main\` were not checked: $run" \
+      "" \
+      "Read the run's log. An API error or an outage: run *Audit main* again. *the baseline ... is not an ancestor of HEAD* or *is not in this clone*: \`main\` was rewritten, or the baseline moved; treat a rewrite like a finding (docs/markDown/engineering/ci-cd.md, \"When a run fails\"). This issue closes on the next run that finishes.")"
+  else
+    gh issue comment "$existing" --body "Failed again: $run"
+  fi
+}
+
 case ${1:-} in
   audit) shift; audit "$@" ;;
   report) [ $# -eq 1 ] || die "usage: audit-main-commits.sh report < findings"; report ;;
-  *) die "usage: audit-main-commits.sh audit [<before> <after>] | report" ;;
+  failed) [ $# -eq 1 ] || die "usage: audit-main-commits.sh failed"; failed ;;
+  *) die "usage: audit-main-commits.sh audit [<before> <after>] | report | failed" ;;
 esac
