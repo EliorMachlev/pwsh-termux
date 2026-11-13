@@ -1,66 +1,341 @@
 /* pwsh-termux website: system fonts, no scripts, nothing loaded from elsewhere. */
 :root {
-  --paper: #fbfcfb; --paper-2: #eef4f2; --ink: #11201e; --ink-2: #41524f;
-  --accent: #0f766e; --accent-ink: #ffffff; --line: #cfdcd8; --code-bg: #0b1f2a; --code-ink: #d7f5ef;
-  --max: 62rem; color-scheme: light;
+  --paper: #fbfcfb;
+  --paper-2: #eef4f2;
+  --ink: #11201e;
+  --ink-2: #41524f;
+  --accent: #0f766e;
+  --accent-ink: #fff;
+  --line: #cfdcd8;
+  --code-bg: #0b1f2a;
+  --code-ink: #d7f5ef;
+  --max: 62rem;
+
+  color-scheme: light;
 }
+
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --paper: #0a1618; --paper-2: #102124; --ink: #e8f3f0; --ink-2: #a9bcb8;
-    --accent: #5eead4; --accent-ink: #062320; --line: #22393c; --code-bg: #061214; --code-ink: #d7f5ef;
+    --paper: #0a1618;
+    --paper-2: #102124;
+    --ink: #e8f3f0;
+    --ink-2: #a9bcb8;
+    --accent: #5eead4;
+    --accent-ink: #062320;
+    --line: #22393c;
+    --code-bg: #061214;
+    --code-ink: #d7f5ef;
+
     color-scheme: dark;
   }
 }
-* { box-sizing: border-box; }
-html { -webkit-text-size-adjust: 100%; }
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  text-size-adjust: 100%;
+}
+
 body {
-  margin: 0; background: var(--paper); color: var(--ink);
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
   font: 1rem/1.65 system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 }
-.skip { position: absolute; left: .75rem; top: -4rem; background: var(--accent); color: var(--accent-ink); padding: .5rem .9rem; border-radius: .5rem; z-index: 10; }
-.skip:focus { top: .75rem; }
-a { color: var(--accent); text-underline-offset: .18em; }
-a:hover { text-decoration-thickness: 2px; }
-:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; border-radius: .25rem; }
-.wrap { max-width: var(--max); margin: 0 auto; padding-inline: max(1rem, env(safe-area-inset-left)) max(1rem, env(safe-area-inset-right)); }
-header.site { border-bottom: 1px solid var(--line); }
-header.site .wrap { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .75rem 1.5rem; padding-block: .9rem; }
-.brand { display: flex; align-items: center; gap: .65rem; font-weight: 700; color: var(--ink); text-decoration: none; letter-spacing: -.01em; }
-.brand img { width: 2rem; height: 2rem; }
-nav ul { display: flex; flex-wrap: wrap; gap: .25rem 1.25rem; list-style: none; margin: 0; padding: 0; }
-nav a { color: var(--ink-2); text-decoration: none; padding: .25rem 0; }
-nav a:hover, nav a[aria-current="page"] { color: var(--ink); text-decoration: underline; }
-main { padding-block: 2.5rem 4rem; }
-h1, h2, h3 { line-height: 1.2; letter-spacing: -.02em; }
-h1 { font-size: clamp(2rem, 5vw + .5rem, 3.4rem); margin: 0 0 .75rem; }
-h2 { font-size: clamp(1.4rem, 2vw + 1rem, 1.9rem); margin: 3rem 0 .75rem; }
-h3 { font-size: 1.15rem; margin: 0 0 .35rem; }
-.lead { font-size: 1.2rem; color: var(--ink-2); max-width: 44rem; }
-.hero { padding-block: 1rem 1.5rem; }
-.notice { background: var(--paper-2); border: 1px solid var(--line); border-radius: .75rem; padding: .85rem 1.1rem; color: var(--ink-2); margin-block: 1.5rem; }
-pre, code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; }
-code { background: var(--paper-2); border: 1px solid var(--line); border-radius: .3rem; padding: .08em .35em; font-size: .92em; overflow-wrap: anywhere; }
-pre { background: var(--code-bg); color: var(--code-ink); border-radius: .75rem; padding: 1rem 1.15rem; overflow-x: auto; line-height: 1.55; margin: 1rem 0; }
-pre code { background: none; border: 0; padding: 0; color: inherit; font-size: .92rem; overflow-wrap: normal; }
-.grid { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); margin-top: 1rem; }
-.card { background: var(--paper-2); border: 1px solid var(--line); border-radius: .9rem; padding: 1.1rem 1.2rem; }
-.card p { margin: 0; color: var(--ink-2); }
-table { width: 100%; border-collapse: collapse; margin: 1rem 0; display: block; overflow-x: auto; }
-th, td { text-align: left; padding: .6rem .8rem; border-bottom: 1px solid var(--line); vertical-align: top; }
-th { color: var(--ink-2); font-weight: 600; white-space: nowrap; }
-ol.steps { padding-left: 1.3rem; } ol.steps li { margin-block: .5rem; }
-.btn { display: inline-block; background: var(--accent); color: var(--accent-ink); font-weight: 600; padding: .65rem 1.2rem; border-radius: .6rem; text-decoration: none; }
-.btn:hover { filter: brightness(1.08); }
-.btn.ghost { background: transparent; color: var(--accent); border: 1px solid var(--accent); }
-.actions { display: flex; flex-wrap: wrap; gap: .75rem; margin-top: 1.25rem; }
-footer.site { border-top: 1px solid var(--line); color: var(--ink-2); font-size: .92rem; }
-footer.site .wrap { padding-block: 1.5rem 2.5rem; }
-footer.site p { margin: .35rem 0; }
-footer.site ul { display: flex; flex-wrap: wrap; gap: .25rem 1.25rem; list-style: none; margin: .75rem 0 0; padding: 0; }
-@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; transition: none !important; animation: none !important; } }
+
+.skip {
+  position: absolute;
+  left: .75rem;
+  top: -4rem;
+  background: var(--accent);
+  color: var(--accent-ink);
+  padding: .5rem .9rem;
+  border-radius: .5rem;
+  z-index: 10;
+}
+
+.skip:focus {
+  top: .75rem;
+}
+
+a {
+  color: var(--accent);
+  text-underline-offset: .18em;
+}
+
+:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: .25rem;
+}
+
+.wrap {
+  max-width: var(--max);
+  margin: 0 auto;
+  padding-inline: max(1rem, env(safe-area-inset-left)) max(1rem, env(safe-area-inset-right));
+}
+
+header.site {
+  border-bottom: 1px solid var(--line);
+}
+
+header.site .wrap {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: .75rem 1.5rem;
+  padding-block: .9rem;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: .65rem;
+  font-weight: 700;
+  color: var(--ink);
+  text-decoration: none;
+  letter-spacing: -.01em;
+}
+
+.brand img {
+  width: 2rem;
+  height: 2rem;
+}
+
+nav ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .25rem 1.25rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+nav a {
+  color: var(--ink-2);
+  text-decoration: none;
+  padding: .25rem 0;
+}
+
+a:hover {
+  text-decoration-thickness: 2px;
+}
+
+nav a:hover, nav a[aria-current="page"] {
+  color: var(--ink);
+  text-decoration: underline;
+}
+
+main {
+  padding-block: 2.5rem 4rem;
+}
+
+h1, h2, h3 {
+  line-height: 1.2;
+  letter-spacing: -.02em;
+}
+
+h1 {
+  font-size: clamp(2rem, 5vw + .5rem, 3.4rem);
+  margin: 0 0 .75rem;
+}
+
+h2 {
+  font-size: clamp(1.4rem, 2vw + 1rem, 1.9rem);
+  margin: 3rem 0 .75rem;
+}
+
+h3 {
+  font-size: 1.15rem;
+  margin: 0 0 .35rem;
+}
+
+.lead {
+  font-size: 1.2rem;
+  color: var(--ink-2);
+  max-width: 44rem;
+}
+
+.hero {
+  padding-block: 1rem 1.5rem;
+}
+
+.notice {
+  background: var(--paper-2);
+  border: 1px solid var(--line);
+  border-radius: .75rem;
+  padding: .85rem 1.1rem;
+  color: var(--ink-2);
+  margin-block: 1.5rem;
+}
+
+pre, code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+}
+
+code {
+  background: var(--paper-2);
+  border: 1px solid var(--line);
+  border-radius: .3rem;
+  padding: .08em .35em;
+  font-size: .92em;
+  overflow-wrap: anywhere;
+}
+
+pre {
+  background: var(--code-bg);
+  color: var(--code-ink);
+  border-radius: .75rem;
+  padding: 1rem 1.15rem;
+  overflow-x: auto;
+  line-height: 1.55;
+  margin: 1rem 0;
+}
+
+pre code {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: inherit;
+  font-size: .92rem;
+  overflow-wrap: normal;
+}
+
+.grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  margin-top: 1rem;
+}
+
+.card {
+  background: var(--paper-2);
+  border: 1px solid var(--line);
+  border-radius: .9rem;
+  padding: 1.1rem 1.2rem;
+}
+
+.card p {
+  margin: 0;
+  color: var(--ink-2);
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1rem 0;
+  display: block;
+  overflow-x: auto;
+}
+
+th, td {
+  text-align: left;
+  padding: .6rem .8rem;
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+}
+
+th {
+  color: var(--ink-2);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+ol.steps {
+  padding-left: 1.3rem;
+}
+
+ol.steps li {
+  margin-block: .5rem;
+}
+
+.btn {
+  display: inline-block;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 600;
+  padding: .65rem 1.2rem;
+  border-radius: .6rem;
+  text-decoration: none;
+}
+
+.btn:hover {
+  filter: brightness(1.08);
+}
+
+.btn.ghost {
+  background: transparent;
+  color: var(--accent);
+  border: 1px solid var(--accent);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .75rem;
+  margin-top: 1.25rem;
+}
+
+footer.site {
+  border-top: 1px solid var(--line);
+  color: var(--ink-2);
+  font-size: .92rem;
+}
+
+footer.site .wrap {
+  padding-block: 1.5rem 2.5rem;
+}
+
+footer.site p {
+  margin: .35rem 0;
+}
+
+footer.site ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .25rem 1.25rem;
+  list-style: none;
+  margin: .75rem 0 0;
+  padding: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    scroll-behavior: auto !important;
+    transition: none !important;
+    animation: none !important;
+  }
+}
+
 /* The install command: one tap or click selects all of it, so it copies whole (no script needed). */
-pre.copy { cursor: text; }
-pre.copy code { -webkit-user-select: all; user-select: all; }
-.hint { font-size: .92rem; color: var(--ink-2); margin-top: -.5rem; }
-.status { background: var(--paper-2); border: 1px solid var(--line); border-radius: .75rem; padding: .6rem 1rem; color: var(--ink-2); font-size: .95rem; }
-.updated { font-size: .92rem; color: var(--ink-2); }
+
+pre.copy {
+  cursor: text;
+}
+
+pre.copy code {
+  user-select: all;
+}
+
+.hint {
+  font-size: .92rem;
+  color: var(--ink-2);
+  margin-top: -.5rem;
+}
+
+.status {
+  background: var(--paper-2);
+  border: 1px solid var(--line);
+  border-radius: .75rem;
+  padding: .6rem 1rem;
+  color: var(--ink-2);
+  font-size: .95rem;
+}
+
+.updated {
+  font-size: .92rem;
+  color: var(--ink-2);
+}

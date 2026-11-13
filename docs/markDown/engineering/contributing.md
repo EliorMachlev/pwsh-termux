@@ -44,7 +44,7 @@ The [template](../../../.github/pull_request_template.md) is the checklist:
 - A new site page is in `docs/sitemap.xml` and keeps the Content-Security-Policy.
 - Docs are updated where the change needs it, in the same PR.
 
-CI ([ci-cd.md](ci-cd.md)) runs the rest: jactionlint, a real package build, CodeQL, zizmor, Gitleaks, and the link and spelling checks.
+CI ([ci-cd.md](ci-cd.md)) runs the rest: jactionlint, a real package build, CodeQL, zizmor, Gitleaks, the link and spelling checks, and the HTML and CSS validation (vnu and Stylelint; to run it locally, see [build.md](build.md#check-the-website)).
 
 ## Reporting a vulnerability
 

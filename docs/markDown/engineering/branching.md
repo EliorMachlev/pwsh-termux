@@ -11,7 +11,7 @@ There is one long-lived branch, **`main`**. It is what the website and the repos
 | Workflow | Pull request | Push to `main` | Schedule | Notes |
 |---|---|---|---|---|
 | [CI](../../../.github/workflows/ci.yaml) (shellcheck, jactionlint, key, keep-alive and audit tests, package build) | yes, every one (required) | yes, when scripts, keys, docs, workflows or `dependabot.yml` change | | builds the real stable package |
-| [Site](../../../.github/workflows/site.yaml) | yes, every one (required) | yes, for `docs/**` | weekly | also catches an expiring `security.txt` |
+| [Site](../../../.github/workflows/site.yaml) (site check, HTML and CSS validation) | yes, every one (required) | yes, for `docs/**`, `art/brand/**`, its checkers and the site scripts | weekly | also catches an expiring `security.txt` |
 | [Docs checks](../../../.github/workflows/docs-checks.yaml) | yes, every one (required; local links only) | yes, for the docs | weekly (adds external links) | lychee, typos |
 | [Zizmor](../../../.github/workflows/zizmor.yaml) | yes, every one (required) | yes, for workflows | weekly | uploads SARIF to code scanning |
 | [CodeQL](../../../.github/workflows/codeql.yaml) | yes, every one (required) | yes, for workflows | weekly | `actions` language |
