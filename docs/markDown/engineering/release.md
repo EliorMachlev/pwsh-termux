@@ -153,45 +153,123 @@ Until a user upgrades, whoever holds a compromised key can still sign an index t
 
 ### Rulesets
 
+**Status:** *Main* as described here (no Admin bypass, a `pull_request` rule and the required status checks below) is applied by the maintainer with [the command below](#applying-main) after the pull request that added this section is merged; until then *Main* has only `required_signatures` and `code_scanning`, and the Admin role can still bypass it. No ruleset has a `required_deployments` rule.
+
 Four rulesets apply. A bypass actor bypasses *every* rule of a ruleset, so the deploy key could not simply be added to one ruleset for all branches: it would then also be able to delete `main`, force-push it and create branches. So deletion, force push and creation sit in a ruleset the deploy key has no bypass on, and the deploy key is a bypass actor only on a ruleset for `main` alone. Rulesets stack: a push must pass every ruleset that applies to its ref, each bypassed only by that ruleset's own actors. The Admin role is `RepositoryRole` 5.
 
 | Ruleset | Target | Rules | Bypass actors |
 |---|---|---|---|
-| *Main* (id `27198868`) | `refs/heads/main` | `required_signatures`, `required_deployments` (`github-pages`), `code_scanning` (CodeQL, Scorecard, zizmor) | Admin role, and **`DeployKey`** (`actor_id: null`, `bypass_mode: always`) |
-| *Protection, other branches* (id `27198871`) | all branches except `refs/heads/main` | the same three rules | Admin role only |
+| *Main* (id `27198868`) | `refs/heads/main` | `required_signatures`; `code_scanning` (CodeQL, zizmor); `pull_request` (no approval needed, squash merge only); `required_status_checks` (the [13 checks below](#required-status-checks), not strict) | **`DeployKey`** only (`actor_id: null`, `bypass_mode: always`). **Not** the Admin role. |
+| *Protection, other branches* (id `27198871`) | all branches except `refs/heads/main` | `required_signatures`, `code_scanning` (CodeQL, Scorecard, zizmor) | Admin role only |
 | *Protection* (id `27110284`) | all branches (`~ALL`) | `deletion`, `non_fast_forward`, `creation` | Admin role only. **Not** the deploy key. |
-| *Tag Protection* (id `27110388`) | all tags (`~ALL`) | `deletion`, `non_fast_forward`, `update`, `required_signatures`, and a `required_status_checks` rule that lists no check; no `creation`, no `required_deployments` | Admin role only |
+| *Tag Protection* (id `27110388`) | all tags (`~ALL`) | `deletion`, `non_fast_forward`, `update`, `required_signatures`, and a `required_status_checks` rule that lists no check; no `creation` | Admin role only |
 
-*Protection, other branches* holds the other branches to the same rules as `main`; without it, the deploy key could push unsigned commits to any existing branch, whose workflows then run. The Admin bypass on *Protection* is what lets the maintainer create branches: the `creation` rule with no bypass at all would stop that too.
+**What *Main* means in practice.** Every change reaches `main` through a pull request whose 13 required checks have passed on its head commit, merged with *Squash and merge*: GitHub makes that commit as `web-flow` and signs it, so it is *Verified* and passes `required_signatures`, and the [audit](ci-cd.md#the-audit-of-main) accepts it as a merged pull request's merge commit. The maintainer can no longer push to `main`, nor merge a pull request whose checks have not passed (a check that fails for an outside reason, such as a download in *Package build*, is re-run). The only bypass is the keep-alive deploy key. The maintainer, as an admin, can still edit the ruleset itself: that is the way out if a rule ever has to be lifted, and it shows in the ruleset's history.
+
+*Protection, other branches* holds the other branches to signed commits; without it, the deploy key could push unsigned commits to any existing branch, whose workflows then run. The Admin bypass on *Protection* is what lets the maintainer create branches: the `creation` rule with no bypass at all would stop that too.
 
 **Honest limits.** The `DeployKey` bypass has no key id: it applies to *every* deploy key the repository has or will have, so there must only ever be one ([below](#rotating-the-keep-alive-deploy-key)). `GITHUB_TOKEN` cannot be a bypass actor in a personal repository, so no workflow can push a commit with it to any branch, nor create a branch for a pull request: the keep-alive commit uses the deploy key, and [`renew-security-txt.yaml`](../../../.github/workflows/renew-security-txt.yaml) opens an issue for the maintainer instead ([website](website.md#updating-securitytxt)). `update.yaml` creates release tags with `GITHUB_TOKEN`, which is why *Tag Protection* has no `creation` rule.
 
-**Re-creating them** (only if they are lost, or for a new repository; the ids above then change, and so must this page). Order matters, so `main` is never unprotected: create *Main*, then *Protection, other branches*, then reduce *Protection* to its three rules (here a `PUT` on the existing ruleset, which before the split held all six rules; `POST $R/rulesets` instead if it is gone).
+#### Required status checks
+
+A required check must report on **every** pull request into `main`, or that pull request can never merge: GitHub's documentation says that when a workflow is skipped by branch filtering, path filtering or a commit message, "checks associated with that workflow will remain in a "Pending" state" and the pull request is "blocked from merging" ([workflow syntax](https://docs.github.com/en/actions/writing-workflows/workflow-syntax-for-github-actions#onpushpull_requestpull_request_targetpathspaths-ignore)). So the workflows below have no `paths` filter on `pull_request` (their `push` filters on `main` are unchanged), and a pull request's commits must not carry a skip-CI token in their messages. Each check is the job's `name:`, as the check run is named, from the GitHub Actions app (`integration_id` **15368**): pinning the app matters because GitHub Advanced Security (app 57789) also posts check runs named `zizmor` and `CodeQL` for the uploaded results.
+
+| Check | Workflow | Job |
+|---|---|---|
+| `shellcheck` | [`ci.yaml`](../../../.github/workflows/ci.yaml) | `shellcheck` |
+| `jactionlint` | `ci.yaml` | `jactionlint` |
+| `Key rules and key tests` | `ci.yaml` | `keys` |
+| `Schedule keep-alive tests` | `ci.yaml` | `keepalive` |
+| `Keep-alive commit and audit tests` | `ci.yaml` | `keepalive-commit` |
+| `Package build` | `ci.yaml` | `package` |
+| `Links (lychee)` | [`docs-checks.yaml`](../../../.github/workflows/docs-checks.yaml) | `links` (offline on pull requests) |
+| `Spelling (typos)` | `docs-checks.yaml` | `spelling` |
+| `Check the website` | [`site.yaml`](../../../.github/workflows/site.yaml) | `check` |
+| `zizmor` | [`zizmor.yaml`](../../../.github/workflows/zizmor.yaml) | `zizmor` |
+| `CodeQL (actions)` | [`codeql.yaml`](../../../.github/workflows/codeql.yaml) | `analyze` |
+| `Dependency Review` | [`dependency-review.yaml`](../../../.github/workflows/dependency-review.yaml) | `dependency-review` |
+| `Gitleaks (whole history)` | [`gitleaks.yaml`](../../../.github/workflows/gitleaks.yaml) | `gitleaks` |
+
+Why these names hold: none of these jobs has a matrix or calls a reusable workflow (which would name the check `caller / callee` or add the matrix values), no two jobs that run on a pull request share a name, and none has a job-level `if:`. **Not required**, on purpose: *Keep-alive commit (dry run)* and *Renew the scheduled workflows (dry run)* run only when their own files change (a `paths` filter), and their non-dry-run twins are skipped by `if:` on a pull request. A job skipped by its `if:` reports success ("A job that is skipped will report its status as "Success". It will not prevent a pull request from merging, even if it is a required check.", [using conditions](https://docs.github.com/en/actions/writing-workflows/choosing-when-your-workflow-runs/using-conditions-to-control-job-execution)), so requiring one would check nothing. *Scorecard analysis* does not run on pull requests at all (the action supports `push` and `schedule`; `pull_request` is experimental).
+
+**Scorecard is not in *Main*'s `code_scanning` rule** for the same reason: the rule waits for results from every listed tool on the pull request, and Scorecard has none. Rule insights showed it when #11 was merged with the Admin bypass: `code_scanning` failed with *Code scanning is waiting for results from Scorecard for the commits …*. Without the bypass, listing Scorecard would block every pull request. CodeQL and zizmor run on every pull request and upload their results, so they stay. Scorecard still runs on each push to `main` and weekly, and its alerts stay in code scanning; *Protection, other branches* keeps all three tools, as it has an Admin bypass and no pull requests target other branches.
+
+**Cancelled runs.** Each of these workflows cancels its own older run when a newer commit is pushed to the same pull request (`concurrency`, grouped by workflow and pull request number). The cancelled run belonged to the older head commit; the required checks are read from the new head commit, whose run is not cancelled, so this never leaves a check stuck. A run cancelled by hand or by a time-out is re-run. `strict_required_status_checks_policy` is `false`: a branch need not be up to date with `main` before it merges (every merge is a squash, and the push to `main` runs the same workflows again).
+
+**Dependabot** pull requests run the same workflows, with a read-only token unless a job asks for more, and no secrets; none of the required jobs needs a secret.
+
+#### Applying Main
+
+A `PUT` replaces the whole ruleset; read it first with `gh api repos/EliorMachlev/pwsh-termux/rulesets/27198868`.
+
+```bash
+gh api -X PUT repos/EliorMachlev/pwsh-termux/rulesets/27198868 --input - <<'JSON'
+{
+  "name": "Main",
+  "target": "branch",
+  "enforcement": "active",
+  "conditions": {"ref_name": {"include": ["refs/heads/main"], "exclude": []}},
+  "bypass_actors": [
+    {"actor_type": "DeployKey", "actor_id": null, "bypass_mode": "always"}
+  ],
+  "rules": [
+    {"type": "required_signatures"},
+    {"type": "code_scanning", "parameters": {"code_scanning_tools": [
+      {"tool": "CodeQL", "alerts_threshold": "all", "security_alerts_threshold": "all"},
+      {"tool": "zizmor", "alerts_threshold": "all", "security_alerts_threshold": "all"}
+    ]}},
+    {"type": "pull_request", "parameters": {
+      "required_approving_review_count": 0,
+      "dismiss_stale_reviews_on_push": false,
+      "require_code_owner_review": false,
+      "require_last_push_approval": false,
+      "required_review_thread_resolution": false,
+      "allowed_merge_methods": ["squash"]
+    }},
+    {"type": "required_status_checks", "parameters": {
+      "strict_required_status_checks_policy": false,
+      "do_not_enforce_on_create": false,
+      "required_status_checks": [
+        {"context": "shellcheck", "integration_id": 15368},
+        {"context": "jactionlint", "integration_id": 15368},
+        {"context": "Key rules and key tests", "integration_id": 15368},
+        {"context": "Schedule keep-alive tests", "integration_id": 15368},
+        {"context": "Keep-alive commit and audit tests", "integration_id": 15368},
+        {"context": "Package build", "integration_id": 15368},
+        {"context": "Links (lychee)", "integration_id": 15368},
+        {"context": "Spelling (typos)", "integration_id": 15368},
+        {"context": "Check the website", "integration_id": 15368},
+        {"context": "zizmor", "integration_id": 15368},
+        {"context": "CodeQL (actions)", "integration_id": 15368},
+        {"context": "Dependency Review", "integration_id": 15368},
+        {"context": "Gitleaks (whole history)", "integration_id": 15368}
+      ]
+    }}
+  ]
+}
+JSON
+```
+
+A renamed job is a renamed check: change the job's `name:` and the list above in one pull request. That pull request cannot report the old name, so the maintainer replaces the name in the ruleset just before merging it; other open pull requests then need `main` merged in to report the new one.
+
+**Re-creating them** (only if they are lost, or for a new repository; the ids above then change, and so must this page). Order matters, so `main` is never unprotected: create *Main* (with the body above, as a `POST $R/rulesets`), then *Protection, other branches*, then reduce *Protection* to its three rules (here a `PUT` on the existing ruleset; `POST $R/rulesets` instead if it is gone).
 
 ```bash
 R=repos/EliorMachlev/pwsh-termux
-SCAN='{"type":"code_scanning","parameters":{"code_scanning_tools":[
-  {"tool":"CodeQL","alerts_threshold":"all","security_alerts_threshold":"all"},
-  {"tool":"Scorecard","alerts_threshold":"all","security_alerts_threshold":"all"},
-  {"tool":"zizmor","alerts_threshold":"all","security_alerts_threshold":"all"}]}}'
-RULES='[{"type":"required_signatures"},
-  {"type":"required_deployments","parameters":{"required_deployment_environments":["github-pages"]}},'"$SCAN"']'
 ADMIN='{"actor_type":"RepositoryRole","actor_id":5,"bypass_mode":"always"}'
 
-# 1. Main: signatures, deployment, code scanning on main; the deploy key may bypass them.
-gh api -X POST $R/rulesets --input - <<JSON
-{"name":"Main","target":"branch","enforcement":"active",
- "conditions":{"ref_name":{"include":["refs/heads/main"],"exclude":[]}},
- "bypass_actors":[$ADMIN,{"actor_type":"DeployKey","actor_id":null,"bypass_mode":"always"}],
- "rules":$RULES}
-JSON
+# 1. Main: the body of the PUT above, sent with -X POST $R/rulesets instead.
 
-# 2. The same rules on every other branch, with no deploy-key bypass.
+# 2. Signatures and code scanning on every other branch, with no deploy-key bypass.
 gh api -X POST $R/rulesets --input - <<JSON
 {"name":"Protection, other branches","target":"branch","enforcement":"active",
  "conditions":{"ref_name":{"include":["~ALL"],"exclude":["refs/heads/main"]}},
  "bypass_actors":[$ADMIN],
- "rules":$RULES}
+ "rules":[{"type":"required_signatures"},
+  {"type":"code_scanning","parameters":{"code_scanning_tools":[
+   {"tool":"CodeQL","alerts_threshold":"all","security_alerts_threshold":"all"},
+   {"tool":"Scorecard","alerts_threshold":"all","security_alerts_threshold":"all"},
+   {"tool":"zizmor","alerts_threshold":"all","security_alerts_threshold":"all"}]}}]}
 JSON
 
 # 3. Protection keeps only deletion, non-fast-forward and creation, on all branches.
@@ -205,11 +283,11 @@ JSON
 
 ### Checking them
 
-1. **The rules on `main`**: `gh api $R/rules/branches/main --jq '[.[] | "\(.type) \(.ruleset_id)"]'` lists `deletion`, `non_fast_forward` and `creation` from *Protection*, and `required_signatures`, `required_deployments` and `code_scanning` from *Main*; on any other branch (`$R/rules/branches/<branch>`), the last three come from *Protection, other branches*.
-2. **The bypass lists**: `gh api $R/rulesets/<id> --jq .bypass_actors` for each. `DeployKey` appears on *Main* only. `gh api $R/keys --jq length` is `1`.
+1. **The rules on `main`**: `gh api $R/rules/branches/main --jq '[.[] | "\(.type) \(.ruleset_id)"]'` lists `deletion`, `non_fast_forward` and `creation` from *Protection*, and `required_signatures`, `code_scanning`, `pull_request` and `required_status_checks` from *Main*; on any other branch (`$R/rules/branches/<branch>`), `required_signatures` and `code_scanning` come from *Protection, other branches*.
+2. **The bypass lists**: `gh api $R/rulesets/<id> --jq .bypass_actors` for each. *Main* lists `DeployKey` and nothing else; the other three list the Admin role only. `gh api $R/keys --jq length` is `1`.
 3. **A keep-alive push succeeds** (verified when the rulesets were set up): run *Keep-alive commit* by hand with *ignore_age* checked (`gh workflow run keepalive-commit.yaml -f ignore_age=true`). The run pushes one commit that changes only `keep.alive` and posts `keepalive/pushed`; `main`'s history shows it as unsigned, by `github-actions[bot]`. Then **Rule insights** (`gh api "$R/rulesets/rule-suites?ref=refs/heads/main" --jq '.[0] | {actor_name, result, after_sha}'`) shows that push with result `bypass`, and run *Audit main* by hand: it must pass and leave no issue open.
-4. **Anything else is refused.** The deploy key's private half is only in the environment, so these are read from the configuration rather than tried with the key: a force push or deletion of `main`, or a new branch, falls under *Protection*, which the deploy key cannot bypass (step 2); a push to another existing branch falls under *Protection, other branches* (unsigned is refused). Tags fall under the separate *Tag Protection* ruleset (no deploy-key bypass): `deletion`, `non_fast_forward`, `update` and `required_signatures` (a tag's commit must be signed), plus a `required_status_checks` rule that lists no check and so requires nothing; there is no `creation` rule, because `update.yaml` creates release tags with `GITHUB_TOKEN`, which cannot bypass a ruleset, and no `required_deployments` rule. So the deploy key could create a new tag on an existing signed commit (not on a keep-alive commit, which is unsigned), but not move or delete one. That would show up as an unexpected tag or release, not on `main`. What the deploy key *can* push to `main` beyond `keep.alive` is limited by `keepalive-commit.sh`'s guard and by who can run it, not by GitHub: that is the residual risk the audit is for. A maintainer who wants to see the refusals happen can rebuild the same three rulesets in a throwaway repository with its own deploy key; never add a second deploy key here (below).
-5. **Normal work**: a pull request merges as usual (signed, deployed, scanned), and the maintainer can create branches.
+4. **Anything else is refused.** The deploy key's private half is only in the environment, so these are read from the configuration rather than tried with the key: a force push or deletion of `main`, or a new branch, falls under *Protection*, which the deploy key cannot bypass (step 2); a push to another existing branch falls under *Protection, other branches* (unsigned is refused). Tags fall under the separate *Tag Protection* ruleset (no deploy-key bypass): `deletion`, `non_fast_forward`, `update` and `required_signatures` (a tag's commit must be signed), plus a `required_status_checks` rule that lists no check and so requires nothing; there is no `creation` rule, because `update.yaml` creates release tags with `GITHUB_TOKEN`, which cannot bypass a ruleset. So the deploy key could create a new tag on an existing signed commit (not on a keep-alive commit, which is unsigned), but not move or delete one. That would show up as an unexpected tag or release, not on `main`. What the deploy key *can* push to `main` beyond `keep.alive` is limited by `keepalive-commit.sh`'s guard and by who can run it, not by GitHub: that is the residual risk the audit is for. A maintainer who wants to see the refusals happen can rebuild the same three rulesets in a throwaway repository with its own deploy key; never add a second deploy key here (below).
+5. **Normal work**: a pull request merges with *Squash and merge* once its 13 required checks have passed and code scanning is clean; a direct push to `main` by the maintainer is refused; the maintainer can still create branches.
 
 ### Rotating the keep-alive deploy key
 

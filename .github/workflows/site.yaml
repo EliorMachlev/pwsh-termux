@@ -5,11 +5,10 @@ name: Site
 # page, that nothing loads from another site, that every local link and asset
 # exists, and that sitemap.xml, robots.txt, security.txt and CNAME agree.
 on:
+  # Every pull request, whatever it changes: its jobs are required status
+  # checks on main (release.md, "Rulesets"), and a workflow a path filter
+  # skips never reports, which would leave the pull request unmergeable.
   pull_request:
-    paths:
-      - 'docs/**'
-      - '.github/scripts/site-check.py'
-      - '.github/workflows/site.yaml'
   push:
     branches: [main]
     paths:
