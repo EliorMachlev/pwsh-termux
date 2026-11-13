@@ -27,8 +27,15 @@ concurrency:
 permissions:
   contents: read
 
+# Every run: step runs as `bash --noprofile --norc -eo pipefail {0}`: a
+# failure anywhere in a pipeline fails the step.
+defaults:
+  run:
+    shell: bash
+
 jobs:
   audit:
+    name: Audit the commits on main
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -64,6 +71,7 @@ jobs:
           echo "findings=$(printf '%s' "$findings" | base64 -w0)" >> "$GITHUB_OUTPUT"
 
   report:
+    name: Report the findings in an issue
     needs: audit
     runs-on: ubuntu-24.04
     timeout-minutes: 5
@@ -86,12 +94,12 @@ jobs:
           GH_REPO: ${{ github.repository }}
           FINDINGS: ${{ needs.audit.outputs.findings }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        shell: bash
         run: printf '%s' "$FINDINGS" | base64 -d | bash scripts/audit-main-commits.sh report
 
   # The audit job failed, so nothing was checked: say so in an issue rather
   # than only in a red run nobody may look at.
   failed:
+    name: Report a failed audit in an issue
     needs: audit
     if: ${{ always() && needs.audit.result == 'failure' }}
     runs-on: ubuntu-24.04

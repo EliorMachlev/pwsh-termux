@@ -14,12 +14,13 @@ permissions: {}
 
 jobs:
   dependency-review:
-    runs-on: ubuntu-latest
+    name: Dependency Review
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     # Write access to pull requests, for its summary comment.
     permissions:
       contents: read
-      pull-requests: write
+      pull-requests: write     # the summary comment on a failing pull request (comment-summary-in-pr)
     steps:
       - name: Harden the runner
         uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3

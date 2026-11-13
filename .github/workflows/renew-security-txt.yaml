@@ -30,8 +30,15 @@ permissions:
 env:
   ISSUE_TITLE: "Renew security.txt"
 
+# Every run: step runs as `bash --noprofile --norc -eo pipefail {0}`: a
+# failure anywhere in a pipeline fails the step.
+defaults:
+  run:
+    shell: bash
+
 jobs:
   check:
+    name: Check the Expires of security.txt
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -75,7 +82,7 @@ jobs:
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           existing=$(gh issue list --state open --limit 100 --search "in:title \"$ISSUE_TITLE\"" \
-            --json number,title --jq '.[] | select(.title == env.ISSUE_TITLE) | .number' | head -n1)
+            --json number,title --jq 'first(.[] | select(.title == env.ISSUE_TITLE) | .number)')
           if [ "$DUE" != true ]; then
             if [ -n "$existing" ]; then
               gh issue close "$existing" --comment "Renewed: Expires is $CURRENT ($RUN_URL)"

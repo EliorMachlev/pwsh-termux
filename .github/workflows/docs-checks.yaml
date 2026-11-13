@@ -39,9 +39,16 @@ env:
   LYCHEE_SHA256: "1f4e0ef7f6554a6ed33dd7ac144fb2e1bbed98598e7af973042fc5cd43951c9a"
   DOCS: "docs/**/*.md docs/*.html *.md"
 
+# Every run: step runs as `bash --noprofile --norc -eo pipefail {0}`: a
+# failure anywhere in a pipeline fails the step.
+defaults:
+  run:
+    shell: bash
+
 jobs:
   links:
-    runs-on: ubuntu-latest
+    name: Links (lychee)
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - name: Harden the runner
@@ -69,7 +76,7 @@ jobs:
       # External links weekly and by hand: a site that's down for an hour
       # isn't a PR's fault.
       - name: Check external links
-        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+        if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
@@ -77,7 +84,8 @@ jobs:
           lychee --root-dir "$PWD/docs" --no-progress --max-retries 3 "${docs[@]}"
 
   spelling:
-    runs-on: ubuntu-latest
+    name: Spelling (typos)
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - name: Harden the runner

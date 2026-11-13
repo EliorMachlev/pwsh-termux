@@ -23,8 +23,15 @@ on:
 permissions:
   contents: read
 
+# Every run: step runs as `bash --noprofile --norc -eo pipefail {0}`: a
+# failure anywhere in a pipeline fails the step.
+defaults:
+  run:
+    shell: bash
+
 jobs:
   build:
+    name: Build the packages and their SBOMs
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
@@ -43,7 +50,6 @@ jobs:
       - name: Find upstream releases
         env:
           GITHUB_TOKEN: ${{ github.token }}
-        shell: bash
         run: bash scripts/find-releases.sh | tee releases.txt
 
       - name: Build packages
@@ -82,6 +88,7 @@ jobs:
           if-no-files-found: error
 
   attest:
+    name: Attest the build provenance
     needs: build
     runs-on: ubuntu-24.04
     timeout-minutes: 15

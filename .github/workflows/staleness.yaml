@@ -28,8 +28,15 @@ env:
   INDEX_ISSUE_TITLE: "The live apt index is stale or unreachable"
   SCHEDULES_ISSUE_TITLE: "A scheduled workflow is disabled"
 
+# Every run: step runs as `bash --noprofile --norc -eo pipefail {0}`: a
+# failure anywhere in a pipeline fails the step.
+defaults:
+  run:
+    shell: bash
+
 jobs:
   check:
+    name: Check the live index and the schedules
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -96,7 +103,7 @@ jobs:
             local title=$1 healthy=$2 summary=$3 advice=$4 existing body
             echo "$title: healthy=$healthy: $summary"
             existing=$(ISSUE_TITLE=$title gh issue list --state open --limit 100 --search "in:title \"$title\"" \
-              --json number,title --jq '.[] | select(.title == env.ISSUE_TITLE) | .number' | head -n1)
+              --json number,title --jq 'first(.[] | select(.title == env.ISSUE_TITLE) | .number)')
             if [ "$healthy" = true ]; then
               if [ -n "$existing" ]; then
                 gh issue close "$existing" --comment "Healthy again: $summary ($RUN_URL)"
@@ -124,6 +131,7 @@ jobs:
   # Renews every scheduled workflow (scripts/keep-schedules-alive.sh), after
   # the check above has seen their states, and whether it passed or not.
   keepalive:
+    name: Renew the scheduled workflows
     needs: check
     if: ${{ !cancelled() }}
     runs-on: ubuntu-24.04
