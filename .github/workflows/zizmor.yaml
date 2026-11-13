@@ -5,10 +5,10 @@ name: Zizmor
 # Every finding is uploaded to code scanning; one of medium severity or above
 # fails the job.
 on:
+  # Every pull request, whatever it changes: its jobs are required status
+  # checks on main (release.md, "Rulesets"), and a workflow a path filter
+  # skips never reports, which would leave the pull request unmergeable.
   pull_request:
-    paths:
-      - '.github/workflows/**'
-      - '.github/zizmor/**'
   push:
     branches: [main]
     paths:

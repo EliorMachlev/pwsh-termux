@@ -4,9 +4,10 @@ name: CodeQL
 # workflows themselves (injection, over-broad permissions, unpinned actions).
 # zizmor.yaml looks at the same files with different rules.
 on:
+  # Every pull request, whatever it changes: its jobs are required status
+  # checks on main (release.md, "Rulesets"), and a workflow a path filter
+  # skips never reports, which would leave the pull request unmergeable.
   pull_request:
-    paths:
-      - '.github/workflows/**'
   push:
     branches: [main]
     paths:

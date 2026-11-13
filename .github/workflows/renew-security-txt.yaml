@@ -8,12 +8,13 @@ name: Renew security.txt
 # closes the issue.
 #
 # It cannot make the change itself. The rulesets refuse every write that
-# GITHUB_TOKEN could make: main and every other branch require signed commits,
-# a successful github-pages deployment and clean code scanning (rulesets Main
-# and "Protection, other branches"), creating a branch is refused (Protection),
-# and only the Admin role and, on main, deploy keys may bypass them; Actions
-# cannot be a bypass actor in a personal repository. So the maintainer makes
-# the commit (signed, through a pull request), and its merge deploys the site.
+# GITHUB_TOKEN could make: every branch requires signed commits (rulesets Main
+# and "Protection, other branches"), main takes changes only through a pull
+# request whose required checks pass (Main), creating a branch is refused
+# (Protection), and only the Admin role (not on main) and, on main, the deploy
+# key may bypass them; Actions cannot be a bypass actor in a personal
+# repository. So the maintainer makes the commit (signed, through a pull
+# request), and its merge deploys the site.
 # Checking the file's contents is still the maintainer's job.
 on:
   schedule:

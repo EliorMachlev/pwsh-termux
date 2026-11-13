@@ -14,7 +14,7 @@ Everything runs on Termux or Linux with Bash. You need `bash`, `curl`, `jq`, `py
 
 ## Branches and commits
 
-- One long-lived branch, `main`; branch from `origin/main` and open a pull request ([branching](branching.md)).
+- One long-lived branch, `main`; branch from `origin/main` and open a pull request ([branching](branching.md)). It merges with *Squash and merge* once its required checks pass ([required status checks](release.md#required-status-checks)); nobody can push to `main` directly. Never put a skip-CI token in a pull request's commit messages: the checks would not run, and the pull request could not merge.
 - Title the pull request `type(scope): short description`: `feat`, `fix`, `docs`, `ci`, `build`, `chore`, `deps`, `test`; the scope is the script or area (`build-deb`, `site`, `release`). Example: `fix(build-deb): handle a missing checksum`. Dependabot uses `chore(deps)`.
 - Write the description for the person who reads the release notes or the history later: what changed and why.
 

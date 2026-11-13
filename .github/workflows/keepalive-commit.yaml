@@ -8,9 +8,10 @@ name: Keep-alive commit
 # UTC time (scripts/keepalive-commit.sh), as github-actions[bot], with
 # "[skip ci]". The first run creates keep.alive.
 #
-# main's ruleset requires signed commits and a Pages deployment, and GitHub
-# Actions cannot bypass a ruleset in a personal repository, so the push uses
-# a deploy key that only main's ruleset lets bypass it. The key is the secret
+# main's ruleset requires signed commits, a pull request and passing status
+# checks, and GitHub Actions cannot bypass a ruleset in a personal
+# repository, so the push uses a deploy key that only main's ruleset lets
+# bypass it. The key is the secret
 # KEEPALIVE_DEPLOY_KEY of the environment `keepalive`, which only main may
 # use; the job also refuses any other ref itself. The key goes into an
 # ssh-agent and is never written to disk, so the checkout keeps
