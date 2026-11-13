@@ -9,7 +9,7 @@ Workflows are in [`.github/workflows/`](../../../.github/workflows). They share 
 - **Concurrency.** A newer push to a pull request or topic branch cancels a run still going; runs on `main` always finish. Deploys share a `pages` group and are never cancelled.
 - **Timeouts** on every job.
 - **`defaults: run: shell: bash`** in every workflow that has a `run:` step, so each script runs with `pipefail` and a failure on the left of a `|` fails the step (GitHub's implicit `bash -e {0}` hides it). A reader that stops early (`grep -q`, `head`, `awk '{…; exit}'`) would make the writer fail with SIGPIPE under `pipefail`, so scripts avoid that shape (`jq`'s `first(…)`, a here-string, or an `awk` that reads to the end).
-- **Fixed runner images** (`ubuntu-24.04`, never `ubuntu-latest`, which GitHub moves to a new image without a change here), a **`name:`** on every job, every `if:` written as `${{ … }}`, and a comment on every permission above `contents: read` saying why the job needs it. jactionlint's pedantic profile checks all of these.
+- **Fixed runner images** (`ubuntu-24.04` or `ubuntu-26.04`, never `ubuntu-latest`, which GitHub moves to a new image without a change here; a move to a new image is a change in this repository, and can bring new tool versions, such as a stricter ShellCheck), a **`name:`** on every job, every `if:` written as `${{ … }}`, and a comment on every permission above `contents: read` saying why the job needs it. jactionlint's pedantic profile checks all of these.
 - **No `pull_request_target`**, and untrusted event data is never interpolated into a script.
 
 ## Workflows

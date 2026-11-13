@@ -25,7 +25,7 @@ permissions:
 jobs:
   analyze:
     name: CodeQL (actions)
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 15
     permissions:
       contents: read

@@ -70,7 +70,7 @@ defaults:
 jobs:
   shellcheck:
     name: shellcheck
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 10
     steps:
       - name: Harden the runner
@@ -86,7 +86,7 @@ jobs:
 
   jactionlint:
     name: jactionlint
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 10
     steps:
       - name: Harden the runner
@@ -115,7 +115,7 @@ jobs:
 
   keys:
     name: Key rules and key tests
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 10
     steps:
       - name: Harden the runner
@@ -150,7 +150,7 @@ jobs:
   # check fail, and that --dry-run writes nothing.
   keepalive:
     name: Schedule keep-alive tests
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 5
     steps:
       - name: Harden the runner
@@ -169,7 +169,7 @@ jobs:
   # its guard; the audit of main and its issue.
   keepalive-commit:
     name: Keep-alive commit and audit tests
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 5
     steps:
       - name: Harden the runner
