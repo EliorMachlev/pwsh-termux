@@ -38,7 +38,9 @@ Each page has Open Graph and Twitter card tags and a canonical link. [`robots.tx
 
 ## Updating `security.txt`
 
-RFC 9116 asks for an `Expires` under a year ahead. [`renew-security-txt.yaml`](../../../.github/workflows/renew-security-txt.yaml) moves it to about eleven months ahead on the 1st of any month when fewer than four months are left, commits to `main` and starts the deploy. Renewing does not review the contact: do that when you see the commit. `site.yaml` still fails when fewer than 30 days remain, in case the renewal stops working.
+RFC 9116 asks for an `Expires` under a year ahead. On the 1st of every month [`renew-security-txt.yaml`](../../../.github/workflows/renew-security-txt.yaml) checks it: when fewer than four months are left, it opens the issue *Renew security.txt* (or comments on it if it is already open) and fails. The issue gives the one command that moves the date to about eleven months ahead (a `sed` on the `Expires` line, `site-check.py`, a signed commit); check the contact and policy, open a pull request with it, and its merge deploys the site. The next run that finds more than four months left closes the issue.
+
+The workflow cannot commit the date itself. Every branch requires signed commits, a successful `github-pages` deployment and clean code scanning (rulesets *Main* and *Protection, other branches*), and *Protection* refuses creating a branch; only the Admin role, and on `main` the deploy key, can bypass them, and GitHub Actions cannot be a bypass actor in a personal repository ([rulesets](release.md#rulesets)). So neither a push to `main` nor a branch for a pull request is possible with `GITHUB_TOKEN`, and the job has `issues: write` and nothing else that writes. `site.yaml` still fails when fewer than 30 days remain, in case the issue is missed.
 
 ## See also
 

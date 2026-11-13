@@ -1,11 +1,20 @@
 name: Renew security.txt
 
 # RFC 9116 wants security.txt's Expires less than a year away, so someone has
-# to renew it. On the 1st of every month this moves the date to about eleven
-# months ahead if fewer than four months are left, commits it and starts the
-# deploy (a push made with GITHUB_TOKEN starts no other workflow).
-# Checking the file's contents is still the maintainer's job: renewing only
-# confirms the contact is the same as last time.
+# to renew it. On the 1st of every month this checks whether fewer than four
+# months are left and, if so, opens the issue "Renew security.txt" (or
+# comments on it if already open) with the one command that moves the date to
+# about eleven months ahead, and fails; once the date is far enough ahead it
+# closes the issue.
+#
+# It cannot make the change itself. The rulesets refuse every write that
+# GITHUB_TOKEN could make: main and every other branch require signed commits,
+# a successful github-pages deployment and clean code scanning (rulesets Main
+# and "Protection, other branches"), creating a branch is refused (Protection),
+# and only the Admin role and, on main, deploy keys may bypass them; Actions
+# cannot be a bypass actor in a personal repository. So the maintainer makes
+# the commit (signed, through a pull request), and its merge deploys the site.
+# Checking the file's contents is still the maintainer's job.
 on:
   schedule:
     - cron: "17 5 1 * *"
@@ -18,13 +27,16 @@ concurrency:
 permissions:
   contents: read
 
+env:
+  ISSUE_TITLE: "Renew security.txt"
+
 jobs:
-  renew:
+  check:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
-      contents: write          # commit the new date to main
-      actions: write           # start "Update packages" to deploy it
+      contents: read
+      issues: write            # open, comment on and close "Renew security.txt"
     steps:
       - name: Harden the runner
         uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
@@ -35,39 +47,59 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Move the date if fewer than four months are left
-        id: bump
+      - name: Check how long security.txt has left
+        id: check
         run: |
           python3 - <<'PY'
           import os, re
           from datetime import datetime, timedelta, timezone
-          path = "docs/.well-known/security.txt"
-          text = open(path, encoding="utf-8").read()
+          text = open("docs/.well-known/security.txt", encoding="utf-8").read()
           m = re.search(r"^Expires: (\S+)$", text, re.M)
           current = datetime.fromisoformat(m.group(1).replace("Z", "+00:00"))
           now = datetime.now(timezone.utc)
-          changed = current - now < timedelta(days=120)
-          if changed:
-              new = (now + timedelta(days=335)).strftime("%Y-%m-%dT00:00:00.000Z")
-              open(path, "w", encoding="utf-8").write(text.replace(m.group(1), new))
-              print(f"Expires: {m.group(1)} -> {new}")
-          else:
-              print(f"Expires {m.group(1)}: more than four months left, nothing to do")
-          open(os.environ["GITHUB_OUTPUT"], "a").write(f"changed={'true' if changed else 'false'}\n")
+          due = current - now < timedelta(days=120)
+          new = (now + timedelta(days=335)).strftime("%Y-%m-%dT00:00:00.000Z")
+          print(f"Expires {m.group(1)}: {(current - now).days} days left; "
+                + (f"renew to {new}" if due else "more than four months left, nothing to do"))
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as out:
+              out.write(f"due={'true' if due else 'false'}\ncurrent={m.group(1)}\nnew={new}\n")
           PY
 
-      - name: Check the website
-        if: steps.bump.outputs.changed == 'true'
-        run: python3 .github/scripts/site-check.py docs
-
-      - name: Commit and deploy
-        if: steps.bump.outputs.changed == 'true'
+      - name: Open, update or close the issue
         env:
           GH_TOKEN: ${{ github.token }}
-          REPO: ${{ github.repository }}
+          GH_REPO: ${{ github.repository }}
+          DUE: ${{ steps.check.outputs.due }}
+          CURRENT: ${{ steps.check.outputs.current }}
+          NEW: ${{ steps.check.outputs.new }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -am "chore: renew security.txt"
-          git push "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git" HEAD:main
-          gh workflow run update.yaml --ref main
+          existing=$(gh issue list --state open --limit 100 --search "in:title \"$ISSUE_TITLE\"" \
+            --json number,title --jq '.[] | select(.title == env.ISSUE_TITLE) | .number' | head -n1)
+          if [ "$DUE" != true ]; then
+            if [ -n "$existing" ]; then
+              gh issue close "$existing" --comment "Renewed: Expires is $CURRENT ($RUN_URL)"
+            fi
+            exit 0
+          fi
+          body=$(cat <<EOF
+          \`docs/.well-known/security.txt\` expires on $CURRENT, less than four months away. RFC 9116 wants a date under a year ahead; \`site.yaml\` fails once fewer than 30 days are left.
+
+          Check that the file's contact and policy are still right, then, from a branch off \`main\`:
+
+          \`\`\`bash
+          sed -i 's/^Expires: .*/Expires: $NEW/' docs/.well-known/security.txt && python3 .github/scripts/site-check.py docs && git commit -S -am "chore: renew security.txt"
+          \`\`\`
+
+          Push it and open a pull request; merging it starts \`update.yaml\`, which deploys the site, and next month's run closes this issue. This workflow cannot make the commit itself: the rulesets refuse any push made with \`GITHUB_TOKEN\` (docs/markDown/engineering/website.md, "Updating security.txt").
+
+          Run: $RUN_URL
+          EOF
+          )
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --body "$body"
+          else
+            gh issue create --title "$ISSUE_TITLE" --body "$body"
+          fi
+          echo "::error::security.txt expires on $CURRENT: renew it (issue \"$ISSUE_TITLE\")"
+          exit 1

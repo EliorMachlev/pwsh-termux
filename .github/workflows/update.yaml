@@ -92,12 +92,11 @@ jobs:
     needs: [build, verify]
     runs-on: ubuntu-24.04
     timeout-minutes: 30
-    # GPG_PRIVATE_KEY belongs in this environment (deployment branches: main
-    # only), not in the repository's secrets: then no workflow on another
-    # branch can read it. The maintainer moves it there
-    # (docs/markDown/engineering/release.md, "One-time setup"); until then the
-    # repository secret is still used, and GitHub creates the environment,
-    # unprotected, on the first run.
+    # GPG_PRIVATE_KEY and GPG_PASSPHRASE are secrets of this environment
+    # (deployment branches: main only), not of the repository, so no workflow
+    # on another branch can read them (docs/markDown/engineering/release.md,
+    # "One-time setup"). A repository secret of the same name must never come
+    # back: a job reads it when its environment has no secret of that name.
     environment: signing
     permissions:
       contents: write          # create the archive releases for new .deb files
