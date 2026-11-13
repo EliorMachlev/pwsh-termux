@@ -4,7 +4,9 @@
 # Usage: build-repo.sh <debs-dir> <repo-dir>
 # Env:   SIGN_KEY   gpg key id/fingerprint to sign with. If unset the repo is
 #                   left UNSIGNED (fine for local tests, not for publishing).
-#        GPG_PASSPHRASE_FILE  optional passphrase file for the signing key
+#        GPG_PASSPHRASE_FILE  the signing key's passphrase file (first line);
+#                   required for a passphrase-protected key, which otherwise
+#                   fails to sign (gpg never prompts here)
 #        KEYRING_FILE  TEST ONLY: the public keyring to check against and
 #                   publish instead of keys/pwsh-termux-archive-keyring.gpg
 #                   (for a throwaway key; see docs/markDown/engineering/build.md).
@@ -186,9 +188,15 @@ write_release() {
   log "Release valid until $(release_field "$RELEASE_FILE" Valid-Until)"
 }
 
+# --batch with --pinentry-mode loopback: gpg never prompts. A protected key
+# signs only with GPG_PASSPHRASE_FILE (update.yaml writes it from the
+# GPG_PASSPHRASE secret); without it sign_release dies. The passphrase is only
+# ever read from that file, never passed as an argument.
 sign_and_verify_release() {
   local -a gpg_options=(--batch --yes --pinentry-mode loopback --local-user "$SIGN_KEY")
   if [ -n "${GPG_PASSPHRASE_FILE:-}" ]; then
+    [ -f "$GPG_PASSPHRASE_FILE" ] && [ -r "$GPG_PASSPHRASE_FILE" ] && [ -s "$GPG_PASSPHRASE_FILE" ] \
+      || die "GPG_PASSPHRASE_FILE is set but is not a readable, non-empty file"
     gpg_options+=(--passphrase-file "$GPG_PASSPHRASE_FILE")
   fi
   sign_release "$DIST_DIR" "${gpg_options[@]}"

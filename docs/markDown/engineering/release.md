@@ -18,21 +18,28 @@ Run it by hand: **Actions → Update packages → Run workflow**, or `gh workflo
 
 ## One-time setup
 
-1. **Signing key.** Create a dedicated, passphrase-less Ed25519 key, keep the private half out of Git, and back it up outside GitHub (a GitHub secret cannot be read back):
+1. **Signing key.** Create a dedicated Ed25519 key with a random passphrase, keep the private half out of Git, and back both up outside GitHub (a GitHub secret cannot be read back):
    ```bash
-   gpg --batch --passphrase '' --quick-generate-key "pwsh-termux <noreply@users.noreply.github.com>" ed25519 sign never
-   gpg --armor --export-secret-keys <fingerprint> > signing-secret.asc
+   gpg --quick-generate-key "pwsh-termux <noreply@users.noreply.github.com>" ed25519 sign never   # asks for the passphrase
+   gpg --armor --export-secret-keys <fingerprint> > signing-secret.asc         # still passphrase-protected
    gpg --export <fingerprint> > keys/pwsh-termux-archive-keyring.gpg     # public half only, binary
    bash scripts/check-keys.sh                                              # prints the fingerprint
    ```
    Commit `keys/pwsh-termux-archive-keyring.gpg`; `build-repo.sh` refuses to sign with any other key. Also create a revocation certificate (`gpg --gen-revoke`, which needs a terminal) and store it separately.
-2. **Secret, in the environment `signing`.** `update.yaml`'s `publish` job, the only one that reads `GPG_PRIVATE_KEY`, runs in the environment `signing`. Restrict it to `main` and put the key there, not in the repository's secrets, so that a workflow run on any other branch cannot read it:
+
+   **What the passphrase is worth.** Little, and it should not be counted on: the workflow runs unattended, so the passphrase is a second secret (`GPG_PASSPHRASE`) in the same environment as the key, and anything that can read one can read the other. It stops a leak of the exported key alone (a backup, a stray copy of `signing-secret.asc`) from being usable as it is, and nothing more. It is not a second factor.
+2. **Secrets, in the environment `signing`.** `update.yaml`'s `publish` job, the only one that reads `GPG_PRIVATE_KEY` and `GPG_PASSPHRASE`, runs in the environment `signing`. Restrict it to `main` and put both there, not in the repository's secrets, so that a workflow run on any other branch cannot read them:
    ```bash
    R=repos/EliorMachlev/pwsh-termux
    gh api -X PUT $R/environments/signing --input - <<<'{"deployment_branch_policy":{"protected_branches":false,"custom_branch_policies":true}}'
    gh api -X POST $R/environments/signing/deployment-branch-policies -f name=main -f type=branch
    gh secret set GPG_PRIVATE_KEY --env signing < signing-secret.asc
+   gh secret set GPG_PASSPHRASE --env signing                       # asks for the value; do not put it on the command line
    ```
+   The job imports the key with `gpg --batch --import`, writes the passphrase to a mode-600 file under the runner's `RUNNER_TEMP` (removed when the step ends) and signs with `--pinentry-mode loopback --passphrase-file`. Without `GPG_PASSPHRASE` it still signs with a key that has no passphrase, and logs a warning that the key has none; a protected key without its passphrase fails to sign, and nothing is published.
+
+   **Protecting the current key (maintainer, to do):** the key in `GPG_PRIVATE_KEY` today has no passphrase. On the machine that holds its backup (outside GitHub): `gpg --import signing-secret.asc`, `gpg --passwd <fingerprint>` (set a random passphrase), `gpg --armor --export-secret-keys <fingerprint> > signing-secret.asc`, then `gh secret set GPG_PASSPHRASE --env signing` first and `gh secret set GPG_PRIVATE_KEY --env signing < signing-secret.asc` second (with the passphrase set and the key not yet protected, the run still signs). Run `update.yaml` by hand and check that it publishes without the *no passphrase* warning. The fingerprint does not change, so `keys/` does not either.
+
    **Moving an existing repository secret there (maintainer, to do):** today `GPG_PRIVATE_KEY` is still a repository secret. A job in an environment reads the environment's secret when there is one and the repository's otherwise, so the order is: create the environment with its branch policy (the first two commands; GitHub may already have created `signing`, unprotected, on the first run that used it), `gh secret set GPG_PRIVATE_KEY --env signing < signing-secret.asc` from the offline backup, run `update.yaml` by hand and check it publishes, then `gh secret delete GPG_PRIVATE_KEY` (the repository secret). `gh secret list` must then not list it, and `gh secret list --env signing` must.
 3. **Pages.** Settings → Pages → *Source: GitHub Actions* (or `gh api -X POST repos/EliorMachlev/pwsh-termux/pages -f build_type=workflow`).
 4. **Run the workflow once**, then check the site.
@@ -72,7 +79,7 @@ gh attestation verify pwsh_<version>_aarch64.deb --repo EliorMachlev/pwsh-termux
 for f in pwsh_<version>_aarch64.*.json; do gh attestation verify "$f" --repo EliorMachlev/pwsh-termux --signer-workflow EliorMachlev/pwsh-termux/.github/workflows/build-packages.yaml || break; done
 ```
 
-If the `verify` job fails, the keyring package has no valid provenance from `build-packages.yaml` at this commit: nothing is signed or published. If `publish` fails in `build-repo.sh` with "is not the key in", the `GPG_PRIVATE_KEY` secret and `keys/` disagree (one was changed without the other, or `keys/ROTATION` is missing or stale). Fix the cause; do not skip the check.
+If the `verify` job fails, the keyring package has no valid provenance from `build-packages.yaml` at this commit: nothing is signed or published. If `publish` fails in `build-repo.sh` with "is not the key in", the `GPG_PRIVATE_KEY` secret and `keys/` disagree (one was changed without the other, or `keys/ROTATION` is missing or stale). If it fails with "gpg could not sign", the key is passphrase-protected and `GPG_PASSPHRASE` is missing or wrong. Fix the cause; do not skip the check.
 
 If CI fails in "Write the SBOMs", a tool's download or a validation failed: the log names the file. The tool versions and hashes are at the top of `make-sboms.sh`; Dependabot does not track them, so update them by hand.
 
@@ -96,7 +103,7 @@ apt accepts an index signed by any key in the `signed-by` file, and the keyring 
    ```
    Bump `KEYRING_VERSION` in `scripts/build-keyring.sh`, and add the new fingerprint to [`SECURITY.md`](../../../SECURITY.md#signing-key) as the next key. Merge. The **current** key still signs; the publish run puts a keyring with both online keys in the index, and `pkg upgrade` installs it.
 2. **Overlap: 180 days.** A user who runs `pkg upgrade` at any time in this window receives step 1. 180 days rather than a few weeks because a phone's Termux may go unused for months, and nothing is lost by waiting: the rotation is planned, the current key is not suspect. The overlap is state in the repository (`keys/ROTATION` stays committed until step 4), not a timer: nothing happens on its own when it ends; the maintainer does step 3.
-3. **Switch the signer.** Replace the secret (`gh secret set GPG_PRIVATE_KEY --env signing < new-signing-secret.asc`) and, at the same time, merge a pull request that only makes the new fingerprint the current one in `SECURITY.md`, `docs/install.html`, the README and `docs/index.html` (it removes nothing from `keys/`). Check that the publish run succeeds signed by the new key: `keys/ROTATION` is still there and names the signer, which the rules allow.
+3. **Switch the signer.** Replace the secrets (`gh secret set GPG_PRIVATE_KEY --env signing < new-signing-secret.asc` and `gh secret set GPG_PASSPHRASE --env signing`, the new key's passphrase) and, at the same time, merge a pull request that only makes the new fingerprint the current one in `SECURITY.md`, `docs/install.html`, the README and `docs/index.html` (it removes nothing from `keys/`). Check that the publish run succeeds signed by the new key: `keys/ROTATION` is still there and names the signer, which the rules allow.
 4. **Drop the old key** (a pull request). Rewrite `keys/pwsh-termux-archive-keyring.gpg` with the new online key (and the recovery key, if any): `gpg --export <new-fingerprint> [<recovery-fingerprint>] > keys/pwsh-termux-archive-keyring.gpg`; `git rm keys/ROTATION`; bump `KEYRING_VERSION` again; remove the old fingerprint from `SECURITY.md`. Destroy the old secret.
 
 A user who did not run `pkg upgrade` during the overlap, or who added the key by hand, has to reinstall the keyring from the site after step 3.
@@ -123,7 +130,7 @@ Once a year [`key-review.yaml`](../../../.github/workflows/key-review.yaml) open
 
 When the online key is compromised or lost. It needs the recovery key to be set up, and it needs the hosting (GitHub Pages and the domain) and the maintainer's GitHub account to be intact: the recovery key only replaces the online key, nothing else. With the online key compromised **and** the recovery key lost (or never set up), there is no way around it: every user reinstalls the keyring from the site after an advisory.
 
-1. **Stop the online key.** `gh secret delete GPG_PRIVATE_KEY --env signing` (and `gh secret delete GPG_PRIVATE_KEY`, if it is still a repository secret) and `gh workflow disable update.yaml`. A workflow disabled by hand stays off: the [schedule keep-alive](ci-cd.md#schedule-keep-alive) re-enables only what GitHub disabled for inactivity. Publish a GitHub security advisory; if the key was compromised, attach its revocation certificate.
+1. **Stop the online key.** `gh secret delete GPG_PRIVATE_KEY --env signing` and `gh secret delete GPG_PASSPHRASE --env signing` (and `gh secret delete GPG_PRIVATE_KEY`, if it is still a repository secret) and `gh workflow disable update.yaml`. A workflow disabled by hand stays off: the [schedule keep-alive](ci-cd.md#schedule-keep-alive) re-enables only what GitHub disabled for inactivity. Publish a GitHub security advisory; if the key was compromised, attach its revocation certificate.
 2. **New online key** (a pull request). Generate it as in step 1 of the setup (do not set the secret yet). Write `keys/pwsh-termux-archive-keyring.gpg` as the new online key plus the recovery key, with `keys/RECOVERY` unchanged and no `ROTATION`; bump `KEYRING_VERSION`; make the new fingerprint the current one in `SECURITY.md` and the pages. Merge (nothing is published: the pipeline is disabled).
 3. **Build and sign offline**, from that commit, on the machine with the recovery key. Bring in the current `pwsh`/`pwsh-preview` `.deb` files from their releases (check them with `gh attestation verify` first, on an online machine), then:
    ```bash
@@ -136,7 +143,7 @@ When the online key is compromised or lost. It needs the recovery key to be set 
 4. **Deploy it** (online again): `gh release create recovery-<date> recovery-repo.tar.gz --latest=false --title "Recovery <date>" --notes "Repository signed with the recovery key; see the advisory."`, then `gh workflow run recover.yaml -f tag=recovery-<date>`. The workflow has no signing key: it deploys only if `verify-recovery-repo.sh` finds `InRelease` and `Release.gpg` signed by the recovery key alone, a `Valid-Until` at most 14 days after `Date` with at least 7 days left, `Release`, `Packages` and every `.deb` in `pool/` consistent, and the key files equal to `keys/`; it takes the public key files and the website from the commit, not from the tarball. Adding required reviewers to the `github-pages` environment (Settings → Environments) puts a second confirmation in front of it.
 5. **Users** run `pkg upgrade` as usual: apt accepts the index because it trusts the recovery key, and installs the keyring with the new online key in place of the old one. Nothing manual.
 6. **Recovery window: 180 days**, as for a rotation. Leave the pipeline disabled. The recovery-signed index expires 14 days after `build-repo.sh` wrote it (`Valid-Until`), and nothing online can re-sign it, so **repeat steps 3 and 4 at least every 14 days** (weekly is comfortable), and for a new PowerShell release. `recovery-sign.sh` refuses a `Release` with fewer than 7 days left (run `build-repo.sh` and it in one sitting), and `recover.yaml` refuses to deploy one.
-7. **Back to normal.** `gh secret set GPG_PRIVATE_KEY --env signing < new-signing-secret.asc` and `gh workflow enable update.yaml`. From now on the online key signs again. A user who did not run `pkg upgrade` in the window reinstalls the keyring from the site.
+7. **Back to normal.** `gh secret set GPG_PRIVATE_KEY --env signing < new-signing-secret.asc`, `gh secret set GPG_PASSPHRASE --env signing` (its passphrase) and `gh workflow enable update.yaml`. From now on the online key signs again. A user who did not run `pkg upgrade` in the window reinstalls the keyring from the site.
 
 Until a user upgrades, whoever holds a compromised key can still sign an index that user accepts, though serving it to them takes control of their connection or of the hosting.
 

@@ -79,7 +79,7 @@ gpg --show-keys $PREFIX/share/keyrings/pwsh-termux-archive-keyring.gpg     # com
 gh attestation verify $TMPDIR/pwsh-termux-keyring.deb --repo EliorMachlev/pwsh-termux --signer-workflow EliorMachlev/pwsh-termux/.github/workflows/build-packages.yaml
 ```
 
-**Handling.** The private key is a GitHub Actions secret (`GPG_PRIVATE_KEY`) used in one workflow step on GitHub's runners, never written to the repository or to later steps; the maintainer holds a separate copy outside GitHub. The key has no passphrase, because the workflow runs unattended; its protection is GitHub's secret storage and the workflow's pinned, audited actions.
+**Handling.** The private key is a GitHub Actions secret (`GPG_PRIVATE_KEY`) used in one workflow step on GitHub's runners, never written to the repository or to later steps; the maintainer holds a separate copy outside GitHub. The key is passphrase-protected, but its passphrase is a second secret (`GPG_PASSPHRASE`) in the same GitHub environment, because the workflow runs unattended: it makes a copy of the key alone useless, and adds little beyond that. (The maintainer is moving the existing key to a passphrase; until that is done a publish run logs a warning that the key has none.) The key's real protection is GitHub's secret storage, the environment limited to `main`, and the workflow's pinned, audited actions.
 
 ## What a package contains
 
