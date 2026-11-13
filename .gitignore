@@ -4,3 +4,4 @@ debs/
 *.deb
 __pycache__/
 *.pyc
+node_modules/

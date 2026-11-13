@@ -185,6 +185,7 @@ A required check must report on **every** pull request into `main`, or that pull
 | `Links (lychee)` | [`docs-checks.yaml`](../../../.github/workflows/docs-checks.yaml) | `links` (offline on pull requests) |
 | `Spelling (typos)` | `docs-checks.yaml` | `spelling` |
 | `Check the website` | [`site.yaml`](../../../.github/workflows/site.yaml) | `check` |
+| `Validate the HTML and CSS` | `site.yaml` | `validate` |
 | `zizmor` | [`zizmor.yaml`](../../../.github/workflows/zizmor.yaml) | `zizmor` |
 | `CodeQL (actions)` | [`codeql.yaml`](../../../.github/workflows/codeql.yaml) | `analyze` |
 | `Dependency Review` | [`dependency-review.yaml`](../../../.github/workflows/dependency-review.yaml) | `dependency-review` |
@@ -239,6 +240,7 @@ gh api -X PUT repos/EliorMachlev/pwsh-termux/rulesets/27198868 --input - <<'JSON
         {"context": "Links (lychee)", "integration_id": 15368},
         {"context": "Spelling (typos)", "integration_id": 15368},
         {"context": "Check the website", "integration_id": 15368},
+        {"context": "Validate the HTML and CSS", "integration_id": 15368},
         {"context": "zizmor", "integration_id": 15368},
         {"context": "CodeQL (actions)", "integration_id": 15368},
         {"context": "Dependency Review", "integration_id": 15368},

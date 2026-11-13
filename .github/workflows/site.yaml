@@ -1,9 +1,18 @@
 name: Site
 
 # The website (docs/*.html, served by GitHub Pages next to the apt
-# repository): site-check.py checks the Content-Security-Policy of every
-# page, that nothing loads from another site, that every local link and asset
-# exists, and that sitemap.xml, robots.txt, security.txt and CNAME agree.
+# repository):
+#   check     site-check.py checks the Content-Security-Policy of every
+#             page, that nothing loads from another site, that every local
+#             link and asset exists, and that sitemap.xml, robots.txt,
+#             security.txt and CNAME agree.
+#   validate  the W3C Nu Html Checker (vnu) on every page, stylesheet and SVG,
+#             both as committed (docs/) and as deployed (assembled by
+#             assemble-site.sh, generated blocks filled), and Stylelint
+#             (stylelint-config-standard) on the stylesheet. Any message of
+#             any level fails. Both tools are CI tooling only, pinned with
+#             their integrity hashes in .github/site-lint/package-lock.json
+#             (Dependabot updates them); no script ships on the site.
 on:
   # Every pull request, whatever it changes: its jobs are required status
   # checks on main (release.md, "Rulesets"), and a workflow a path filter
@@ -14,7 +23,14 @@ on:
     paths:
       - 'docs/**'
       - '.github/scripts/site-check.py'
+      - '.github/site-lint/**'
       - '.github/workflows/site.yaml'
+      - 'art/brand/**'
+      - 'scripts/assemble-site.sh'
+      - 'scripts/build-repo.sh'
+      - 'scripts/lib/common.sh'
+      - 'scripts/validate-site.sh'
+      - 'scripts/test-validate-site.sh'
   schedule:
     - cron: '15 5 * * 4'   # security.txt's Expires date moves on
   workflow_dispatch:
@@ -48,3 +64,62 @@ jobs:
           persist-credentials: false
       - name: Check the website
         run: python3 .github/scripts/site-check.py docs
+
+  validate:
+    name: Validate the HTML and CSS
+    runs-on: ubuntu-26.04
+    timeout-minutes: 15
+    env:
+      # From the vnu-jar package (the validator/validator project's own npm
+      # release of vnu.jar); runs on the runner's default Java (17 or later).
+      VNU_JAR: .github/site-lint/node_modules/vnu-jar/build/dist/vnu.jar
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0       # assemble-site.sh reads each document's last commit (git log)
+      # Exactly the lockfile's versions, each checked against its integrity
+      # hash; no install script runs (vnu-jar's would download a Java).
+      # audit signatures then checks the registry's signatures and the
+      # packages' provenance attestations.
+      - name: Install vnu and Stylelint
+        working-directory: .github/site-lint
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm audit signatures
+          java -version
+          java -jar "$GITHUB_WORKSPACE/$VNU_JAR" --version
+      - name: Test validate-site.sh
+        run: bash scripts/test-validate-site.sh "$VNU_JAR"
+      # The deployed pages have blocks assemble-site.sh fills from the
+      # repository (the status line, the documents table, the last-updated
+      # lines). Assembled here around an unsigned repository with a stand-in
+      # pwsh package, so the generated markup is the deploy's, offline.
+      - name: Assemble the site
+        run: |
+          umask 022
+          stage="$RUNNER_TEMP/stage"
+          mkdir -p "$stage/pkg/DEBIAN" "$stage/debs"
+          printf '%s\n' 'Package: pwsh' 'Version: 0.0.0-1' 'Architecture: aarch64' \
+            'Maintainer: CI <ci@example.invalid>' 'Description: stand-in for the site check' \
+            > "$stage/pkg/DEBIAN/control"
+          dpkg-deb --root-owner-group --build "$stage/pkg" "$stage/debs/pwsh_0.0.0-1_aarch64.deb"
+          bash scripts/build-repo.sh "$stage/debs" "$RUNNER_TEMP/site"
+          bash scripts/assemble-site.sh docs "$RUNNER_TEMP/site"
+          grep -q 'Now serving <code>pwsh</code>' "$RUNNER_TEMP/site/index.html"
+          grep -q 'Last updated <time' "$RUNNER_TEMP/site/documents.html"
+      - name: Validate the HTML, CSS and SVG (vnu)
+        run: |
+          bash scripts/validate-site.sh "$VNU_JAR" docs
+          bash scripts/validate-site.sh "$VNU_JAR" "$RUNNER_TEMP/site"
+          bash scripts/validate-site.sh "$VNU_JAR" art/brand
+      # --ignore-disables: a stylelint-disable comment hides nothing.
+      - name: Lint the CSS (Stylelint)
+        run: |
+          .github/site-lint/node_modules/.bin/stylelint --config .github/site-lint/.stylelintrc.json \
+            --ignore-disables --max-warnings 0 docs/*.css "$RUNNER_TEMP/site"/*.css
