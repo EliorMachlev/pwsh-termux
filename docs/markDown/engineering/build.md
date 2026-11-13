@@ -75,6 +75,7 @@ rm -f out/pwsh-termux-keyring_*                      # the one built from keys/,
 bash scripts/build-keyring.sh out
 export KEYRING_DEB_SHA256=$(sha256sum < out/pwsh-termux-keyring_*_all.deb | cut -d' ' -f1)
 bash scripts/build-repo.sh out repo
+# a passphrase-protected key, as in CI: GPG_PASSPHRASE_FILE=<mode-600 file> bash scripts/build-repo.sh out repo
 
 # apt reads the key from the keyring package's own layout, as on a device
 X=$(mktemp -d); dpkg-deb -x repo/pwsh-termux-keyring.deb "$X"

@@ -187,11 +187,16 @@ read_fingerprint_marker() {
 
 # sign_release <dist-dir> <gpg-option...>: sign <dist-dir>/Release as
 # InRelease (clearsigned) and Release.gpg (detached), with the given options
-# (which choose the key).
+# (which choose the key, and the passphrase file if any). Dies if gpg cannot
+# sign: with --batch and --pinentry-mode loopback, a passphrase-protected key
+# without its passphrase (or with a wrong one) fails here, never prompts.
 sign_release() {
   local dist_dir=$1; shift
-  gpg "$@" --clearsign -o "$dist_dir/InRelease" "$dist_dir/Release"
-  gpg "$@" -abs -o "$dist_dir/Release.gpg" "$dist_dir/Release"
+  local hint="is the key passphrase-protected, and is GPG_PASSPHRASE_FILE set to its passphrase?"
+  gpg "$@" --clearsign -o "$dist_dir/InRelease" "$dist_dir/Release" \
+    || die "gpg could not sign $dist_dir/InRelease: $hint"
+  gpg "$@" -abs -o "$dist_dir/Release.gpg" "$dist_dir/Release" \
+    || die "gpg could not sign $dist_dir/Release.gpg: $hint"
 }
 
 # gpgv_quiet <keyring-file> <gpgv-argument...>: verify as apt does, against

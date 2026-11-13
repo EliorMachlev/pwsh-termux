@@ -129,22 +129,54 @@ jobs:
       # verify job checked (KEYRING_DEB_SHA256) and ships keys/ byte for byte,
       # and the signed index verifies against keys/. KEYRING_FILE (tests only)
       # is cleared so keys/ is always what is checked and published.
+      #
+      # The key is passphrase-protected; its passphrase is the second secret
+      # of the environment, GPG_PASSPHRASE. It is written (by printf, a shell
+      # builtin, so never in a process's argv) to a mode-600 file in a mode-700
+      # folder under RUNNER_TEMP, handed to build-repo.sh as
+      # GPG_PASSPHRASE_FILE (gpg --pinentry-mode loopback --passphrase-file),
+      # and removed when the step ends (trap) and again by the cleanup step
+      # below. Both secrets are unset before build-repo.sh runs. Without
+      # GPG_PASSPHRASE, an unprotected key still signs, with a warning; a
+      # protected key then fails to sign, and so does the step.
       - name: Build the signed apt repository and assemble the site
         env:
           GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
           KEYRING_DEB_SHA256: ${{ needs.verify.outputs.keyring-sha256 }}
         run: |
-          unset KEYRING_FILE
+          unset KEYRING_FILE GPG_PASSPHRASE_FILE
           if [ -z "$GPG_PRIVATE_KEY" ]; then
             echo "::error::GPG_PRIVATE_KEY secret is not set; refusing to publish an unsigned repository"
             exit 1
           fi
+          pass_dir="$RUNNER_TEMP/gpg-passphrase"
+          trap 'rm -rf "$pass_dir"' EXIT
+          if [ -n "$GPG_PASSPHRASE" ]; then
+            (umask 077 && mkdir "$pass_dir" && printf '%s\n' "$GPG_PASSPHRASE" > "$pass_dir/passphrase")
+            export GPG_PASSPHRASE_FILE="$pass_dir/passphrase"
+          else
+            echo "::warning::GPG_PASSPHRASE secret is not set: signing as if the online key has no passphrase (a protected key will fail to sign)"
+          fi
+          unset GPG_PASSPHRASE
           printf '%s\n' "$GPG_PRIVATE_KEY" | gpg --batch --import
+          unset GPG_PRIVATE_KEY
           SIGN_KEY=$(gpg --list-secret-keys --with-colons | awk -F: '/^fpr/{print $10; exit}')
           export SIGN_KEY
-          bash scripts/build-repo.sh artifacts/packages repo
+          if ! bash scripts/build-repo.sh artifacts/packages repo; then
+            echo "::error::building or signing the repository failed (see build-repo.sh's error above); nothing is published"
+            exit 1
+          fi
           bash scripts/assemble-site.sh docs repo
           python3 .github/scripts/site-check.py repo
+
+      # Even if the step above was killed before its trap ran: no passphrase
+      # file is left, and gpg-agent forgets the cached passphrase.
+      - name: Remove the passphrase file
+        if: always()
+        run: |
+          rm -rf "$RUNNER_TEMP/gpg-passphrase"
+          gpgconf --kill gpg-agent || true
 
       - name: Archive each .deb, its SBOMs, provenance and the public key as a release
         env:

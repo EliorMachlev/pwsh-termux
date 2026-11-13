@@ -2,7 +2,8 @@
 # Tests of the key rules and the publish and recovery checks (check-keys.sh,
 # build-repo.sh, verify-attestation.sh, recovery-sign.sh,
 # verify-recovery-repo.sh, check-index-freshness.sh), and of the index's Valid-Until window (a daily
-# re-sign changes InRelease only), with throwaway Ed25519 keys and a stub
+# re-sign changes InRelease only), and of signing with a passphrase-protected
+# online key (GPG_PASSPHRASE_FILE), with throwaway Ed25519 keys and a stub
 # `gh` (real attestations exist only on GitHub). Runs on Termux and on CI; touches
 # nothing outside a temporary folder. Uses the test-only KEYRING_FILE.
 #
@@ -92,8 +93,8 @@ publish() {
     bash "$SCRIPTS_DIR/build-repo.sh" "$d" "$(mktemp -d -p "$T")/repo"
 }
 
-# publish_in <gpg-home> <keyring-file> <signer>: publish from another gpg home.
-publish_in() { local GNUPGHOME=$1; export GNUPGHOME; publish "$2" "$3"; }
+# publish_in <gpg-home> <keyring-file> <signer> [debs-dir]: publish from another gpg home.
+publish_in() { local GNUPGHOME=$1; export GNUPGHOME; publish "$2" "$3" "${4:-}"; }
 
 # verify_recovery <keyring-file> <repo-dir>: verify-recovery-repo.sh, as recover.yaml runs it.
 verify_recovery() { env KEYRING_FILE="$1" bash "$SCRIPTS_DIR/verify-recovery-repo.sh" "$2"; }
@@ -137,6 +138,57 @@ expect refuse "a stray second key"                        publish "$(kr s5)" "$A
 expect refuse "a stale ROTATION"                          publish "$(kr s10)" "$B"
 expect refuse "a ROTATION naming a missing key"           publish "$(kr s9)" "$A"
 expect refuse "the production keys/ with a test signer"   publish "$DEFAULT_KEYRING_FILE" "$A"
+
+echo "== build-repo.sh: a passphrase-protected online key"
+# Its own gpg home and agent, as the publish job has: a key with a passphrase,
+# imported with gpg --batch --import (no passphrase needed for that), then
+# signed with through build-repo.sh -> sign_release, as update.yaml does. The
+# agent is restarted before each run, so a cached passphrase cannot help.
+PROT=$T/protected
+mkdir -m 700 "$PROT" "$T/pass"
+printf '%s\n' 'correct horse battery staple' > "$T/pass/right"
+printf '%s\n' 'wrong' > "$T/pass/wrong"
+: > "$T/pass/empty"
+chmod 600 "$T/pass"/*
+# generated in a home of its own, then exported and imported like the secret
+mkdir -m 700 "$T/gen"
+GNUPGHOME=$T/gen gpg --batch --pinentry-mode loopback --passphrase-file "$T/pass/right" \
+  --quick-generate-key "p <p@example.invalid>" ed25519 sign never 2>/dev/null
+P=$(GNUPGHOME=$T/gen gpg --batch --list-secret-keys --with-colons p@example.invalid 2>/dev/null | awk -F: '$1 == "fpr" {print $10; exit}')
+GNUPGHOME=$T/gen gpg --batch --pinentry-mode loopback --passphrase-file "$T/pass/right" \
+  --armor --export-secret-keys "$P" > "$T/p-secret.asc" 2>/dev/null
+gpgconf --homedir "$T/gen" --kill gpg-agent 2>/dev/null || true
+GNUPGHOME=$PROT gpg --batch --import < "$T/p-secret.asc" 2>/dev/null
+GNUPGHOME=$PROT gpg --batch --export "$P" | gpg --batch --import 2>/dev/null   # public half, for keyring()
+pd=$(debs "$(keyring s18 "$P")")
+# with_passphrase <file> <command...>: run it with GPG_PASSPHRASE_FILE set.
+with_passphrase() { GPG_PASSPHRASE_FILE=$1 "${@:2}"; }
+# forget: no passphrase cached by the agent, so a refusal is not luck.
+forget() { gpgconf --homedir "$PROT" --kill gpg-agent 2>/dev/null || true; }
+# publish_protected <passphrase-file|->: publish with key P from PROT.
+publish_protected() {
+  forget
+  if [ "$1" = - ]; then publish_in "$PROT" "$(kr s18)" "$P" "$pd"
+  else with_passphrase "$1" publish_in "$PROT" "$(kr s18)" "$P" "$pd"; fi
+}
+# key_is_protected: gpg-agent reports the secret as passphrase-protected (P).
+key_is_protected() {
+  local grip
+  grip=$(GNUPGHOME=$PROT gpg --batch --with-keygrip --with-colons --list-secret-keys "$P" | awk -F: '$1 == "grp" {print $10; exit}')
+  GNUPGHOME=$PROT gpg-connect-agent "keyinfo $grip" /bye | grep -Eq "^S KEYINFO $grip D - - - P "
+}
+expect accept "the imported secret is passphrase-protected" key_is_protected
+expect refuse "a protected key without GPG_PASSPHRASE_FILE" publish_protected -
+cp "$T/out.log" "$T/nopass.log"
+expect accept "  ... fails loudly, naming the passphrase" grep -q 'ERROR: gpg could not sign .*GPG_PASSPHRASE_FILE' "$T/nopass.log"
+expect refuse "a protected key with a wrong passphrase"    publish_protected "$T/pass/wrong"
+expect refuse "GPG_PASSPHRASE_FILE that does not exist"   publish_protected "$T/pass/missing"
+expect refuse "GPG_PASSPHRASE_FILE that is empty"         publish_protected "$T/pass/empty"
+expect accept "a protected key with its passphrase file"  publish_protected "$T/pass/right"
+expect refuse "  ... and without it again, fresh agent"   publish_protected -
+expect accept "an unprotected key ignores a passphrase file" \
+  with_passphrase "$T/pass/right" publish "$(kr s1)" "$A"
+forget
 
 echo "== build-repo.sh: which keyring package"
 other=$(debs "$(keyring s15 "$B")")
