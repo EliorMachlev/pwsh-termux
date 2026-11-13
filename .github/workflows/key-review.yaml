@@ -18,8 +18,15 @@ concurrency:
 permissions:
   contents: read
 
+# Every run: step runs as `bash --noprofile --norc -eo pipefail {0}`: a
+# failure anywhere in a pipeline fails the step.
+defaults:
+  run:
+    shell: bash
+
 jobs:
   remind:
+    name: Open the yearly key review issue
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
@@ -50,7 +57,7 @@ jobs:
           EOF
           )
           found=$(gh issue list --state all --limit 100 --search "in:title \"$ISSUE_TITLE\"" \
-            --json number,title,state --jq '.[] | select(.title == env.ISSUE_TITLE) | "\(.number) \(.state)"' | head -n1)
+            --json number,title,state --jq 'first(.[] | select(.title == env.ISSUE_TITLE) | "\(.number) \(.state)")')
           number=${found%% *} state=${found#* }
           if [ -z "$found" ]; then
             gh issue create --title "$ISSUE_TITLE" --body "$body"

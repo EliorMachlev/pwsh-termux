@@ -18,13 +18,14 @@ permissions:
 
 jobs:
   analysis:
-    runs-on: ubuntu-latest
+    name: Scorecard analysis
+    runs-on: ubuntu-26.04
     timeout-minutes: 15
     permissions:
-      security-events: write
-      id-token: write
+      security-events: write   # upload the results to code scanning
+      id-token: write          # publish_results: the OIDC token that proves the results come from this workflow
       contents: read
-      actions: read
+      actions: read            # Scorecard reads the repository's workflow runs through the API
     steps:
       - name: Harden the runner
         uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
@@ -44,6 +45,7 @@ jobs:
         with:
           name: scorecard-sarif
           path: results.sarif
+          if-no-files-found: error
           retention-days: 5
       - uses: github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
         with:

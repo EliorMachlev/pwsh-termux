@@ -39,6 +39,12 @@ concurrency:
 permissions:
   contents: read
 
+# Every run: step runs as `bash --noprofile --norc -eo pipefail {0}`: a
+# failure anywhere in a pipeline fails the step.
+defaults:
+  run:
+    shell: bash
+
 jobs:
   # Builds the .deb files, writes their SBOMs and attests their provenance.
   # No apt signing key here (see build-packages.yaml).
@@ -47,18 +53,19 @@ jobs:
       contents: read
       id-token: write          # the attest job signs provenance with this identity
       attestations: write      # and records it on GitHub
-    uses: ./.github/workflows/build-packages.yaml
+    uses: $/.github/workflows/build-packages.yaml
 
   # Checks the keyring package's build provenance: built by build-packages.yaml,
   # from this commit, on a GitHub-hosted runner. A read-only token and no
   # signing key; publish signs only the file with the digest it outputs.
   verify:
+    name: Verify the keyring package provenance
     needs: build
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
       contents: read
-      attestations: read
+      attestations: read       # read the keyring package's provenance attestation
     outputs:
       keyring-sha256: ${{ steps.verify.outputs.sha256 }}
     steps:
@@ -89,7 +96,8 @@ jobs:
 
   # The only job with the apt signing key and a token that can write releases.
   publish:
-    needs: [build, verify]
+    name: Sign and publish the repository
+    needs: verify                # which itself needs build
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     # GPG_PRIVATE_KEY and GPG_PASSPHRASE are secrets of this environment
@@ -160,7 +168,7 @@ jobs:
           unset GPG_PASSPHRASE
           printf '%s\n' "$GPG_PRIVATE_KEY" | gpg --batch --import
           unset GPG_PRIVATE_KEY
-          SIGN_KEY=$(gpg --list-secret-keys --with-colons | awk -F: '/^fpr/{print $10; exit}')
+          SIGN_KEY=$(gpg --list-secret-keys --with-colons | awk -F: '/^fpr/ && !found {print $10; found = 1}')
           export SIGN_KEY
           if ! bash scripts/build-repo.sh artifacts/packages repo; then
             echo "::error::building or signing the repository failed (see build-repo.sh's error above); nothing is published"
@@ -172,7 +180,7 @@ jobs:
       # Even if the step above was killed before its trap ran: no passphrase
       # file is left, and gpg-agent forgets the cached passphrase.
       - name: Remove the passphrase file
-        if: always()
+        if: ${{ always() }}
         run: |
           rm -rf "$RUNNER_TEMP/gpg-passphrase"
           gpgconf --kill gpg-agent || true
@@ -213,12 +221,13 @@ jobs:
           include-hidden-files: true   # .well-known/security.txt (.git and .github stay excluded)
 
   deploy:
+    name: Deploy to GitHub Pages
     needs: publish
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
-      pages: write
-      id-token: write
+      pages: write             # deploy the signed repository to GitHub Pages
+      id-token: write          # deploy-pages proves the run's identity with an OIDC token
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -237,6 +246,7 @@ jobs:
   # the same). Independent of the other jobs: it runs even when a build
   # fails. Its own token, with actions: write and no signing key.
   keepalive:
+    name: Renew the scheduled workflows
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:

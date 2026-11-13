@@ -22,9 +22,16 @@ env:
   # release's commit (the cache key follows it).
   GITLEAKS_COMMIT: 83d9cd684c87d95d656c1458ef04895a7f1cbd8e
 
+# Every run: step runs as `bash --noprofile --norc -eo pipefail {0}`: a
+# failure anywhere in a pipeline fails the step.
+defaults:
+  run:
+    shell: bash
+
 jobs:
   gitleaks:
-    runs-on: ubuntu-latest
+    name: Gitleaks (whole history)
+    runs-on: ubuntu-26.04
     timeout-minutes: 10
     steps:
       - name: Harden the runner
@@ -52,7 +59,7 @@ jobs:
           key: gitleaks-built-from-git-${{ env.GITLEAKS_COMMIT }}-${{ runner.os }}-${{ runner.arch }}
 
       - name: Build gitleaks
-        if: steps.cache.outputs.cache-hit != 'true'
+        if: ${{ steps.cache.outputs.cache-hit != 'true' }}
         env:
           GOFLAGS: -trimpath
         run: |
@@ -76,4 +83,4 @@ jobs:
       # commit counts as much as one in a new one. Matches are redacted so
       # a real secret never reaches the log.
       - name: Scan the repository
-        run: ${{ runner.temp }}/gitleaks-bin/gitleaks git --no-banner --redact --verbose .
+        run: '"$RUNNER_TEMP/gitleaks-bin/gitleaks" git --no-banner --redact --verbose .'

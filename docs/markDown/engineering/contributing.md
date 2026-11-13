@@ -23,7 +23,7 @@ Everything runs on Termux or Linux with Bash. You need `bash`, `curl`, `jq`, `py
 - **Bash.** `set -euo pipefail` at the top, quoted expansions, the shared `log`/`die` helpers (they write to stderr), and the other shared constants and helpers in [`scripts/lib/common.sh`](../../../scripts/lib/common.sh) (each script sources it; the repository's `.shellcheckrc` lets shellcheck follow it). Put a helper there when more than one script needs it; a constant goes there only if a helper there uses it. Nothing may need more than Bash, coreutils, `curl`, `jq`, `dpkg-deb`, `patchelf`, `gpg` and `python3`, plus `gh`, `git` and OpenSSH's `ssh-agent` for the scripts that talk to GitHub (the keep-alive and the audit of `main`). `shellcheck --severity=style` must be clean.
 - **Python** is for checks only, standard library only, and run with `python3 -I` where it reads untrusted files.
 - **Markdown** with sentences that say what the code does. Do not document what it might do.
-- **Workflows.** Least privilege (`permissions: contents: read` at the top, more only on the job that needs it), `persist-credentials: false` on checkouts, `step-security/harden-runner` first in each job, and **every action pinned to a commit SHA** with its version in a trailing comment. Do not use `pull_request_target`, and do not put untrusted input (`github.event.*`) into a `run:` script; pass it through `env:`.
+- **Workflows.** Least privilege (`permissions: contents: read` at the top, more only on the job that needs it), `persist-credentials: false` on checkouts, `step-security/harden-runner` first in each job, and **every action pinned to a commit SHA** with its version in a trailing comment. jactionlint runs at its `pedantic` profile and fails on any finding, so also: `defaults: run: shell: bash`, a fixed runner image (`ubuntu-24.04` or `ubuntu-26.04`, never `ubuntu-latest`), a `name:` on each job, `if: ${{ … }}`, and a comment on each permission beyond `contents: read` ([ci-cd.md](ci-cd.md)). Do not use `pull_request_target`, and do not put untrusted input (`github.event.*`) into a `run:` script; pass it through `env:`.
 
 ## No suppressions, no cosmetic workarounds
 
@@ -44,7 +44,7 @@ The [template](../../../.github/pull_request_template.md) is the checklist:
 - A new site page is in `docs/sitemap.xml` and keeps the Content-Security-Policy.
 - Docs are updated where the change needs it, in the same PR.
 
-CI ([ci-cd.md](ci-cd.md)) runs the rest: actionlint, a real package build, CodeQL, zizmor, Gitleaks, and the link and spelling checks.
+CI ([ci-cd.md](ci-cd.md)) runs the rest: jactionlint, a real package build, CodeQL, zizmor, Gitleaks, and the link and spelling checks.
 
 ## Reporting a vulnerability
 

@@ -41,10 +41,17 @@ concurrency:
 permissions:
   contents: read
 
+# Every run: step runs as `bash --noprofile --norc -eo pipefail {0}`: a
+# failure anywhere in a pipeline fails the step.
+defaults:
+  run:
+    shell: bash
+
 jobs:
   # Pull requests: build and check the commit on the real main, push nothing.
   dry-run:
-    if: github.event_name == 'pull_request'
+    name: Keep-alive commit (dry run)
+    if: ${{ github.event_name == 'pull_request' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
@@ -66,7 +73,8 @@ jobs:
         run: bash scripts/keepalive-commit.sh --dry-run --ignore-age
 
   push:
-    if: github.event_name != 'pull_request'
+    name: Keep-alive commit
+    if: ${{ github.event_name != 'pull_request' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     environment: keepalive     # holds KEEPALIVE_DEPLOY_KEY; main only

@@ -24,11 +24,12 @@ permissions:
 
 jobs:
   analyze:
-    runs-on: ubuntu-latest
+    name: CodeQL (actions)
+    runs-on: ubuntu-26.04
     timeout-minutes: 15
     permissions:
       contents: read
-      security-events: write
+      security-events: write   # upload the CodeQL results to code scanning
     steps:
       - name: Harden the runner
         uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3

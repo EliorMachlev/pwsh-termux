@@ -5,7 +5,7 @@ The only suppressed or ignored findings in the repository, and why. **There are 
 Every scanner runs without a baseline, an allowlist or an ignore file:
 
 - `shellcheck` runs at `--severity=style` with no `# shellcheck disable=` comments;
-- zizmor, CodeQL, actionlint and Gitleaks have no ignore entries;
+- zizmor, CodeQL, jactionlint and Gitleaks have no ignore entries (jactionlint runs its `pedantic` profile with `--strict-exit --no-ignores --config-file=/dev/null`, so every rule runs, a finding of any level fails, and no ignore comment, config file or baseline can hide or downgrade one);
 - lychee has no `.lycheeignore`, and `_typos.toml` has no extended words;
 - no rule is disabled in any configuration.
 

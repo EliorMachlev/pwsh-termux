@@ -28,10 +28,17 @@ concurrency:
 permissions:
   contents: read
 
+# Every run: step runs as `bash --noprofile --norc -eo pipefail {0}`: a
+# failure anywhere in a pipeline fails the step.
+defaults:
+  run:
+    shell: bash
+
 jobs:
   # Pull requests: the same run against the real API, reading only.
   dry-run:
-    if: github.event_name == 'pull_request'
+    name: Renew the scheduled workflows (dry run)
+    if: ${{ github.event_name == 'pull_request' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
@@ -54,7 +61,8 @@ jobs:
         run: bash scripts/keep-schedules-alive.sh refresh --dry-run
 
   refresh:
-    if: github.event_name != 'pull_request'
+    name: Renew the scheduled workflows
+    if: ${{ github.event_name != 'pull_request' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:

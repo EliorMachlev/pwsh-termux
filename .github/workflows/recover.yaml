@@ -28,8 +28,15 @@ concurrency:
 permissions:
   contents: read
 
+# Every run: step runs as `bash --noprofile --norc -eo pipefail {0}`: a
+# failure anywhere in a pipeline fails the step.
+defaults:
+  run:
+    shell: bash
+
 jobs:
   verify:
+    name: Verify the recovery repository
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
@@ -82,12 +89,13 @@ jobs:
           include-hidden-files: true   # .well-known/security.txt
 
   deploy:
+    name: Deploy to GitHub Pages
     needs: verify
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
-      pages: write
-      id-token: write
+      pages: write             # deploy the recovery repository to GitHub Pages
+      id-token: write          # deploy-pages proves the run's identity with an OIDC token
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
