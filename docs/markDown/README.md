@@ -15,11 +15,13 @@ The user-facing side is the [website](https://pwsh-termux.machlev.org/) and the 
 - [CI / CD](engineering/ci-cd.md): workflows, scanners, Dependabot, permissions, pinning
 - [Branches and the pipeline](engineering/branching.md): `main`, pull requests, and which checks run where
 - [Security](engineering/security.md): supply chain, secrets, signing, code analysis
+- [Governance and roadmap](engineering/governance.md): who decides, roles, continuity, what is planned
 - [Exceptions](engineering/exceptions.md): the only suppressed findings, and why
 - [Website](engineering/website.md): the GitHub Pages site
 
 ## Legal and policy
 
 - [Privacy policy](legal/privacy-policy.md), [terms of service](legal/terms-of-service.md), [accessibility statement](legal/accessibility-statement.md), [compliance posture](legal/compliance-posture.md)
+- [Code of conduct](../../CODE_OF_CONDUCT.md)
 - [Security policy](../../SECURITY.md): reporting a vulnerability, supported versions, the signing key
 - [NOTICE](../../NOTICE.md): the upstream project and what the packaging changes

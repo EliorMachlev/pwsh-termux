@@ -13,6 +13,8 @@ The full guide is [`docs/markDown/engineering/contributing.md`](docs/markDown/en
 - Warnings get fixed, not suppressed. The agreed exceptions (currently none) are in [exceptions.md](docs/markDown/engineering/exceptions.md).
 - Title the PR `type(scope): short description` (`fix(build-deb): handle a missing checksum`).
 
+Everyone taking part follows the [code of conduct](CODE_OF_CONDUCT.md); who decides what is in [governance](docs/markDown/engineering/governance.md).
+
 ## Reporting a bug
 
 Open a [GitHub issue](https://github.com/EliorMachlev/pwsh-termux/issues) with your device architecture, the package and version (`pkg list-installed | grep pwsh`), what you ran, and the output.
