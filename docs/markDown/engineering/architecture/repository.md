@@ -54,7 +54,7 @@ It publishes that verified file as it is. A secret replaced without changing `ke
 
 What these prove: the package users install was built by this repository's `build-packages.yaml` from the commit being published, and it contains exactly the committed `keys/`, whose online key is the one that signs the index. They do not prove that `keys/` holds the *right* key: that rests on review of changes to `keys/` and on users comparing the fingerprint with [SECURITY.md](../../../../SECURITY.md#signing-key).
 
-`KEYRING_FILE` overrides the key file (and the markers next to it) for tests with throwaway keys only ([build](../build.md#build-and-test-a-repository)); the signing step in `update.yaml` clears it. [`scripts/test-keys.sh`](../../../../scripts/test-keys.sh) tests every rule and refusal with throwaway keys and a stub `gh`.
+`KEYRING_FILE` overrides the key file (and the markers next to it) for tests with throwaway keys only ([build](../build.md#build-and-test-a-repository)); the signing step in `update.yaml` clears it. [`scripts/test-keys.sh`](../../../../scripts/test-keys.sh) tests every rule and refusal with throwaway keys and a stub `gh`. The same online key also signs each release's tag ([signed release tags](../release.md#signed-release-tags)); [`scripts/test-release-tags.sh`](../../../../scripts/test-release-tags.sh) tests that.
 
 The key is Ed25519 (OpenPGP v4). Ed448 was tried and rejected; see [SECURITY.md](../../../../SECURITY.md#signing-key).
 

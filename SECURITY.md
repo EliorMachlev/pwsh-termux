@@ -123,6 +123,18 @@ Every commit on `main` is audited, on each push and daily: it must be signed and
 
 `apt` checks the signed index and each package's SHA-256 for you. To check a `.deb` from a [release](https://github.com/EliorMachlev/pwsh-termux/releases) by hand, compare `sha256sum <file>` with the `SHA256:` line for that file in <https://pwsh-termux.machlev.org/dists/stable/main/binary-aarch64/Packages>, which is signed in `InRelease`.
 
+### Verifying a release tag
+
+Since tag signing was added, each release's tag (`<package>-<version>`; a `~` in the version is written `-`) is an annotated tag signed with the **signing key above**, the same online key that signs the apt index, on the commit that built the release. The publish workflow signs it, tagged by `github-actions[bot]`. To check one:
+
+```bash
+git clone https://github.com/EliorMachlev/pwsh-termux && cd pwsh-termux   # or, in a clone: git fetch --tags
+curl -fsSL https://pwsh-termux.machlev.org/pwsh-termux.asc | gpg --import  # or: gpg --import keys/pwsh-termux-archive-keyring.gpg
+git tag -v pwsh-<version>
+```
+
+`git tag -v` must print *Good signature from "pwsh-termux repository signing key"* and a *Primary key fingerprint* equal to the fingerprint in the table above (`7086 C70B 4A25 576F E0C0  CE77 E43F B41F 02D0 1FC8`); gpg's warning that the key is not certified with a trusted signature only means you have not signed it yourself. A tag signed by any other key, or not signed, did not come from this repository's pipeline. GitHub's web page shows these tags as unverified: the key is deliberately not added to any GitHub account, so that it cannot make commits that GitHub would show as the maintainer's ([release.md](docs/markDown/engineering/release.md#signed-release-tags)). Tags of releases made before tag signing was added, `pwsh-7.7.0-1` included, are lightweight and unsigned, and stay so: tags and releases here cannot be changed once made. For those, use the build provenance above.
+
 ## Related documents
 
 - [`docs/markDown/engineering/security.md`](docs/markDown/engineering/security.md): full security posture (supply chain, secrets, signing, code analysis).
