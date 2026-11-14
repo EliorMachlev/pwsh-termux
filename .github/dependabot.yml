@@ -95,3 +95,10 @@ updates:
       fuzz:
         patterns:
           - "*"
+
+  - package-ecosystem: "npm"
+    directory: "/dbprobe"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "dependencies"
