@@ -13,7 +13,8 @@
 #             unsigned commits when only the old base is given; Dependabot's
 #             identity in someone else's pull request; a keep-alive commit
 #             with an extra file; a base or head that is not a commit; too
-#             few arguments
+#             few arguments; a commit listing that fails (it must not read
+#             as no commits)
 #
 # Usage: test-dco.sh
 set -euo pipefail
@@ -97,11 +98,17 @@ Signed-off-by: Charles Babbage <charles@example.invalid>
 Signed-off-by: $AUTHOR")
 expect accept "the author's sign-off among others" check octocat "$head" "$BASE"
 
+head=$(branch_with innerspace "add innerspace
+
+Signed-off-by: Ada   Lovelace < ada@example.invalid >")
+expect accept "a sign-off with spaces inside the name's runs and the address's brackets" check octocat "$head" "$BASE"
+
 expect accept "no commits at all" check octocat "$BASE" "$BASE"
 
 head=$(branch_with none "add none")
 expect refuse "no sign-off" check octocat "$head" "$BASE"
 expect_log "the refusal says how to sign off" "git rebase --signoff"
+expect_log "it says another author must sign off their own commit" "A commit another person wrote"
 
 head=$(branch_with other "add other
 
@@ -176,6 +183,23 @@ expect accept "a keep-alive commit" check octocat "$head" "$BASE"
 expect_log "it is reported as exempt" "exempt (keep-alive commit)"
 head=$(keepalive_commit_on keepalive-extra extra)
 expect refuse "a keep-alive commit with an extra file" check octocat "$head" "$BASE"
+
+# --- A failing commit listing ------------------------------------------------
+
+# A git whose `rev-list` fails must not read as "no commits": the check refuses.
+mkdir "$T/shim"
+real_git=$(command -v git)
+cat > "$T/shim/git" <<SHIM
+#!$(command -v bash)
+[ "\$1" = rev-list ] && exit 1
+exec $real_git "\$@"
+SHIM
+chmod +x "$T/shim/git"
+head=$(branch_with listing "add listing
+
+Signed-off-by: $AUTHOR")
+expect refuse "a commit listing that fails" env PATH="$T/shim:$PATH" bash "$CHECKER" octocat "$head" "$BASE"
+expect_log "it says the listing failed" "cannot list the pull request's commits"
 
 # --- Arguments ---------------------------------------------------------------
 

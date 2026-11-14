@@ -43,10 +43,11 @@ for rev in "$head" "${bases[@]}"; do
     || die "not a commit in this repository: '$rev' (is the history fetched? fetch-depth: 0)"
 done
 
-# normalize_identity: stdin's "Name <email>" lines, lower-case, with the
-# spaces at either end and around the "<" dropped.
+# normalize_identity: stdin's "Name <email>" lines, lower-case, with runs of
+# white space in the name made one space, and the white space at either end,
+# before the "<" and inside the "<...>" dropped.
 normalize_identity() {
-  tr '[:upper:]' '[:lower:]' | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//; s/[[:space:]]*</ </'
+  tr '[:upper:]' '[:lower:]' | sed -E 's/[[:space:]]+/ /g; s/^ //; s/ $//; s/ *< */ </; s/ *> */>/g'
 }
 
 # signed_off_by_author <commit>: true if a Signed-off-by trailer names its author.
@@ -57,9 +58,15 @@ signed_off_by_author() {
     | normalize_identity | grep -qxF -- "$author"
 }
 
+# The commit list first, on its own: a failing `git rev-list` inside the loop's
+# process substitution would be read as "no commits" and pass the check.
+commits=$(git rev-list --no-merges --reverse "$head" --not "${bases[@]}") \
+  || die "cannot list the pull request's commits (is the history fetched?)"
+
 checked=0 exempt=0
 missing=()
 while read -r commit; do
+  [ -n "$commit" ] || continue
   subject=$(git show -s --format='%h %s' "$commit")
   author=$(git show -s --format='%an <%ae>' "$commit")
   if [ "$author" = "$DEPENDABOT_IDENTITY" ] && [ "$pr_author" = "$DEPENDABOT_LOGIN" ]; then
@@ -75,13 +82,16 @@ while read -r commit; do
     log "NO SIGN-OFF by $author: $subject"
     missing+=("$subject")
   fi
-done < <(git rev-list --no-merges --reverse "$head" --not "${bases[@]}")
+done <<< "$commits"
 
 if [ "${#missing[@]}" -gt 0 ]; then
   log "Commits without a '$DCO_TRAILER:' trailer naming their author:"
   printf '[%s]   %s\n' "$SCRIPT_NAME" "${missing[@]}" >&2
   log "Sign off each commit (CONTRIBUTING.md, \"Developer Certificate of Origin\"):"
   log "  git rebase --signoff $(git rev-parse --short "${bases[0]}") && git push --force-with-lease"
+  log "That signs as you. A commit another person wrote needs that person's own"
+  log "sign-off (they amend it with -s), or must be re-authored by you with"
+  log "'git commit --amend --reset-author -s' once you have the right to submit it."
   die "${#missing[@]} commit(s) not signed off"
 fi
 log "every commit is signed off ($checked signed off, $exempt exempt)"
