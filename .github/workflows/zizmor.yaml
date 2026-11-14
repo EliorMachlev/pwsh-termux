@@ -13,7 +13,7 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/**'
-      - '.github/zizmor/**'
+      - 'tools/zizmor/**'
   schedule:
     - cron: '20 7 * * 1'
   workflow_dispatch:
@@ -58,13 +58,13 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
-      # zizmor pinned by hash (.github/zizmor/requirements.txt, compiled on
+      # zizmor pinned by hash (tools/zizmor/requirements.txt, compiled on
       # this Python version). Dependabot updates it.
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.14"
       - name: Install zizmor
-        run: python -m pip install --quiet --require-hashes -r .github/zizmor/requirements.txt
+        run: python -m pip install --quiet --require-hashes -r tools/zizmor/requirements.txt
       # Online, with the workflow's read token: some audits (impostor
       # commits, actions with known vulnerabilities) ask GitHub.
       - name: Audit the workflows
