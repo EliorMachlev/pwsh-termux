@@ -4,6 +4,7 @@
 
 ## Checklist
 
+- [ ] Every commit is signed off (`git commit -s`), certifying the [Developer Certificate of Origin](https://developercertificate.org/) (see contributing.md)
 - [ ] `shellcheck --shell=bash --severity=style scripts/*.sh scripts/lib/*.sh` is clean
 - [ ] `python3 .github/scripts/site-check.py docs` passes
 - [ ] Changed a script? I ran it locally (see `docs/markDown/engineering/build.md`) and say what I ran above

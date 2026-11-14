@@ -4,7 +4,7 @@ There is one long-lived branch, **`main`**. It is what the website and the repos
 
 - Changes arrive by **pull request** from a topic branch off `main`, titled `type(scope): description` ([contributing](contributing.md)).
 - **Releases are not branches or tags in this repository.** A new PowerShell release is picked up by the scheduled workflow and published without a commit here ([release](release.md)).
-- Nobody pushes straight to `main`, the maintainer included: the ruleset *Main* takes changes only through a pull request whose 15 required checks have passed, merged with *Squash and merge* ([rulesets](release.md#rulesets)). The one exception is the monthly keep-alive commit, pushed with the deploy key ([keep-alive commit](ci-cd.md#keep-alive-commit)).
+- Nobody pushes straight to `main`, the maintainer included: the ruleset *Main* takes changes only through a pull request whose 16 required checks have passed, merged with *Squash and merge* ([rulesets](release.md#rulesets)). The one exception is the monthly keep-alive commit, pushed with the deploy key ([keep-alive commit](ci-cd.md#keep-alive-commit)).
 
 ## Which checks run where
 

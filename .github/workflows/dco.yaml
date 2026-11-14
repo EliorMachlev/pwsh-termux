@@ -1,0 +1,59 @@
+name: DCO
+
+# The Developer Certificate of Origin on every pull request: each commit the
+# pull request adds carries a Signed-off-by trailer naming its author
+# (scripts/check-dco.sh; CONTRIBUTING.md, "Developer Certificate of Origin").
+# The pull request's commits are checked, not its description: main takes a
+# squash merge whose message is the description, but the commits stay in the
+# pull request (refs/pull/<n>/head), each with its sign-off
+# (contributing.md, "Developer Certificate of Origin").
+#
+# Its job is a required status check on main (release.md, "Rulesets").
+on:
+  # Every pull request, whatever it changes: a workflow a path filter skips
+  # never reports, which would leave the pull request unmergeable.
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ !contains(fromJSON('["refs/heads/main"]'), github.ref) }}
+
+permissions:
+  contents: read
+
+# Every run: step runs as `bash --noprofile --norc -eo pipefail {0}`: a
+# failure anywhere in a pipeline fails the step.
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  dco:
+    name: DCO
+    runs-on: ubuntu-26.04
+    timeout-minutes: 5
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a # v2.22.4
+        with:
+          egress-policy: audit
+
+      # The whole history, so the pull request's base and head commits and
+      # the base branch are all here; the checked-out commit is GitHub's
+      # merge of the two, whose parents they are.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      # The checker itself, on local repositories, before it is trusted.
+      - name: Test the DCO check
+        run: bash scripts/test-dco.sh
+      # Commits in the head that neither the base commit nor the base branch
+      # (as fetched, which may have moved on since) has.
+      - name: Every commit is signed off
+        env:
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+        run: bash scripts/check-dco.sh "$PR_AUTHOR" "$HEAD_SHA" "$BASE_SHA" "refs/remotes/origin/$BASE_REF"

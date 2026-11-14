@@ -102,6 +102,15 @@ GH_REPO=EliorMachlev/pwsh-termux bash scripts/keep-schedules-alive.sh refresh --
 
 Both real calls use your `gh` login and write nothing ([keep-alive](ci-cd.md#schedule-keep-alive)).
 
+## Check the sign-offs
+
+```bash
+bash scripts/test-dco.sh                                  # offline, in a throwaway repository
+bash scripts/check-dco.sh your-login HEAD origin/main     # your branch, as the DCO check sees it
+```
+
+Every commit your branch adds needs a `Signed-off-by:` trailer naming its author ([DCO](contributing.md#developer-certificate-of-origin)).
+
 ## Check the website
 
 ```bash
