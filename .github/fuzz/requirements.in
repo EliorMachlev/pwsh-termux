@@ -1,0 +1,7 @@
+# Hypothesis for the Fuzz workflow (tests/fuzz), installed with
+# --require-hashes. requirements.txt is compiled from this file on Python 3.14
+# (the version the workflow sets up):
+#   pip-compile --allow-unsafe --generate-hashes --strip-extras requirements.in
+# Dependabot (pip, this directory) recompiles it when Hypothesis or its
+# dependencies have a new release.
+hypothesis==6.170.15

@@ -4,7 +4,7 @@ There is one long-lived branch, **`main`**. It is what the website and the repos
 
 - Changes arrive by **pull request** from a topic branch off `main`, titled `type(scope): description` ([contributing](contributing.md)).
 - **Releases are not branches or tags in this repository.** A new PowerShell release is picked up by the scheduled workflow and published without a commit here ([release](release.md)).
-- Nobody pushes straight to `main`, the maintainer included: the ruleset *Main* takes changes only through a pull request whose 14 required checks have passed, merged with *Squash and merge* ([rulesets](release.md#rulesets)). The one exception is the monthly keep-alive commit, pushed with the deploy key ([keep-alive commit](ci-cd.md#keep-alive-commit)).
+- Nobody pushes straight to `main`, the maintainer included: the ruleset *Main* takes changes only through a pull request whose 15 required checks have passed, merged with *Squash and merge* ([rulesets](release.md#rulesets)). The one exception is the monthly keep-alive commit, pushed with the deploy key ([keep-alive commit](ci-cd.md#keep-alive-commit)).
 
 ## Which checks run where
 
@@ -16,6 +16,7 @@ There is one long-lived branch, **`main`**. It is what the website and the repos
 | [Zizmor](../../../.github/workflows/zizmor.yaml) | yes, every one (required) | yes, for workflows | weekly | uploads SARIF to code scanning |
 | [CodeQL](../../../.github/workflows/codeql.yaml) | yes, every one (required) | yes, for workflows | weekly | `actions` language |
 | [Gitleaks](../../../.github/workflows/gitleaks.yaml) | yes, every one (required) | yes | weekly | whole history |
+| [Fuzz](../../../.github/workflows/fuzz.yaml) | yes, every one (required) | yes | weekly (a longer run) | Hypothesis on `spdx-build-view.py` |
 | [Dependency Review](../../../.github/workflows/dependency-review.yaml) | yes, every one (required) | | | blocks high-severity advisories |
 | [OpenSSF Scorecard](../../../.github/workflows/scorecard.yaml) | | yes | weekly | |
 | [Update packages](../../../.github/workflows/update.yaml) | | yes, for scripts, docs and itself | **daily** | builds, signs and **deploys**; re-signs daily (Valid-Until) |

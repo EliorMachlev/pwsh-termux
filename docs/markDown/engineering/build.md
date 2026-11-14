@@ -127,7 +127,7 @@ shellcheck --shell=bash --severity=style scripts/*.sh scripts/lib/*.sh        # 
 python3 -I -m py_compile .github/scripts/site-check.py
 ```
 
-The docs checks (lychee for links, typos for spelling) and the workflow audits (jactionlint, zizmor) run in CI; [ci-cd.md](ci-cd.md) lists them.
+The docs checks (lychee for links, typos for spelling), the workflow audits (jactionlint, zizmor) and the fuzzing of `spdx-build-view.py` (Hypothesis) run in CI; [ci-cd.md](ci-cd.md) lists them.
 
 ## Find releases
 
