@@ -32,12 +32,13 @@ import string
 import sys
 import tempfile
 import unittest
+from datetime import timedelta
 from pathlib import Path
 from typing import Any
 from unittest import mock
 from urllib.parse import unquote
 
-from hypothesis import HealthCheck, given, settings
+from hypothesis import given, settings
 from hypothesis import strategies as st
 
 SCRIPT = Path(__file__).resolve().parents[2] / "scripts" / "spdx-build-view.py"
@@ -57,16 +58,14 @@ sbv = load_script()
 settings.register_profile(
     "ci",
     max_examples=300,
-    deadline=None,
+    deadline=timedelta(seconds=2),
     print_blob=True,
-    suppress_health_check=[HealthCheck.too_slow],
 )
 settings.register_profile(
     "long",
     max_examples=20_000,
-    deadline=None,
+    deadline=timedelta(seconds=2),
     print_blob=True,
-    suppress_health_check=[HealthCheck.too_slow],
 )
 settings.load_profile(os.environ.get("HYPOTHESIS_PROFILE", "ci"))
 
