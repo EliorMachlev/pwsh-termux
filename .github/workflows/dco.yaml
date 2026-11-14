@@ -45,9 +45,28 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
+      # The checker and its tests come from the base commit, not from the
+      # pull request: a pull request's own copy could be replaced by one
+      # that always succeeds, and its tests would share that trust. A pull
+      # request that changes the checker is judged by the base's checker.
+      # Until the checker first reaches the base (the pull request that adds
+      # it) there is no base copy and the pull request's own is used; after
+      # that the base always has it.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: .dco-trusted
+          persist-credentials: false
+      - name: Choose the trusted checker
+        run: |
+          if [ -f .dco-trusted/scripts/check-dco.sh ] && [ -f .dco-trusted/scripts/test-dco.sh ]; then
+            echo "DCO_SCRIPTS=.dco-trusted/scripts" >> "$GITHUB_ENV"
+          else
+            echo "DCO_SCRIPTS=scripts" >> "$GITHUB_ENV"
+          fi
       # The checker itself, on local repositories, before it is trusted.
       - name: Test the DCO check
-        run: bash scripts/test-dco.sh
+        run: bash "$DCO_SCRIPTS/test-dco.sh"
       # Commits in the head that neither the base commit nor the base branch
       # (as fetched, which may have moved on since) has.
       - name: Every commit is signed off
@@ -56,4 +75,4 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           BASE_REF: ${{ github.event.pull_request.base.ref }}
-        run: bash scripts/check-dco.sh "$PR_AUTHOR" "$HEAD_SHA" "$BASE_SHA" "refs/remotes/origin/$BASE_REF"
+        run: bash "$DCO_SCRIPTS/check-dco.sh" "$PR_AUTHOR" "$HEAD_SHA" "$BASE_SHA" "refs/remotes/origin/$BASE_REF"
