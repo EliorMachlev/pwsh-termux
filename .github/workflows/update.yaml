@@ -4,7 +4,8 @@ name: Update packages
 # .deb of each from the official linux-arm64 tarball, signs an apt repository,
 # merges the website (docs/) into it and deploys the lot to GitHub Pages at
 # https://pwsh-termux.machlev.org/. Each pwsh/pwsh-preview .deb, with the public key and the
-# keyring package, is also kept as a release asset.
+# keyring package, is also kept as a release asset, on an annotated tag signed
+# with the same online key (scripts/release-tags.sh).
 #
 # It runs, signs and deploys every day even when Microsoft has released
 # nothing, and commits nothing: the signed index carries a Valid-Until 14 days
@@ -107,7 +108,7 @@ jobs:
     # back: a job reads it when its environment has no secret of that name.
     environment: signing
     permissions:
-      contents: write          # create the archive releases for new .deb files
+      contents: write          # push the signed tags of new .deb files and create their releases
     steps:
       - name: Harden the runner
         uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a # v2.22.4
@@ -117,7 +118,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-          fetch-depth: 0       # assemble-site.sh reads each document's last commit (git log)
+          fetch-depth: 0       # assemble-site.sh reads each document's last commit (git log); every tag, for release-tags.sh
 
       - name: Install tools
         run: sudo apt-get update && sudo apt-get install -y gnupg xz-utils
@@ -135,7 +136,11 @@ jobs:
       # key is the one key in keys/, the keyring package is the file the
       # verify job checked (KEYRING_DEB_SHA256) and ships keys/ byte for byte,
       # and the signed index verifies against keys/. KEYRING_FILE (tests only)
-      # is cleared so keys/ is always what is checked and published.
+      # is cleared so keys/ is always what is checked and published. The same
+      # key then signs an annotated tag on this commit for each new pwsh and
+      # pwsh-preview .deb (release-tags.sh sign, which checks each with gpgv
+      # against keys/); they are created here, in the clone, and pushed by the
+      # release step, which no longer holds the key.
       #
       # The key is passphrase-protected; its passphrase is the second secret
       # of the environment, GPG_PASSPHRASE. It is written (by printf, a shell
@@ -174,6 +179,10 @@ jobs:
             echo "::error::building or signing the repository failed (see build-repo.sh's error above); nothing is published"
             exit 1
           fi
+          if ! bash scripts/release-tags.sh sign artifacts/packages "$GITHUB_SHA"; then
+            echo "::error::signing the release tags failed (see release-tags.sh's error above); nothing is published"
+            exit 1
+          fi
           bash scripts/assemble-site.sh docs repo
           python3 .github/scripts/site-check.py repo
 
@@ -194,6 +203,14 @@ jobs:
           # the key that was current when it was made; a rotation does not
           # rewrite old releases. A release is created once, with all its files,
           # and never changed afterwards (so immutable releases can be on).
+          #
+          # Each release sits on the signed tag made above: release-tags.sh
+          # push verifies it again and pushes it with this job's token (git
+          # gets it from gh, never from an argument), and gh release create
+          # --verify-tag uses that tag and never makes a lightweight one. The
+          # push is deferred (exit 3) when main's .github/workflows changed
+          # during the run, as GitHub refuses such a tag from a GITHUB_TOKEN:
+          # that release then comes with the next run, on its own commit.
           mkdir keyfiles
           cp repo/pwsh-termux.gpg repo/pwsh-termux.asc repo/pwsh-termux-keyring.deb \
             artifacts/packages/pwsh-termux-keyring_*.json keyfiles/
@@ -205,10 +222,19 @@ jobs:
             ver=$(dpkg-deb -f "$deb" Version)
             # The keyring package is not a PowerShell release; it rides along.
             [ "$name" = pwsh-termux-keyring ] && continue
-            tag="${name}-${ver//\~/-}"          # git tags cannot contain '~'
+            tag=$(bash scripts/release-tags.sh name "$deb")
             gh release view "$tag" >/dev/null 2>&1 && continue
+            rc=0
+            bash scripts/release-tags.sh push "$tag" origin || rc=$?
+            if [ "$rc" -eq 3 ]; then
+              echo "::warning::$tag not pushed: main's workflows changed during this run; the next run releases it"
+              continue
+            elif [ "$rc" -ne 0 ]; then
+              echo "::error::pushing the signed tag $tag failed (see release-tags.sh's error above)"
+              exit 1
+            fi
             files=("$deb" "$base".*.json artifacts/packages/SHA256SUMS artifacts/provenance/*.intoto.jsonl keyfiles/*)
-            flags=()
+            flags=(--verify-tag)
             [ "$name" = pwsh-preview ] && flags+=(--prerelease)
             # What changed in a release is what changed upstream: the package
             # is PowerShell's own build plus this repository's revision suffix.
