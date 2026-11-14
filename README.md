@@ -18,6 +18,7 @@ An unofficial apt repository that follows Microsoft's PowerShell releases, verif
 [![CodeQL](https://github.com/EliorMachlev/pwsh-termux/actions/workflows/codeql.yaml/badge.svg?branch=main&event=push)](https://github.com/EliorMachlev/pwsh-termux/actions/workflows/codeql.yaml)
 
 [![OpenSSF Scorecard](https://img.shields.io/ossf-scorecard/github.com/EliorMachlev/pwsh-termux?label=openssf+scorecard)](https://securityscorecards.dev/viewer/?uri=github.com/EliorMachlev/pwsh-termux)
+[![OpenSSF Best Practices](https://www.bestpractices.dev/projects/16703/badge)](https://www.bestpractices.dev/projects/16703)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 [![Termux aarch64](https://img.shields.io/badge/Termux-aarch64%20%C2%B7%20glibc-3DDC84?logo=android&logoColor=white)](docs/markDown/product/packages.md)
 [![Signed apt repository](https://img.shields.io/badge/apt-signed%20(Ed25519)-blue)](SECURITY.md#signing-key)

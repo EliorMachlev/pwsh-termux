@@ -25,6 +25,18 @@ Users run what this repository publishes **as themselves, on their phone**. The 
 | **A vulnerable dependency** | Dependabot (actions, the pinned Python tools and Hypothesis, the site's npm checkers), Dependency Review on pull requests. The packages' own contents are Microsoft's. | |
 | **Abuse of the repository's name** | The packages and site say they are unofficial and unaffiliated; the trademark is acknowledged ([compliance posture](../legal/compliance-posture.md)). | |
 
+## Assurance case
+
+**Claim:** a user who installs `pwsh` with `pkg` gets Microsoft's PowerShell, as built by this repository's pipeline from a Microsoft release, and nothing else.
+
+1. **The input is Microsoft's.** The build downloads only from Microsoft's GitHub releases and stops unless the tarball matches Microsoft's `hashes.sha256` ([packaging](architecture/packaging.md)). The only edits are listed in [NOTICE.md](../../../NOTICE.md).
+2. **The build is the repository's.** Packages are built in a job without secrets, twice, and the bytes are compared; build provenance is attested and a second job verifies it before anything is signed ([repository](architecture/repository.md#signing)).
+3. **The repository's code is controlled.** Nothing reaches `main` except through a pull request that passes 15 checks (static analysis, fuzzing, secret scanning, spelling, links, build) on signed commits; an audit checks every commit on `main` afterwards ([threats](#threats-and-mitigations), [audit](ci-cd.md#the-audit-of-main)).
+4. **The delivery is signed.** apt verifies an Ed25519 signature on the index, then each file's hash, over HTTPS; the index expires after 14 days, so a replay or a frozen repository is bounded ([threats](#threats-and-mitigations)).
+5. **The signing key is protected, and recoverable.** It exists only in an environment that `main` alone can use; there is an offline recovery key and a documented rotation.
+
+**Weaknesses, accepted and stated:** a compromised upstream release would be packaged; the maintainer's account and the keep-alive deploy key can change `main`; there is one maintainer ([governance](governance.md#continuity)). Each is in the table above with what limits it.
+
 ## Secrets
 
 | Secret | Used by | Scope |
