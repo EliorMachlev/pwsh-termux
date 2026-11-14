@@ -1,3 +1,6 @@
+# The tool folders Dependabot updates are under tools/, not .github/:
+# Dependabot could not open pull requests for files under .github/ (its API
+# refused them as "invalid or unauthorized changes").
 version: 2
 updates:
   # The pinned GitHub Actions (every `uses:` is a commit SHA with its version
@@ -23,14 +26,14 @@ updates:
           - "*"
 
   # The two hash-pinned Python tools, each compiled from its requirements.in
-  # with pip-compile: zizmor (.github/zizmor) and typos (.github/docs-checks).
+  # with pip-compile: zizmor (tools/zizmor) and typos (tools/docs-checks).
   # They, Hypothesis and the site's checkers (below) are the only other
   # dependencies: make-sboms.sh pins its generators by version and SHA-256 by
   # hand, and Dependabot has no ecosystem for them.
   - package-ecosystem: "pip"
     directories:
-      - "/.github/zizmor"
-      - "/.github/docs-checks"
+      - "/tools/zizmor"
+      - "/tools/docs-checks"
     schedule:
       interval: "weekly"
       day: "monday"
@@ -51,10 +54,10 @@ updates:
 
   # The website's checkers in site.yaml (CI tooling only; no script ships on
   # the site): vnu (the vnu-jar package), Stylelint and
-  # stylelint-config-standard, pinned exactly in .github/site-lint/package.json
+  # stylelint-config-standard, pinned exactly in tools/site-lint/package.json
   # and by integrity hash in its package-lock.json.
   - package-ecosystem: "npm"
-    directory: "/.github/site-lint"
+    directory: "/tools/site-lint"
     schedule:
       interval: "weekly"
       day: "monday"
@@ -74,10 +77,10 @@ updates:
           - "*"
 
   # Hypothesis and its dependencies for fuzz.yaml (CI tooling only; nothing
-  # ships with it), hash-pinned in .github/fuzz/requirements.txt, compiled
+  # ships with it), hash-pinned in tools/fuzz/requirements.txt, compiled
   # from its requirements.in with pip-compile.
   - package-ecosystem: "pip"
-    directory: "/.github/fuzz"
+    directory: "/tools/fuzz"
     schedule:
       interval: "weekly"
       day: "monday"

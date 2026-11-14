@@ -11,7 +11,7 @@ name: Site
 #             assemble-site.sh, generated blocks filled), and Stylelint
 #             (stylelint-config-standard) on the stylesheet. Any message of
 #             any level fails. Both tools are CI tooling only, pinned with
-#             their integrity hashes in .github/site-lint/package-lock.json
+#             their integrity hashes in tools/site-lint/package-lock.json
 #             (Dependabot updates them); no script ships on the site.
 on:
   # Every pull request, whatever it changes: its jobs are required status
@@ -23,7 +23,7 @@ on:
     paths:
       - 'docs/**'
       - '.github/scripts/site-check.py'
-      - '.github/site-lint/**'
+      - 'tools/site-lint/**'
       - '.github/workflows/site.yaml'
       - 'art/brand/**'
       - 'scripts/assemble-site.sh'
@@ -72,7 +72,7 @@ jobs:
     env:
       # From the vnu-jar package (the validator/validator project's own npm
       # release of vnu.jar); runs on the runner's default Java (17 or later).
-      VNU_JAR: .github/site-lint/node_modules/vnu-jar/build/dist/vnu.jar
+      VNU_JAR: tools/site-lint/node_modules/vnu-jar/build/dist/vnu.jar
     steps:
       - name: Harden the runner
         uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
@@ -88,7 +88,7 @@ jobs:
       # audit signatures then checks the registry's signatures and the
       # packages' provenance attestations.
       - name: Install vnu and Stylelint
-        working-directory: .github/site-lint
+        working-directory: tools/site-lint
         run: |
           npm ci --ignore-scripts --no-audit --no-fund
           npm audit signatures
@@ -121,5 +121,5 @@ jobs:
       # --ignore-disables: a stylelint-disable comment hides nothing.
       - name: Lint the CSS (Stylelint)
         run: |
-          .github/site-lint/node_modules/.bin/stylelint --config .github/site-lint/.stylelintrc.json \
+          tools/site-lint/node_modules/.bin/stylelint --config tools/site-lint/.stylelintrc.json \
             --ignore-disables --max-warnings 0 docs/*.css "$RUNNER_TEMP/site"/*.css
