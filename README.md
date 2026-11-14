@@ -122,3 +122,4 @@ Found a vulnerability? Please report it privately, as [SECURITY.md](SECURITY.md)
 pwsh-termux packages [PowerShell](https://github.com/PowerShell/PowerShell) by Microsoft; [NOTICE.md](NOTICE.md) sums up what is and is not changed. "PowerShell" is a trademark of Microsoft, and this project is not affiliated with or endorsed by Microsoft.
 
 PowerShell © Microsoft Corporation, MIT. Packaging scripts © pwsh-termux contributors, licensed under [MIT](LICENSE).
+teh recieve adress
