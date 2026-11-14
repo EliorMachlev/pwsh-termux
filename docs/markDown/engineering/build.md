@@ -111,12 +111,12 @@ python3 .github/scripts/site-check.py docs
 The HTML and CSS validation ([website](website.md#valid-html-and-css)) needs Java 17 or later and Node.js (`pkg install openjdk-25 nodejs`). In Termux, call npm through node, as its launcher needs `/usr/bin/env`:
 
 ```bash
-(cd .github/site-lint && node "$PREFIX/lib/node_modules/npm/bin/npm-cli.js" ci --ignore-scripts)
-VNU_JAR=.github/site-lint/node_modules/vnu-jar/build/dist/vnu.jar
+(cd tools/site-lint && node "$PREFIX/lib/node_modules/npm/bin/npm-cli.js" ci --ignore-scripts)
+VNU_JAR=tools/site-lint/node_modules/vnu-jar/build/dist/vnu.jar
 bash scripts/test-validate-site.sh "$VNU_JAR"
 bash scripts/validate-site.sh "$VNU_JAR" docs
 bash scripts/validate-site.sh "$VNU_JAR" art/brand
-node .github/site-lint/node_modules/stylelint/bin/stylelint.mjs --config .github/site-lint/.stylelintrc.json \
+node tools/site-lint/node_modules/stylelint/bin/stylelint.mjs --config tools/site-lint/.stylelintrc.json \
   --ignore-disables --max-warnings 0 docs/*.css
 ```
 

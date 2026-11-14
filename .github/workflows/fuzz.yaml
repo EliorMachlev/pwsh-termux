@@ -45,13 +45,13 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      # Hypothesis pinned by hash (.github/fuzz/requirements.txt, compiled on
+      # Hypothesis pinned by hash (tools/fuzz/requirements.txt, compiled on
       # this Python version). Dependabot updates it.
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.14"
       - name: Install Hypothesis
-        run: python -m pip install --quiet --require-hashes -r .github/fuzz/requirements.txt
+        run: python -m pip install --quiet --require-hashes -r tools/fuzz/requirements.txt
       # The "ci" profile on pull requests and pushes, "long" on the weekly
       # schedule and by hand. A failure prints the smallest failing input
       # and the @reproduce_failure line that replays it.
