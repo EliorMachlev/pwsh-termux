@@ -18,6 +18,10 @@ Everything runs on Termux or Linux with Bash. You need `bash`, `curl`, `jq`, `py
 - Title the pull request `type(scope): short description`: `feat`, `fix`, `docs`, `ci`, `build`, `chore`, `deps`, `test`; the scope is the script or area (`build-deb`, `site`, `release`). Example: `fix(build-deb): handle a missing checksum`. Dependabot uses `chore(deps)`.
 - Write the description for the person who reads the release notes or the history later: what changed and why.
 
+## Tests
+
+New behaviour and bug fixes come with an automated test. Shell logic is tested by a `scripts/test-*.sh` script that CI runs ([CI / CD](ci-cd.md)); the Python in `scripts/` is tested with Hypothesis under `tests/fuzz/`. A pull request that changes behaviour without a test needs a reason in its description. The pull request template asks for it, and the required checks must pass before merge.
+
 ## Style
 
 - **Bash.** `set -euo pipefail` at the top, quoted expansions, the shared `log`/`die` helpers (they write to stderr), and the other shared constants and helpers in [`scripts/lib/common.sh`](../../../scripts/lib/common.sh) (each script sources it; the repository's `.shellcheckrc` lets shellcheck follow it). Put a helper there when more than one script needs it; a constant goes there only if a helper there uses it. Nothing may need more than Bash, coreutils, `curl`, `jq`, `dpkg-deb`, `patchelf`, `gpg` and `python3`, plus `gh`, `git` and OpenSSH's `ssh-agent` for the scripts that talk to GitHub (the keep-alive and the audit of `main`). `shellcheck --severity=style` must be clean.

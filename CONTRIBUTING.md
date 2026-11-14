@@ -10,6 +10,7 @@ The full guide is [`docs/markDown/engineering/contributing.md`](docs/markDown/en
 ## Before you open a PR
 
 - Run `shellcheck --shell=bash --severity=style scripts/*.sh scripts/lib/*.sh` and `python3 .github/scripts/site-check.py docs`; CI runs the rest ([CI / CD](docs/markDown/engineering/ci-cd.md)).
+- New behaviour and bug fixes come with a test ([tests](docs/markDown/engineering/contributing.md#tests)).
 - Warnings get fixed, not suppressed. The agreed exceptions (currently none) are in [exceptions.md](docs/markDown/engineering/exceptions.md).
 - Title the PR `type(scope): short description` (`fix(build-deb): handle a missing checksum`).
 
