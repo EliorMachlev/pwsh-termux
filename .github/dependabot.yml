@@ -55,8 +55,6 @@ updates:
   # and by integrity hash in its package-lock.json.
   - package-ecosystem: "npm"
     directory: "/.github/site-lint"
-    allow:
-      - dependency-name: "vnu-jar"
     schedule:
       interval: "weekly"
       day: "monday"
