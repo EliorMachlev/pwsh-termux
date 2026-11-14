@@ -185,6 +185,23 @@ read_fingerprint_marker() {
 # Signing and verifying the repository index
 # ---------------------------------------------------------------------------
 
+# online_gpg_options <array-name>: set the named array to the options gpg
+# signs with as the online key (build-repo.sh, release-tags.sh): --batch and
+# --pinentry-mode loopback, so gpg never prompts; SIGN_KEY as the signer; and,
+# when GPG_PASSPHRASE_FILE is set (update.yaml writes it from the
+# GPG_PASSPHRASE secret), the passphrase read from that file, never from an
+# argument. Dies if GPG_PASSPHRASE_FILE is set but is not a readable,
+# non-empty file. A protected key without it fails to sign.
+online_gpg_options() {
+  local -n options_ref=$1
+  options_ref=(--batch --yes --pinentry-mode loopback --local-user "$SIGN_KEY")
+  if [ -n "${GPG_PASSPHRASE_FILE:-}" ]; then
+    [ -f "$GPG_PASSPHRASE_FILE" ] && [ -r "$GPG_PASSPHRASE_FILE" ] && [ -s "$GPG_PASSPHRASE_FILE" ] \
+      || die "GPG_PASSPHRASE_FILE is set but is not a readable, non-empty file"
+    options_ref+=(--passphrase-file "$GPG_PASSPHRASE_FILE")
+  fi
+}
+
 # sign_release <dist-dir> <gpg-option...>: sign <dist-dir>/Release as
 # InRelease (clearsigned) and Release.gpg (detached), with the given options
 # (which choose the key, and the passphrase file if any). Dies if gpg cannot
