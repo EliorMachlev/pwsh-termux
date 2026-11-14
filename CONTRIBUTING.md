@@ -13,6 +13,7 @@ The full guide is [`docs/markDown/engineering/contributing.md`](docs/markDown/en
 - New behaviour and bug fixes come with a test ([tests](docs/markDown/engineering/contributing.md#tests)).
 - Warnings get fixed, not suppressed. The agreed exceptions (currently none) are in [exceptions.md](docs/markDown/engineering/exceptions.md).
 - Title the PR `type(scope): short description` (`fix(build-deb): handle a missing checksum`).
+- **Sign off every commit** with `git commit -s`. The `Signed-off-by: Your Name <you@example.org>` trailer certifies the [Developer Certificate of Origin](https://developercertificate.org/): you wrote the change or have the right to submit it under the project's [license](LICENSE). The required check *DCO* fails a pull request with a commit that lacks it; to fix one, `git rebase --signoff origin/main` and push again ([details](docs/markDown/engineering/contributing.md#developer-certificate-of-origin)).
 
 Everyone taking part follows the [code of conduct](CODE_OF_CONDUCT.md); who decides what is in [governance](docs/markDown/engineering/governance.md).
 
