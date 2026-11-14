@@ -1,0 +1,61 @@
+name: Fuzz
+# Property-based fuzzing with Hypothesis (tests/fuzz): random and malformed
+# build records and Depends fields thrown at scripts/spdx-build-view.py, the
+# only Python the packages are built with. A record it cannot use must be
+# refused with a one-line error, and every document it writes must be valid
+# SPDX in the ways the script controls. A few hundred inputs per property on
+# every pull request and push; tens of thousands weekly.
+on:
+  # Every pull request, whatever it changes: its job is a required status
+  # check on main (release.md, "Rulesets"), and a workflow a path filter
+  # skips never reports, which would leave the pull request unmergeable.
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '17 3 * * 4'
+  workflow_dispatch:
+
+# A newer push to the same PR or branch supersedes a run still going;
+# the long-lived branches' runs always finish.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ !contains(fromJSON('["refs/heads/main"]'), github.ref) }}
+
+permissions:
+  contents: read
+
+# Every run: step runs as `bash --noprofile --norc -eo pipefail {0}`: a
+# failure anywhere in a pipeline fails the step.
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  fuzz:
+    name: Fuzz (Hypothesis)
+    runs-on: ubuntu-26.04
+    timeout-minutes: 30
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # Hypothesis pinned by hash (.github/fuzz/requirements.txt, compiled on
+      # this Python version). Dependabot updates it.
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.14"
+      - name: Install Hypothesis
+        run: python -m pip install --quiet --require-hashes -r .github/fuzz/requirements.txt
+      # The "ci" profile on pull requests and pushes, "long" on the weekly
+      # schedule and by hand. A failure prints the smallest failing input
+      # and the @reproduce_failure line that replays it.
+      - name: Fuzz spdx-build-view.py
+        env:
+          HYPOTHESIS_PROFILE: ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && 'long' || 'ci' }}
+        run: python -m unittest discover -s tests/fuzz -v

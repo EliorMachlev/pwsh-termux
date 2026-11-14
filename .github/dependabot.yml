@@ -24,8 +24,9 @@ updates:
 
   # The two hash-pinned Python tools, each compiled from its requirements.in
   # with pip-compile: zizmor (.github/zizmor) and typos (.github/docs-checks).
-  # They are the only other dependencies: make-sboms.sh pins its generators
-  # by version and SHA-256 by hand, and Dependabot has no ecosystem for them.
+  # They, Hypothesis and the site's checkers (below) are the only other
+  # dependencies: make-sboms.sh pins its generators by version and SHA-256 by
+  # hand, and Dependabot has no ecosystem for them.
   - package-ecosystem: "pip"
     directories:
       - "/.github/zizmor"
@@ -69,5 +70,28 @@ updates:
       default-days: 7
     groups:
       site-lint:
+        patterns:
+          - "*"
+
+  # Hypothesis and its dependencies for fuzz.yaml (CI tooling only; nothing
+  # ships with it), hash-pinned in .github/fuzz/requirements.txt, compiled
+  # from its requirements.in with pip-compile.
+  - package-ecosystem: "pip"
+    directory: "/.github/fuzz"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "05:00"
+      timezone: "Etc/UTC"
+    open-pull-requests-limit: 10
+    labels:
+      - "dependencies"
+    commit-message:
+      prefix: "chore(deps)"
+      include: "scope"
+    cooldown:
+      default-days: 7
+    groups:
+      fuzz:
         patterns:
           - "*"

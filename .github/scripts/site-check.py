@@ -10,6 +10,7 @@ CNAME must agree with each other and with the domain.
 
 Standard library only; exits 1 and lists every problem it finds.
 """
+
 import datetime
 import pathlib
 import re
@@ -21,7 +22,13 @@ SITE = f"https://{DOMAIN}"
 
 # Paths the apt repository adds when the site is deployed (see assemble-site.sh);
 # they do not exist under docs/ but are linked from the pages.
-GENERATED = ("/pwsh-termux.gpg", "/pwsh-termux.asc", "/pwsh-termux-keyring.deb", "/dists/", "/pool/")
+GENERATED = (
+    "/pwsh-termux.gpg",
+    "/pwsh-termux.asc",
+    "/pwsh-termux-keyring.deb",
+    "/dists/",
+    "/pool/",
+)
 
 # Directives every page's policy must contain, exactly.
 REQUIRED_CSP = ("default-src 'none'", "base-uri 'none'", "form-action 'none'")
@@ -33,7 +40,9 @@ REQUIRED_FILES = ("style.css", "favicon.svg", "llms.txt", ".nojekyll")
 NOT_IN_SITEMAP = ("404.html",)
 # A block assemble-site.sh fills at deploy time: <!-- generated:<name> --> and
 # <!-- /generated:<name> -->, each on a line of its own, around fallback HTML.
-GENERATED_BLOCK = re.compile(r"^<!-- (/?)generated:([A-Za-z0-9:/._-]+) -->$", re.M)
+GENERATED_BLOCK = re.compile(
+    r"^<!-- (/?)generated:([A-Za-z0-9:/._-]+) -->$", re.MULTILINE
+)
 # security.txt must be renewed before it has fewer days than this left.
 SECURITY_TXT_MIN_DAYS_LEFT = 30
 
@@ -43,7 +52,7 @@ class Page(HTMLParser):
         super().__init__(convert_charrefs=True)
         self.tags = []
         self.csp = []
-        self.refs = []          # (tag, attr, value) of everything that loads or links
+        self.refs = []  # (tag, attr, value) of everything that loads or links
         self.problems = []
         self.h1 = 0
         self.lang = None
@@ -88,7 +97,9 @@ class Page(HTMLParser):
             if "canonical" in rel or "alternate" in rel:
                 # metadata, not a load: it may name the site's own absolute URL
                 if not a["href"].startswith(SITE + "/"):
-                    self.problems.append(f"<link rel={' '.join(rel)}> must point to {SITE}/: {a['href']}")
+                    self.problems.append(
+                        f"<link rel={' '.join(rel)}> must point to {SITE}/: {a['href']}"
+                    )
             else:
                 self.refs.append(("link", "href", a["href"]))
         for attr in ("src", "srcset", "poster", "data"):
@@ -104,10 +115,16 @@ class Page(HTMLParser):
             self.has_title_text = True
 
 
-def local_target(docs: pathlib.Path, page: pathlib.Path, ref: str) -> pathlib.Path | str | None:
+def local_target(
+    docs: pathlib.Path, page: pathlib.Path, ref: str
+) -> pathlib.Path | str | None:
     """Return the file a local reference points to, or None if it is not local."""
     ref = ref.split("#", 1)[0].split("?", 1)[0]
-    if ref == "" or re.match(r"^[a-z][a-z0-9+.-]*:", ref, re.I) or ref.startswith("//"):
+    if (
+        ref == ""
+        or re.match(r"^[a-z][a-z0-9+.-]*:", ref, re.IGNORECASE)
+        or ref.startswith("//")
+    ):
         return None
     if ref.startswith("/"):
         if any(ref == g or ref.startswith(g) for g in GENERATED):
@@ -130,7 +147,9 @@ def check_generated_blocks(name, text: str) -> list:
         elif closing and open_block == block:
             open_block = None
         else:
-            problems.append(f"{name}: generated block {block!r} is not opened and closed in order")
+            problems.append(
+                f"{name}: generated block {block!r} is not opened and closed in order"
+            )
     if open_block is not None:
         problems.append(f"{name}: generated block {open_block!r} is never closed")
     return problems
@@ -145,7 +164,9 @@ def check_page(docs: pathlib.Path, page: pathlib.Path, errors: list) -> None:
     problems += check_generated_blocks(name, text)
 
     if len(p.csp) != 1:
-        problems.append(f"{name}: needs exactly one Content-Security-Policy <meta> (found {len(p.csp)})")
+        problems.append(
+            f"{name}: needs exactly one Content-Security-Policy <meta> (found {len(p.csp)})"
+        )
     else:
         csp = p.csp[0]
         for directive in REQUIRED_CSP:
@@ -164,9 +185,9 @@ def check_page(docs: pathlib.Path, page: pathlib.Path, errors: list) -> None:
     if p.h1 != 1:
         problems.append(f"{name}: needs exactly one <h1> (found {p.h1})")
     if not p.main_id:
-        problems.append(f"{name}: needs <main id=\"main\">")
+        problems.append(f'{name}: needs <main id="main">')
     if not p.skip_link:
-        problems.append(f"{name}: needs a skip link (href=\"#main\")")
+        problems.append(f'{name}: needs a skip link (href="#main")')
 
     for tag, attr, value in p.refs:
         for ref in re.split(r",\s*", value) if attr == "srcset" else [value]:
@@ -178,14 +199,18 @@ def check_page(docs: pathlib.Path, page: pathlib.Path, errors: list) -> None:
                     problems.append(f"{name}: protocol-relative link {ref}")
                 if ref.startswith("#"):
                     continue
-            elif re.match(r"^([a-z]+:)?//", ref, re.I):
-                problems.append(f"{name}: <{tag} {attr}> loads from another site: {ref}")
+            elif re.match(r"^([a-z]+:)?//", ref, re.IGNORECASE):
+                problems.append(
+                    f"{name}: <{tag} {attr}> loads from another site: {ref}"
+                )
                 continue
             target = local_target(docs, page, ref)
             if target is None or target == "generated":
                 continue
             if not target.exists():
-                problems.append(f"{name}: <{tag} {attr}> points to a missing file: {ref}")
+                problems.append(
+                    f"{name}: <{tag} {attr}> points to a missing file: {ref}"
+                )
     errors.extend(problems)
 
 
@@ -229,14 +254,16 @@ def check_security_txt(docs: pathlib.Path, errors: list) -> None:
         errors.append("security.txt: Canonical must be the site's own URL")
     if "Contact:" not in text:
         errors.append("security.txt: Contact is missing")
-    m = re.search(r"^Expires:\s*(\S+)", text, re.M)
+    m = re.search(r"^Expires:\s*(\S+)", text, re.MULTILINE)
     if not m:
         errors.append("security.txt: Expires is missing")
         return
-    expires = datetime.datetime.fromisoformat(m.group(1).replace("Z", "+00:00"))
-    left = expires - datetime.datetime.now(datetime.timezone.utc)
+    expires = datetime.datetime.fromisoformat(m.group(1))
+    left = expires - datetime.datetime.now(datetime.UTC)
     if left < datetime.timedelta(days=SECURITY_TXT_MIN_DAYS_LEFT):
-        errors.append(f"security.txt expires in {left.days} days: renew Expires (RFC 9116)")
+        errors.append(
+            f"security.txt expires in {left.days} days: renew Expires (RFC 9116)"
+        )
 
 
 def check_required_files(docs: pathlib.Path, errors: list) -> None:
