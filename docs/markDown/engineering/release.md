@@ -159,7 +159,7 @@ Four rulesets apply. A bypass actor bypasses *every* rule of a ruleset, so the d
 
 | Ruleset | Target | Rules | Bypass actors |
 |---|---|---|---|
-| *Main* (id `27198868`) | `refs/heads/main` | `required_signatures`; `code_scanning` (CodeQL, zizmor); `pull_request` (no approval needed, squash merge only); `required_status_checks` (the [13 checks below](#required-status-checks), not strict) | **`DeployKey`** only (`actor_id: null`, `bypass_mode: always`). **Not** the Admin role. |
+| *Main* (id `27198868`) | `refs/heads/main` | `required_signatures`; `code_scanning` (CodeQL, zizmor); `pull_request` (no approval needed, squash merge only, stale approvals dismissed, last push approval); `required_status_checks` (branch must be up to date; the [13 checks below](#required-status-checks), not strict) | **`DeployKey`** only (`actor_id: null`, `bypass_mode: always`). **Not** the Admin role. |
 | *Protection, other branches* (id `27198871`) | all branches except `refs/heads/main` | `required_signatures`, `code_scanning` (CodeQL, Scorecard, zizmor) | Admin role only |
 | *Protection* (id `27110284`) | all branches (`~ALL`) | `deletion`, `non_fast_forward`, `creation` | Admin role only. **Not** the deploy key. |
 | *Tag Protection* (id `27110388`) | all tags (`~ALL`) | `deletion`, `non_fast_forward`, `update`, `required_signatures`, and a `required_status_checks` rule that lists no check; no `creation` | Admin role only |
@@ -221,14 +221,14 @@ gh api -X PUT repos/EliorMachlev/pwsh-termux/rulesets/27198868 --input - <<'JSON
     ]}},
     {"type": "pull_request", "parameters": {
       "required_approving_review_count": 0,
-      "dismiss_stale_reviews_on_push": false,
+      "dismiss_stale_reviews_on_push": true,
       "require_code_owner_review": false,
-      "require_last_push_approval": false,
+      "require_last_push_approval": true,
       "required_review_thread_resolution": false,
       "allowed_merge_methods": ["squash"]
     }},
     {"type": "required_status_checks", "parameters": {
-      "strict_required_status_checks_policy": false,
+      "strict_required_status_checks_policy": true,
       "do_not_enforce_on_create": false,
       "required_status_checks": [
         {"context": "shellcheck", "integration_id": 15368},
