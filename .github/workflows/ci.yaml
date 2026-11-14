@@ -9,7 +9,8 @@ name: CI
 #   keys        keys/ follows the key rules (one online key, plus the keys
 #               keys/RECOVERY and keys/ROTATION name), SECURITY.md lists them,
 #               and scripts/test-keys.sh tests the rules, the publish checks,
-#               the recovery scripts and the index's Valid-Until window
+#               the recovery scripts and the index's Valid-Until window;
+#               scripts/test-release-tags.sh tests the signed release tags
 #   keepalive   scripts/test-keepalive.sh: the schedule keep-alive
 #               (keep-schedules-alive.sh) against a stub gh, offline
 #   keepalive-commit  scripts/test-keepalive-commit.sh: the keep-alive
@@ -138,6 +139,12 @@ jobs:
       # Valid-Until window (a re-sign changes InRelease, not Packages).
       - name: Test the key rules and the publish checks
         run: bash scripts/test-keys.sh
+      # Throwaway keys and a local bare remote, offline: release tags signed
+      # by the online key and checked with gpgv and `git tag -v`; tags
+      # signed by any other key, unsigned, lightweight or altered refused;
+      # the push, and its deferral when main's workflows changed.
+      - name: Test the signed release tags
+        run: bash scripts/test-release-tags.sh
 
   # A stub gh, offline: which workflows count as scheduled, what refresh
   # enables and leaves alone (never one turned off by hand), when refresh and

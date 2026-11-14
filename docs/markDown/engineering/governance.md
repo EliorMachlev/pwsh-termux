@@ -34,7 +34,7 @@ Current and planned work, in no fixed order. There are no dates.
 1. Keep up with PowerShell: stable and preview releases are picked up daily.
 2. Keep every scanner at zero findings, with no suppressions ([exceptions](exceptions.md)).
 3. Add automated tests for the packaging scripts beyond the key, keep-alive and site checks, and measure coverage.
-4. Sign release tags.
+4. Sign release tags. **Done:** every new release tag is an annotated tag signed with the online key, and verified before it is pushed ([signed release tags](release.md#signed-release-tags)); the one older tag, `pwsh-7.7.0-1`, stays unsigned.
 5. Find a second maintainer.
 6. Support other architectures only if Termux's glibc packages and PowerShell's builds allow it.
 

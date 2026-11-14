@@ -188,17 +188,13 @@ write_release() {
   log "Release valid until $(release_field "$RELEASE_FILE" Valid-Until)"
 }
 
-# --batch with --pinentry-mode loopback: gpg never prompts. A protected key
-# signs only with GPG_PASSPHRASE_FILE (update.yaml writes it from the
-# GPG_PASSPHRASE secret); without it sign_release dies. The passphrase is only
-# ever read from that file, never passed as an argument.
+# gpg never prompts (online_gpg_options). A protected key signs only with
+# GPG_PASSPHRASE_FILE (update.yaml writes it from the GPG_PASSPHRASE secret);
+# without it sign_release dies. The passphrase is only ever read from that
+# file, never passed as an argument.
 sign_and_verify_release() {
-  local -a gpg_options=(--batch --yes --pinentry-mode loopback --local-user "$SIGN_KEY")
-  if [ -n "${GPG_PASSPHRASE_FILE:-}" ]; then
-    [ -f "$GPG_PASSPHRASE_FILE" ] && [ -r "$GPG_PASSPHRASE_FILE" ] && [ -s "$GPG_PASSPHRASE_FILE" ] \
-      || die "GPG_PASSPHRASE_FILE is set but is not a readable, non-empty file"
-    gpg_options+=(--passphrase-file "$GPG_PASSPHRASE_FILE")
-  fi
+  local -a gpg_options
+  online_gpg_options gpg_options
   sign_release "$DIST_DIR" "${gpg_options[@]}"
   # What apt will do with the published key: verify both signatures with gpgv
   # against the keyring file alone.
