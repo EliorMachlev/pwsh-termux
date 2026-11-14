@@ -210,9 +210,13 @@ jobs:
             files=("$deb" "$base".*.json artifacts/packages/SHA256SUMS artifacts/provenance/*.intoto.jsonl keyfiles/*)
             flags=()
             [ "$name" = pwsh-preview ] && flags+=(--prerelease)
+            # What changed in a release is what changed upstream: the package
+            # is PowerShell's own build plus this repository's revision suffix.
+            upstream="${ver%-*}"
+            upstream_tag="v${upstream//\~/-}"
             gh release create "$tag" "${files[@]}" "${flags[@]}" \
               --title "$name $ver" \
-              --notes "Unofficial Termux repackaging of Microsoft PowerShell. Install from the apt repository: https://pwsh-termux.machlev.org/install.html. Attached: the .deb, its SBOMs (CycloneDX and three SPDX files), SHA256SUMS, the build provenance (verify with gh attestation verify, see SECURITY.md), the signing key (fingerprints in FINGERPRINT.txt and SECURITY.md) and pwsh-termux-keyring.deb (with its SBOMs), the package the install line downloads."
+              --notes "Unofficial Termux repackaging of Microsoft PowerShell ${upstream} (package revision ${ver##*-}). What changed in PowerShell itself: https://github.com/PowerShell/PowerShell/releases/tag/${upstream_tag}. Install from the apt repository: https://pwsh-termux.machlev.org/install.html. Attached: the .deb, its SBOMs (CycloneDX and three SPDX files), SHA256SUMS, the build provenance (verify with gh attestation verify, see SECURITY.md), the signing key (fingerprints in FINGERPRINT.txt and SECURITY.md) and pwsh-termux-keyring.deb (with its SBOMs), the package the install line downloads."
           done
 
       - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
