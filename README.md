@@ -59,7 +59,7 @@ gpg --show-keys $PREFIX/share/keyrings/pwsh-termux-archive-keyring.gpg
 
 Optionally verify the package's build provenance: `gh attestation verify $TMPDIR/pwsh-termux-keyring.deb --repo EliorMachlev/pwsh-termux --signer-workflow EliorMachlev/pwsh-termux/.github/workflows/build-packages.yaml --deny-self-hosted-runners`. To check the signed index with `gpgv`: [verify it yourself](https://pwsh-termux.machlev.org/install.html#verify).
 
-Uninstall: `pkg remove pwsh pwsh-termux-keyring`, plus `pkg remove pwsh-preview` if you installed it. A new signing key arrives with `pkg upgrade`; download the keyring again only for a key added by hand, or if you did not run `pkg upgrade` within a rotation's 180 days ([SECURITY.md](SECURITY.md#rotation-and-recovery), [questions](https://pwsh-termux.machlev.org/install.html#faq)). Troubleshooting (missing `glibc-repo`, `NO_PUBKEY`, a non-arm64 device, an *expired* Release file): the [install page](https://pwsh-termux.machlev.org/install.html#troubleshooting).
+Uninstall: `pkg remove pwsh pwsh-termux-keyring`, plus `pkg remove pwsh-preview` if you installed it. A new signing key arrives with `pkg upgrade`; download the keyring again for a key added by hand, if you did not run `pkg upgrade` within a rotation's 180 days, or if the online key is compromised while the recovery key is lost ([SECURITY.md](SECURITY.md#rotation-and-recovery), [questions](https://pwsh-termux.machlev.org/install.html#faq)). Troubleshooting (missing `glibc-repo`, `NO_PUBKEY`, a non-arm64 device, an *expired* Release file): the [install page](https://pwsh-termux.machlev.org/install.html#troubleshooting).
 
 Packages ([details](docs/markDown/product/packages.md)):
 
