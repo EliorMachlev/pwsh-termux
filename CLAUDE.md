@@ -2,6 +2,8 @@
 
 Read the project docs before making changes. Contributor rules (branching, style, PR checklist, commits): [`docs/markDown/engineering/contributing.md`](docs/markDown/engineering/contributing.md). The rest is indexed in [`docs/markDown/`](docs/markDown/README.md):
 
+Other reference docs are in [`docs/markDown/`](docs/markDown/README.md) (index there):
+
 - [`engineering/architecture/`](docs/markDown/engineering/architecture/README.md): the pipeline stage by stage
 - [`engineering/build.md`](docs/markDown/engineering/build.md): building and testing locally, Termux quirks
 - [`engineering/release.md`](docs/markDown/engineering/release.md): releases; [`release/`](docs/markDown/engineering/release/setup.md) has one-time setup, provenance, tags and key rotation

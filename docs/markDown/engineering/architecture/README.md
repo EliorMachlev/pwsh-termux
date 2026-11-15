@@ -1,6 +1,6 @@
 # Architecture
 
-pwsh-termux is a small pipeline, not an application: a few Bash scripts and one workflow that turn Microsoft's releases into a signed apt repository and a website. There is no server and no database; everything is rebuilt from upstream on each run and deployed as static files.
+pwsh-termux is a pipeline, not an application: a few Bash scripts and one workflow turn Microsoft's releases into a signed apt repository and a website. No server, no database: each run rebuilds everything from upstream and deploys static files.
 
 ```text
 Microsoft's GitHub releases
@@ -18,26 +18,26 @@ GitHub Pages artifact ──► https://pwsh-termux.machlev.org/
         └─ each .deb also published as a GitHub release asset
 ```
 
-| Stage | Script | Reads | Writes | Details |
-|---|---|---|---|---|
-| Choose releases | [`scripts/find-releases.sh`](../../../../scripts/find-releases.sh) | Microsoft's release list (GitHub API) | `stable <tag>`, `preview <tag>` lines | [releases](releases.md) |
-| Build a package | [`scripts/build-deb.sh`](../../../../scripts/build-deb.sh) | the release tarball and its hashes | `<package>_<version>_aarch64.deb` | [packaging](packaging.md) |
-| Build the keyring package | [`scripts/build-keyring.sh`](../../../../scripts/build-keyring.sh) | `keys/pwsh-termux-archive-keyring.gpg` | `pwsh-termux-keyring_<version>_all.deb` (reproducible) | [repository](repository.md#the-keyring-package) |
-| Check the keys | [`scripts/check-keys.sh`](../../../../scripts/check-keys.sh) | `keys/` | fingerprints and roles; fails unless one online key plus only the keys `keys/RECOVERY` and `keys/ROTATION` name | [repository](repository.md#signing) |
-| Recovery (offline, maintainer) | [`scripts/recovery-sign.sh`](../../../../scripts/recovery-sign.sh), [`scripts/verify-recovery-repo.sh`](../../../../scripts/verify-recovery-repo.sh) | an unsigned repository, the offline recovery key | `InRelease`, `Release.gpg`; a verified repository for `recover.yaml` | [release](../release/signing-keys.md#recovery-with-the-offline-key) |
-| Verify the keyring's provenance | [`scripts/verify-attestation.sh`](../../../../scripts/verify-attestation.sh) | the keyring `.deb`, the commit | its SHA-256, or a failure | [repository](repository.md#signing) |
-| Build the repository | [`scripts/build-repo.sh`](../../../../scripts/build-repo.sh) | the `.deb` files, `keys/`, the signing key | `dists/`, `pool/`, public key, `pwsh-termux-keyring.deb` | [repository](repository.md) |
-| Add the website | [`scripts/assemble-site.sh`](../../../../scripts/assemble-site.sh) | `docs/` | pages and assets next to the repository | [hosting](hosting.md) |
-| Run it all | [`.github/workflows/update.yaml`](../../../../.github/workflows/update.yaml) | | the Pages deployment, release assets | [CI / CD](../ci-cd.md) |
+## Stages
+
+1. **Choose releases**: [`find-releases.sh`](../../../../scripts/find-releases.sh) prints `stable <tag>` and maybe `preview <tag>` ([releases](releases.md)).
+2. **Build each package**: [`build-deb.sh`](../../../../scripts/build-deb.sh) turns a verified tarball into `<package>_<version>_aarch64.deb` ([packaging](packaging.md)).
+3. **Build the keyring package**: [`build-keyring.sh`](../../../../scripts/build-keyring.sh) packs `keys/` into `pwsh-termux-keyring_<version>_all.deb`, reproducibly ([keyring](keyring.md)).
+4. **Check the keys and the keyring's provenance**: [`check-keys.sh`](../../../../scripts/check-keys.sh) and [`verify-attestation.sh`](../../../../scripts/verify-attestation.sh) ([signing](signing.md)).
+5. **Build and sign the repository**: [`build-repo.sh`](../../../../scripts/build-repo.sh) writes `dists/`, `pool/`, the public key and the keyring package ([repository](repository.md)).
+6. **Add the website**: [`assemble-site.sh`](../../../../scripts/assemble-site.sh) merges `docs/` in ([hosting](hosting.md)).
+7. **Run it all**: [`update.yaml`](../../../../.github/workflows/update.yaml) deploys to Pages and creates the release assets ([CI / CD](../ci-cd.md)).
+
+Recovery from a lost or compromised online key is a separate path: the maintainer signs offline with [`recovery-sign.sh`](../../../../scripts/recovery-sign.sh), and `recover.yaml` deploys what [`verify-recovery-repo.sh`](../../../../scripts/verify-recovery-repo.sh) verifies ([signing](signing.md#rotation-and-recovery)).
 
 ## Rules
 
-These hold across the pipeline; a change that breaks one needs a reason written in the commit.
+A change that breaks one of these needs a reason in the commit.
 
-1. **Verify before use.** Nothing is extracted, patched or packaged from a download whose SHA-256 has not matched Microsoft's `hashes.sha256` for that release.
-2. **Patch at build time.** The device receives an already-patched `pwsh`. Packages never depend on `glibc-runner` or `patchelf`, and nothing patches a file at install time.
-3. **Never publish unsigned.** `build-repo.sh` skips signing only when `SIGN_KEY` is unset (local tests); the workflow fails without the key instead. It also refuses to sign with a key that is not the key in `keys/`, the public key users install, or with a keyring package whose provenance did not verify.
-4. **Stateless.** Each run rebuilds from upstream; the repository's content is a function of Microsoft's current releases and this repository's scripts. No state is kept in Git history (the `.deb` files are 50 MB each).
-5. **Fail closed.** `set -euo pipefail` everywhere; an unknown tag format, a missing checksum, a failed patch or a missing signing key stops the run, and the previously deployed site stays as it was.
-6. **Same scripts everywhere.** The scripts run unchanged on Termux and on the CI runner, which is why the apt index is generated with `dpkg-deb` and plain shell rather than `apt-ftparchive`, which Termux does not have.
-7. **Say what is true.** The package says it is unofficial; the documentation describes what the code does, not what it might.
+1. **Verify before use.** Nothing is extracted, patched or packaged from a download whose SHA-256 does not match Microsoft's `hashes.sha256` for that release.
+2. **Patch at build time.** The device gets an already-patched `pwsh`. Packages never depend on `glibc-runner` or `patchelf`, and nothing is patched at install time.
+3. **Never publish unsigned.** `build-repo.sh` skips signing only when `SIGN_KEY` is unset (local tests); the workflow fails without the key. It refuses to sign with any key but the one in `keys/`, or with a keyring package whose provenance did not verify.
+4. **Stateless.** Each run rebuilds from upstream; no state is kept in Git (each `.deb` is about 50 MB).
+5. **Fail closed.** `set -euo pipefail` everywhere; an unknown tag format, a missing checksum, a failed patch or a missing key stops the run, and the deployed site stays as it was.
+6. **Same scripts everywhere.** They run unchanged on Termux and on the CI runner, so the apt index is written with `dpkg-deb` and shell, not `apt-ftparchive` (Termux lacks it).
+7. **Say what is true.** The package says it is unofficial; the docs describe what the code does.
