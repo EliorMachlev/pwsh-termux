@@ -6,7 +6,7 @@ The checks that keep the [website](website.md) script-free, valid and consistent
 
 [`.github/scripts/site-check.py`](../../../.github/scripts/site-check.py) (standard library only) fails on:
 
-1. a page without exactly one CSP `<meta>`, or one that lacks `default-src 'none'`, `base-uri 'none'` or `form-action 'none'`, allows scripts or `unsafe-*`, or names another origin;
+1. a page without exactly one CSP `<meta>`, or one that lacks `default-src 'none'`, `base-uri 'none'` or `form-action 'none'`, allows scripts or `unsafe-*`, or contains `http:`, `https:` or `*` (a bare host name is not caught);
 2. any `<script>`, `<form>`, `<base>`, `<iframe>`, `<object>`, `<embed>` or inline `on…=` handler;
 3. anything loaded from another site (`<link>`, `<img>`, `src`, `srcset`), or a plain-`http` link;
 4. a missing local link or asset (paths the apt repository adds at deploy time, such as `/pwsh-termux.gpg`, are allowed), or a missing `style.css`, `favicon.svg`, `llms.txt` or `.nojekyll`;
