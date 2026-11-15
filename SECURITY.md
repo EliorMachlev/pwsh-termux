@@ -139,7 +139,7 @@ git tag -v pwsh-<version>
 
 `git tag -v` must print *Good signature from "pwsh-termux repository signing key"* and a *Primary key fingerprint* equal to `7086 C70B 4A25 576F E0C0  CE77 E43F B41F 02D0 1FC8`. gpg's warning that the key is not certified with a trusted signature only means you have not signed it yourself. A tag signed by any other key, or unsigned, did not come from this pipeline.
 
-GitHub shows these tags as unverified: the key is deliberately on no GitHub account, so it cannot make commits that GitHub would show as the maintainer's ([signed release tags](docs/markDown/engineering/release/tags.md)). Tags made before tag signing, `pwsh-7.7.0-1` included, are lightweight and unsigned, and stay so; for those, use the build provenance above.
+GitHub shows these tags as unverified: the key is deliberately on no GitHub account, so it cannot make commits that GitHub would show as the maintainer's ([signed release tags](docs/markDown/engineering/release/tags.md)). The one tag made before tag signing, `pwsh-7.7.0-1`, was deleted with its release; `7.7.0` is released again as `pwsh-7.7.0-2`, signed.
 
 ## Related documents
 

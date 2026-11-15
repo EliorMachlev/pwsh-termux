@@ -23,7 +23,7 @@ PATCHELF=$PREFIX/glibc/bin/patchelf DEB_COMPRESSION=gzip \
   bash scripts/build-deb.sh pwsh v7.7.0 out
 ```
 
-This gives `out/pwsh_7.7.0-1_aarch64.deb`; `gzip` is much quicker than the default `xz` on a phone. `pwsh-preview v7.7.0-rc.1` shows the `~` version. Inspect with `dpkg-deb -I` (control) and `dpkg-deb -c` (contents: `pwsh` and `createdump`, the `bin/pwsh` symlink, `copyright`).
+This gives `out/pwsh_7.7.0-2_aarch64.deb` (the revision is from [`packaging-revisions`](architecture/packaging.md#revisions)); `gzip` is much quicker than the default `xz` on a phone. `pwsh-preview v7.7.0-rc.1` shows the `~` version. Inspect with `dpkg-deb -I` (control) and `dpkg-deb -c` (contents: `pwsh` and `createdump`, the `bin/pwsh` symlink, `copyright`).
 
 Offline tests, with fake tarballs and stub downloads (seconds each):
 
@@ -42,7 +42,7 @@ CI's x86 runner cannot run the arm64 binary, so this is what proves the patched 
 
 ```bash
 T=$(mktemp -d)
-dpkg-deb -x out/pwsh_7.7.0-1_aarch64.deb "$T"
+dpkg-deb -x out/pwsh_7.7.0-2_aarch64.deb "$T"
 "$T$PREFIX/opt/pwsh/pwsh" -NoProfile -Command '$PSVersionTable.PSVersion.ToString()'
 "$T$PREFIX/bin/pwsh"      -NoProfile -Command '1 + 1'      # through the symlink
 rm -rf "$T"

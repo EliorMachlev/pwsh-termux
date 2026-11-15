@@ -5,10 +5,13 @@
 # and the real patchelf and dpkg-deb build the package. Checks the package
 # (name, version, control fields, the patched loader and rpath, the command
 # link, the copyright, the timestamps), the build record make-sboms.sh reads,
-# that a second build gives the same bytes, and every refusal: a bad package
-# name or tag, no patchelf, a failed download, no checksum, a wrong checksum,
-# no pwsh, nothing to patch, pwsh not patched, a bad SOURCE_DATE_EPOCH. Runs
-# on Termux and on CI; touches nothing outside a temporary folder.
+# that a second build gives the same bytes, the revision from
+# packaging-revisions (the committed file, a missing file, a missing line),
+# and every refusal: a bad package name or tag, a malformed or repeated line
+# in packaging-revisions, no patchelf, a failed download, no checksum, a
+# wrong checksum, no pwsh, nothing to patch, pwsh not patched, a bad
+# SOURCE_DATE_EPOCH. Runs on Termux and on CI; touches nothing outside a
+# temporary folder.
 #
 # Usage: test-build-deb.sh
 # Env:   PATCHELF  the patchelf binary (default: patchelf; on Termux,
@@ -22,7 +25,7 @@ trap 'rm -rf "$T"' EXIT
 BUILD_DEB=$SCRIPTS_DIR/build-deb.sh
 export PATCHELF=${PATCHELF:-patchelf}
 command -v "$PATCHELF" >/dev/null || { echo "test-build-deb.sh needs patchelf (set PATCHELF=...)" >&2; exit 1; }
-unset TERMUX_PREFIX REVISION DEB_COMPRESSION SOURCE_DATE_EPOCH
+unset TERMUX_PREFIX PACKAGING_REVISIONS DEB_COMPRESSION SOURCE_DATE_EPOCH
 LOADER=$DEFAULT_TERMUX_PREFIX/glibc/lib/ld-linux-aarch64.so.1
 RELEASES_URL=https://github.com/PowerShell/PowerShell/releases/download
 
@@ -132,8 +135,17 @@ build() { bash "$BUILD_DEB" "$@"; }
 content good elf helper dll license
 upstream v7.5.1 good utf16
 
+# revisions <name> <line...>: a packaging-revisions file, $T/rev/<name>.
+revisions() {
+  local f=$T/rev/$1; shift
+  mkdir -p "$T/rev"
+  printf '%s\n' "$@" > "$f"
+}
+
 echo "== a stable release (hashes.sha256 in UTF-16)"
-expect accept "pwsh v7.5.1" build pwsh v7.5.1 "$T/out1"
+# The committed packaging-revisions, which has no line for v7.5.1: every line
+# of it is checked, so this also proves the committed file is well formed.
+expect accept "pwsh v7.5.1, with the committed packaging-revisions" build pwsh v7.5.1 "$T/out1"
 DEB=$T/out1/pwsh_7.5.1-1_aarch64.deb
 same "prints the package's path" "$(cat "$T/out.log")" "$DEB"
 same "downloads the tarball and the hashes" "$(cat "$T/urls.log")" \
@@ -167,11 +179,28 @@ same "  with patchelf's version" "$(jq -r .patchelf_version "$RECORD")" "$("$PAT
 expect accept "the same release again" build pwsh v7.5.1 "$T/out2"
 check "gives the same bytes (reproducible)" cmp -s "$DEB" "$T/out2/pwsh_7.5.1-1_aarch64.deb"
 
+echo "== the revision, from packaging-revisions"
+# Comments, blank lines, other packages and versions, and a last line with
+# no newline; a line for pwsh-preview 7.5.1 does not apply to pwsh.
+revisions some '# <package> <upstream version> <revision>' '' \
+  'pwsh 7.5.0 7' '  pwsh-preview 7.5.1  9' 'pwsh-preview 7.6.0-preview.4 2' $'\t# indented comment'
+printf 'pwsh\t7.5.1\t3' >> "$T/rev/some"
+expect accept "pwsh v7.5.1, with a line for it" env PACKAGING_REVISIONS="$T/rev/some" bash "$BUILD_DEB" pwsh v7.5.1 "$T/out4"
+same "the revision is the line's" "$(cat "$T/out.log")" "$T/out4/pwsh_7.5.1-3_aarch64.deb"
+same "  in the control file" "$(dpkg-deb -f "$T/out4/pwsh_7.5.1-3_aarch64.deb" Version)" 7.5.1-3
+same "  and the build record" "$(jq -r .version "$T/out4/pwsh_7.5.1-3_aarch64.build.json")" 7.5.1-3
+revisions other 'pwsh 7.5.0 2' 'pwsh-preview 7.5.1 2'
+expect accept "pwsh v7.5.1, no line for it" env PACKAGING_REVISIONS="$T/rev/other" bash "$BUILD_DEB" pwsh v7.5.1 "$T/out5"
+same "revision 1" "$(cat "$T/out.log")" "$T/out5/pwsh_7.5.1-1_aarch64.deb"
+expect accept "pwsh v7.5.1, no packaging-revisions" env PACKAGING_REVISIONS="$T/rev/absent" bash "$BUILD_DEB" pwsh v7.5.1 "$T/out6"
+same "revision 1" "$(cat "$T/out.log")" "$T/out6/pwsh_7.5.1-1_aarch64.deb"
+check "  the same bytes as the committed file's build" cmp -s "$T/out1/pwsh_7.5.1-1_aarch64.deb" "$T/out6/pwsh_7.5.1-1_aarch64.deb"
+
 echo "== a prerelease (hashes.sha256 in UTF-8), with every option"
 content preview elf license
 upstream v7.6.0-preview.4 preview utf8
-expect accept "pwsh-preview v7.6.0-preview.4" \
-  env REVISION=2 DEB_COMPRESSION=gzip SOURCE_DATE_EPOCH=1600000000 bash "$BUILD_DEB" pwsh-preview v7.6.0-preview.4 "$T/out3"
+expect accept "pwsh-preview v7.6.0-preview.4, revision 2 in packaging-revisions" \
+  env PACKAGING_REVISIONS="$T/rev/some" DEB_COMPRESSION=gzip SOURCE_DATE_EPOCH=1600000000 bash "$BUILD_DEB" pwsh-preview v7.6.0-preview.4 "$T/out3"
 DEB=$T/out3/pwsh-preview_7.6.0~preview.4-2_aarch64.deb
 same "~ in the version, so it sorts before 7.6.0" "$(cat "$T/out.log")" "$DEB"
 check "gzip compression" grep -qa 'data.tar.gz' "$DEB"
@@ -203,6 +232,34 @@ upstream v7.5.6 script-pwsh utf16
 refuse 'pwsh interpreter not patched' "a pwsh that is not an ELF executable" build pwsh v7.5.6 "$T/r"
 refuse 'no usable SOURCE_DATE_EPOCH' "a SOURCE_DATE_EPOCH that is not a number" \
   env SOURCE_DATE_EPOCH=yesterday bash "$BUILD_DEB" pwsh v7.5.1 "$T/r"
+
+echo "== refusals: packaging-revisions"
+# bad_revisions <reason> <description> <line...>: a file with a good line and
+# then these lines stops the build of pwsh v7.5.1, whichever line it is for.
+bad_revisions() {
+  local reason=$1 what=$2; shift 2
+  revisions bad 'pwsh 7.5.1 2' "$@"
+  refuse "$reason" "$what" env PACKAGING_REVISIONS="$T/rev/bad" bash "$BUILD_DEB" pwsh v7.5.1 "$T/r"
+  if ! grep -qF "$T/rev/bad line 2:" "$T/err.log"; then fail "  does not name the line"; fi
+}
+bad_revisions 'want <package>' "a line without a revision" 'pwsh-preview 7.6.0'
+bad_revisions 'want <package>' "a line with a fourth field" 'pwsh-preview 7.6.0 2 extra'
+bad_revisions 'want <package>' "a line with a trailing comment" 'pwsh-preview 7.6.0 2 # why'
+bad_revisions 'want <package>' "a command in the revision, split by spaces" "pwsh-preview 7.6.0 \$(touch $T/pwned)"
+bad_revisions 'package must be' "another package" 'pwsh-lts 7.6.0 2'
+bad_revisions 'not an upstream version' "a version with the tag's v" 'pwsh-preview v7.6.0 2'
+bad_revisions 'not an upstream version' "a version of two numbers" 'pwsh-preview 7.6 2'
+bad_revisions 'not an upstream version' "a Debian version (with ~)" 'pwsh-preview 7.6.0~rc.1 2'
+bad_revisions 'positive integer' "revision 0" 'pwsh-preview 7.6.0 0'
+bad_revisions 'positive integer' "a leading 0" 'pwsh-preview 7.6.0 02'
+bad_revisions 'positive integer' "a negative revision" 'pwsh-preview 7.6.0 -1'
+bad_revisions 'positive integer' "a command in the revision" "pwsh-preview 7.6.0 2;touch\${IFS}$T/pwned"
+bad_revisions 'positive integer' "a CRLF line" $'pwsh-preview 7.6.0 2\r'
+bad_revisions 'a second line for pwsh 7.5.1' "a second line for the same release" 'pwsh 7.5.1 2'
+check "  nothing ran from the file" test ! -e "$T/pwned"
+mkdir -p "$T/rev/dir"
+refuse 'is not a regular file' "packaging-revisions is a folder" \
+  env PACKAGING_REVISIONS="$T/rev/dir" bash "$BUILD_DEB" pwsh v7.5.1 "$T/r"
 check "no package after a refusal" test ! -e "$T/r"
 
 echo

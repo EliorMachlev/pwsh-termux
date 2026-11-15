@@ -6,10 +6,15 @@
 #
 # Env: PATCHELF          patchelf binary (default: patchelf)
 #      TERMUX_PREFIX     (default: /data/data/com.termux/files/usr)
-#      REVISION          packaging revision (default: 1)
 #      DEB_COMPRESSION   xz | gzip (default: xz)
 #      SOURCE_DATE_EPOCH timestamp for every file in the package. Default: the
 #                        newest file time in Microsoft's (verified) tarball.
+#      PACKAGING_REVISIONS  TEST ONLY: the revisions file to read instead of
+#                        packaging-revisions at the repository's root
+#
+# The Debian revision is not an option: it comes from packaging-revisions,
+# committed, so every run builds the same version; 1 when the release has no
+# line there.
 #
 # The build is reproducible: the same release, script and tools give the same
 # bytes, so the daily run rebuilds an unchanged release byte for byte and the
@@ -23,10 +28,13 @@ TAG=${2:?release tag, e.g. v7.7.0}
 OUT_DIR=${3:?output directory}
 TERMUX_PREFIX=${TERMUX_PREFIX:-$DEFAULT_TERMUX_PREFIX}
 PATCHELF=${PATCHELF:-patchelf}
-REVISION=${REVISION:-1}
 DEB_COMPRESSION=${DEB_COMPRESSION:-xz}
+REVISIONS_FILE=${PACKAGING_REVISIONS:-$REPO_ROOT/packaging-revisions}
 
-readonly TAG_REGEX='^v[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.]+)?$'
+readonly VERSION_PATTERN='[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.]+)?'
+readonly TAG_REGEX="^v${VERSION_PATTERN}\$"
+readonly UPSTREAM_VERSION_REGEX="^${VERSION_PATTERN}\$"
+readonly REVISION_REGEX='^[1-9][0-9]*$'
 readonly UPSTREAM_RELEASES_URL=https://github.com/PowerShell/PowerShell/releases/download
 readonly CHECKSUMS_ASSET=hashes.sha256
 readonly DOWNLOAD_RETRIES=3
@@ -46,6 +54,35 @@ check_arguments() {
   case "$PKG" in pwsh | pwsh-preview) ;; *) die "package must be pwsh or pwsh-preview" ;; esac
   [[ "$TAG" =~ $TAG_REGEX ]] || die "unexpected tag format: $TAG"
   command -v "$PATCHELF" >/dev/null || die "patchelf not found (set PATCHELF=...)"
+}
+
+# packaging_revision <version>: the revision packaging-revisions gives this
+# package at that upstream version (7.7.0, 7.8.0-preview.1), or 1 if the file
+# or the line is absent. Every line is checked, not only the one wanted: a
+# malformed line, or a second line for the same package and version, stops
+# the build rather than quietly building revision 1.
+packaging_revision() {
+  local ver=$1 revision=1 n=0 line pkg upstream rev extra where
+  local -A seen=()
+  if [ ! -e "$REVISIONS_FILE" ]; then
+    printf '1\n'
+    return 0
+  fi
+  [ -f "$REVISIONS_FILE" ] || die "$REVISIONS_FILE is not a regular file"
+  while IFS= read -r line || [ -n "$line" ]; do
+    n=$((n + 1))
+    [[ "$line" =~ ^[[:space:]]*(#|$) ]] && continue
+    read -r pkg upstream rev extra <<<"$line"
+    where="$REVISIONS_FILE line $n"
+    if [ -z "$rev" ] || [ -n "$extra" ]; then die "$where: want <package> <upstream version> <revision>"; fi
+    case "$pkg" in pwsh | pwsh-preview) ;; *) die "$where: package must be pwsh or pwsh-preview" ;; esac
+    [[ "$upstream" =~ $UPSTREAM_VERSION_REGEX ]] || die "$where: not an upstream version (7.7.0, 7.8.0-preview.1)"
+    [[ "$rev" =~ $REVISION_REGEX ]] || die "$where: the revision must be a positive integer without a leading 0"
+    [ -z "${seen["$pkg $upstream"]:-}" ] || die "$where: a second line for $pkg $upstream"
+    seen["$pkg $upstream"]=1
+    if [ "$pkg" = "$PKG" ] && [ "$upstream" = "$ver" ]; then revision=$rev; fi
+  done < "$REVISIONS_FILE"
+  printf '%s\n' "$revision"
 }
 
 # download <url> <file>
@@ -168,12 +205,14 @@ PY
 }
 
 main() {
-  local ver deb_ver asset base_url stage deb
+  local ver revision deb_ver asset base_url stage deb
   check_arguments
 
   ver=${TAG#v}
+  revision=$(packaging_revision "$ver")
   # Debian version: 7.7.0-rc.1 -> 7.7.0~rc.1 so prereleases sort before the final release
-  deb_ver="${ver/-/'~'}-${REVISION}"
+  deb_ver="${ver/-/'~'}-${revision}"
+  log "version $deb_ver"
   asset="powershell-${ver}-linux-arm64.tar.gz"
   base_url="$UPSTREAM_RELEASES_URL/${TAG}"
 

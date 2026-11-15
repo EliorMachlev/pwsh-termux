@@ -1,0 +1,13 @@
+# Debian revisions, read by scripts/build-deb.sh: one line per entry,
+#   <package> <upstream version> <revision>
+# package: pwsh or pwsh-preview; upstream version: Microsoft's tag without
+# the v (7.7.0, 7.8.0-preview.1); revision: a positive integer, no leading 0.
+# A release with no line here is revision 1. Bump the revision to re-release
+# the same PowerShell build under a new version and release tag (a packaging
+# fix, or a tag name GitHub has retired). Keep a line while its version is
+# built: removing it takes the package back to revision 1, a downgrade.
+# Docs: docs/markDown/engineering/architecture/packaging.md#revisions
+
+# The release and tag pwsh-7.7.0-1 were deleted; GitHub never reuses the tag
+# name of a deleted immutable release.
+pwsh 7.7.0 2

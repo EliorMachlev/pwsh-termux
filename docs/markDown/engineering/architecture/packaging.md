@@ -36,9 +36,23 @@ Environment variables:
 
 1. `PATCHELF`: the patchelf binary (default `patchelf`).
 2. `TERMUX_PREFIX`: default `/data/data/com.termux/files/usr`.
-3. `REVISION`: the Debian revision (default `1`).
-4. `DEB_COMPRESSION`: `xz` (default) or `gzip`, quicker for local builds.
-5. `SOURCE_DATE_EPOCH`: default, the newest file time in the tarball.
+3. `DEB_COMPRESSION`: `xz` (default) or `gzip`, quicker for local builds.
+4. `SOURCE_DATE_EPOCH`: default, the newest file time in the tarball.
+5. `PACKAGING_REVISIONS`: tests only, another revisions file. Never set it in a workflow.
+
+## Revisions
+
+The Debian revision comes from the committed [`packaging-revisions`](../../../../packaging-revisions), not from an option, so every daily run builds the same version. One line per entry, `#` comments and blank lines allowed:
+
+```text
+<package> <upstream version> <revision>      e.g. pwsh 7.7.0 2
+```
+
+1. No line for a package and version (or no file): revision `1`. A new upstream release starts at `1` again.
+2. Every line is checked before the download: the package is `pwsh` or `pwsh-preview`, the version is the tag without `v` (`7.8.0-preview.1`), the revision a positive integer without a leading `0`, and no package and version appears twice. Anything else stops the build.
+3. Keep a line while its version is built: removing it drops the package back to `-1`, a downgrade apt does not offer.
+
+To re-release the same PowerShell build, add or bump its line and merge. That is how a packaging fix ships, and the only way to release again when a tag name is burned: GitHub never reuses the tag of a deleted immutable release, so `pwsh-7.7.0-1` is retired and `7.7.0` ships as `7.7.0-2`.
 
 ## Why patchelf and not glibc-runner
 

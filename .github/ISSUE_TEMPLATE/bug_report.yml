@@ -36,7 +36,7 @@ body:
     attributes:
       label: Package version
       description: "`pkg list-installed | grep pwsh`"
-      placeholder: "pwsh/stable 7.7.0-1 aarch64"
+      placeholder: "pwsh/stable 7.7.0-2 aarch64"
     validations:
       required: false
   - type: input

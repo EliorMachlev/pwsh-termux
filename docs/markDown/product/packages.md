@@ -23,7 +23,7 @@ The package version is Microsoft's, with a Debian revision:
 2. `v7.7.0-rc.1` → `7.7.0~rc.1-1`. `~` sorts before the empty string, so `7.7.0~rc.1-1` < `7.7.0-1`. `pwsh-preview` and `pwsh` are separate packages: `pkg upgrade` never swaps one for the other, so install `pwsh` for the final release. An installed `pwsh-preview` stays as it is until a newer preview qualifies.
 3. `v7.8.0-preview.2` → `7.8.0~preview.2-1`.
 
-The revision (`-1`, `REVISION` in `build-deb.sh`) is for packaging fixes that do not change PowerShell.
+The revision (`-1` unless [`packaging-revisions`](../../../packaging-revisions) gives another) is for re-releasing the same PowerShell build, after a packaging fix or when a release tag name is burned ([revisions](../engineering/architecture/packaging.md#revisions)). `7.7.0` is `7.7.0-2`.
 
 ## Dependencies
 

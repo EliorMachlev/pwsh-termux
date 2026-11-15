@@ -52,6 +52,9 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
         run: bash scripts/find-releases.sh | tee releases.txt
 
+      # Each version's Debian revision comes from the committed
+      # packaging-revisions (build-deb.sh reads and checks it), never from
+      # the environment or an input, so every run builds the same version.
       - name: Build packages
         run: |
           mkdir -p debs
