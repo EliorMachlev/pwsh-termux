@@ -4,7 +4,7 @@ Read the project docs before making changes. Contributor rules (branching, code 
 
 Other reference docs are in [`docs/markDown/`](docs/markDown/README.md) (index there):
 
-- [`engineering/architecture/`](docs/markDown/engineering/architecture/README.md): the pipeline stage by stage (releases, packaging, repository, hosting)
+- [`engineering/architecture/`](docs/markDown/engineering/architecture/README.md): the pipeline stage by stage (releases, packaging, repository, signing, keyring, hosting)
 - [`engineering/build.md`](docs/markDown/engineering/build.md): building and testing locally, including the Termux quirks
 - [`engineering/release.md`](docs/markDown/engineering/release.md): how releases happen, one-time setup, key rotation
 - [`product/packages.md`](docs/markDown/product/packages.md): what the packages are and how versions map

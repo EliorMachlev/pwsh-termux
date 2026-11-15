@@ -1,23 +1,20 @@
 # Build
 
-Everything here runs on a phone in Termux and on Linux. The scripts are the same on both.
+Everything here runs in Termux on a phone and on Linux, with the same scripts.
 
 ## Toolchain
 
-| Tool | Termux | CI (Ubuntu 24.04) |
-|---|---|---|
-| `bash`, `curl`, `jq`, `python3`, `tar`, `sha256sum` | installed by default or `pkg install` | preinstalled (`jq` ships on the runner) |
-| `dpkg-deb` | part of `dpkg` (installed) | preinstalled |
-| `patchelf` | `pkg install patchelf-glibc`, binary at `$PREFIX/glibc/bin/patchelf` | `apt-get install patchelf` |
-| `gpg` | `pkg install gnupg` | preinstalled |
-| `xz` | `pkg install xz-utils` | `apt-get install xz-utils` |
+1. `bash`, `curl`, `jq`, `python3`, `tar`, `sha256sum`, `dpkg-deb`: preinstalled on Termux (or `pkg install`) and on the CI runner (Ubuntu 24.04).
+2. `patchelf`: Termux `pkg install patchelf-glibc` (binary at `$PREFIX/glibc/bin/patchelf`); Ubuntu `apt-get install patchelf`.
+3. `gpg`: Termux `pkg install gnupg`; preinstalled on the runner.
+4. `xz`: Termux `pkg install xz-utils`; Ubuntu `apt-get install xz-utils`.
 
 ## Termux quirks
 
-- **No `/usr/bin/env`**, so `#!/usr/bin/env bash` scripts cannot be executed directly: run `bash scripts/<name>.sh`.
-- **`umask` is 077** in a normal Termux shell. `build-deb.sh` sets `umask 022` itself; do the same in any script that creates files that get packaged.
-- **`dpkg-scanpackages` and `apt-ftparchive` do not exist.** `build-repo.sh` does not need them.
-- **Use the glibc `patchelf`**: `PATCHELF=$PREFIX/glibc/bin/patchelf`.
+1. **No `/usr/bin/env`**: run `bash scripts/<name>.sh`, not `./scripts/<name>.sh`.
+2. **`umask` is 077.** `build-deb.sh` and `build-keyring.sh` set `umask 022`; do the same in any script that creates packaged files.
+3. **No `dpkg-scanpackages` or `apt-ftparchive`.** `build-repo.sh` does not need them.
+4. **Use the glibc `patchelf`**: `PATCHELF=$PREFIX/glibc/bin/patchelf`.
 
 ## Build a package
 
@@ -26,11 +23,9 @@ PATCHELF=$PREFIX/glibc/bin/patchelf DEB_COMPRESSION=gzip \
   bash scripts/build-deb.sh pwsh v7.7.0 out
 ```
 
-`DEB_COMPRESSION=gzip` is much quicker than the default `xz` on a phone. The result is `out/pwsh_7.7.0-1_aarch64.deb`. Try a prerelease the same way with `pwsh-preview v7.7.0-rc.1` to see the `~` version.
+This gives `out/pwsh_7.7.0-1_aarch64.deb`; `gzip` is much quicker than the default `xz` on a phone. `pwsh-preview v7.7.0-rc.1` shows the `~` version. Inspect with `dpkg-deb -I` (control) and `dpkg-deb -c` (contents: `pwsh` and `createdump`, the `bin/pwsh` symlink, `copyright`).
 
-Check it: `dpkg-deb -I out/*.deb` (control), `dpkg-deb -c out/*.deb` (contents: `pwsh` and `createdump` executable, the `bin/pwsh` symlink, the `copyright` file).
-
-The offline tests of the build and of the steps around it, with fake tarballs and stub downloads (no network, seconds each):
+Offline tests, with fake tarballs and stub downloads (seconds each):
 
 ```bash
 PATCHELF=$PREFIX/glibc/bin/patchelf bash scripts/test-build-deb.sh
@@ -39,9 +34,11 @@ bash scripts/test-make-sboms.sh
 bash scripts/test-assemble-site.sh
 ```
 
+`bash scripts/find-releases.sh` prints what the pipeline would build now (set `GITHUB_TOKEN` to avoid the anonymous rate limit).
+
 ## Testing on a device
 
-Extract to a scratch folder and run the binary there, without installing it:
+CI's x86 runner cannot run the arm64 binary, so this is what proves the patched loader works; run it whenever you change `build-deb.sh`. Extract to a scratch folder, without installing:
 
 ```bash
 T=$(mktemp -d)
@@ -51,28 +48,26 @@ dpkg-deb -x out/pwsh_7.7.0-1_aarch64.deb "$T"
 rm -rf "$T"
 ```
 
-The CI runner is x86 and cannot execute the arm64 binary, so this step is the one that proves the patched loader works; run it when you change `build-deb.sh`.
-
 ## Build the keyring package
 
 ```bash
 bash scripts/check-keys.sh                 # the key rules; prints the fingerprint
-bash scripts/test-keys.sh                  # the rules, the publish and recovery checks, with throwaway keys
-bash scripts/test-release-tags.sh          # the signed release tags, with throwaway keys and a local remote
+bash scripts/test-keys.sh                  # rules, publish and recovery checks, throwaway keys
+bash scripts/test-release-tags.sh          # signed release tags, throwaway keys, local remote
 bash scripts/build-keyring.sh out          # out/pwsh-termux-keyring_<version>_all.deb
 bash scripts/build-keyring.sh out2 && cmp out/pwsh-termux-keyring_*_all.deb out2/pwsh-termux-keyring_*_all.deb
 ```
 
-The build is deterministic: run it twice and the bytes are the same ([details](architecture/repository.md#the-keyring-package)). It sets `umask 022` itself.
+The two builds must be byte-identical ([keyring](architecture/keyring.md#deterministic)).
 
 ## Build and test a repository
 
 ```bash
 bash scripts/build-repo.sh out repo                  # unsigned: fine locally
-bash scripts/assemble-site.sh docs repo              # merge the website (needs a full Git clone, not --depth 1)
+bash scripts/assemble-site.sh docs repo              # needs a full Git clone, not --depth 1
 ```
 
-To test signing and let real `apt` read the result, without touching your system's sources, use a throwaway key and an isolated apt configuration. `build-repo.sh` refuses to sign with a key that is not the key in `keys/`, so point the test-only `KEYRING_FILE` at a keyring holding the throwaway key, in a folder of its own (a `ROTATION` file next to it would count), and build the keyring package from it. `KEYRING_DEB_SHA256` stands in for the digest the workflow's `verify` job takes from the attestation (the publish step never sets `KEYRING_FILE`):
+To test signing and let real `apt` read the result without touching your sources, use a throwaway Ed25519 key and an isolated apt configuration. `build-repo.sh` signs only with the key in `keys/`, so point the test-only `KEYRING_FILE` at a keyring holding the throwaway key, in a folder of its own (a `ROTATION` file next to it would count), and build the keyring package from it. `KEYRING_DEB_SHA256` stands in for the digest from the workflow's `verify` job ([publish checks](architecture/signing.md#publish-checks)).
 
 ```bash
 export GNUPGHOME=$(mktemp -d); chmod 700 "$GNUPGHOME"
@@ -98,14 +93,12 @@ apt-cache $O policy pwsh
 apt-get $O -s install pwsh pwsh-termux-keyring   # -s: simulate only
 ```
 
-The same `$O` with `sourceparts` pointed at `$X$PREFIX/etc/apt/sources.list.d` reads the package's own source line verbatim; on a device without the package installed, apt then reports the key file as missing, which shows the line itself parses.
-
-Use Ed25519 for the test key: an Ed448 key looks fine to `gpg` but apt 2.8 reports a bad signature ([SECURITY.md](../../../SECURITY.md#signing-key)).
+With `sourceparts` pointed at `$X$PREFIX/etc/apt/sources.list.d` instead, apt reads the package's own source line; without the package installed it reports the key file missing, which shows the line parses. Ed25519 matters: an Ed448 key looks fine to `gpg`, but apt 2.8 reports a bad signature ([SECURITY.md](../../../SECURITY.md#signing-key)).
 
 ## Test the schedule keep-alive
 
 ```bash
-bash scripts/test-keepalive.sh                                   # offline, with a stub gh
+bash scripts/test-keepalive.sh                                   # offline, stub gh
 GH_REPO=EliorMachlev/pwsh-termux bash scripts/keep-schedules-alive.sh check              # real states, read only
 GH_REPO=EliorMachlev/pwsh-termux bash scripts/keep-schedules-alive.sh refresh --dry-run  # what refresh would enable
 ```
@@ -127,7 +120,7 @@ Every commit your branch adds needs a `Signed-off-by:` trailer naming its author
 python3 .github/scripts/site-check.py docs
 ```
 
-The HTML and CSS validation ([website](website.md#valid-html-and-css)) needs Java 17 or later and Node.js (`pkg install openjdk-25 nodejs`). In Termux, call npm through node, as its launcher needs `/usr/bin/env`:
+The [HTML and CSS validation](website-checks.md#valid-html-and-css) needs Java 17+ and Node.js (`pkg install openjdk-25 nodejs`). In Termux, call npm through node, as its launcher needs `/usr/bin/env`:
 
 ```bash
 (cd tools/site-lint && node "$PREFIX/lib/node_modules/npm/bin/npm-cli.js" ci --ignore-scripts)
@@ -146,8 +139,4 @@ shellcheck --shell=bash --severity=style scripts/*.sh scripts/lib/*.sh        # 
 python3 -I -m py_compile .github/scripts/site-check.py
 ```
 
-The docs checks (lychee for links, typos for spelling), the workflow audits (jactionlint, zizmor) and the fuzzing of `spdx-build-view.py` (Hypothesis) run in CI; [ci-cd.md](ci-cd.md) lists them.
-
-## Find releases
-
-`bash scripts/find-releases.sh` prints what the pipeline would build right now (set `GITHUB_TOKEN` to avoid the API's anonymous rate limit).
+Docs checks (lychee, typos), workflow audits (jactionlint, zizmor) and fuzzing of `spdx-build-view.py` run in CI ([ci-cd.md](ci-cd.md)).
