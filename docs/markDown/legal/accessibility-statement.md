@@ -6,7 +6,7 @@ The pwsh-termux website (`pwsh-termux.machlev.org`) is meant to be usable by eve
 
 ## How the site is built
 
-- **Semantic HTML:** one `<h1>` per page, ordered headings, `<nav>`, `<main>` and `<footer>` landmarks, `lang="en"`, and a "Skip to content" link as the first focusable element. [`site-check.py`](../../../.github/scripts/site-check.py) fails the build if a page loses any of these or an image has no `alt`.
+- **Semantic HTML:** one `<h1>` per page, ordered headings, `<nav>`, `<main>` and `<footer>` landmarks, `lang="en"`, and a "Skip to content" link as the first focusable element. [`site-check.py`](../../../.github/scripts/site-check.py) fails the build if a page loses its `lang`, its single `<h1>`, its `<main>` or its skip link, or if an image has no `alt`; heading order, the `<nav>` and `<footer>` landmarks and the skip link's position are checked by hand.
 - **No JavaScript.** Everything works without it; nothing moves or updates by itself.
 - **Keyboard:** every link and control is reachable and operable by keyboard, with a visible focus ring.
 - **Colour and contrast:** light and dark palettes follow your system (`prefers-color-scheme`). Every text and background pair meets WCAG AA (4.5:1) in both; the lowest, links on a card in the light palette, is 4.9:1, and body text is above 15:1. Information is never conveyed by colour alone.

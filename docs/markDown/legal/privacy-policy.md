@@ -6,7 +6,7 @@ pwsh-termux collects **nothing** about you. This policy covers the website (`pws
 
 ## What the project collects
 
-Nothing: no accounts, forms, cookies, analytics, advertising or fingerprinting, and no JavaScript on the website. The packages send nothing anywhere when you install or run PowerShell. The maintainer receives no logs of who visits the site or downloads a package.
+Nothing: no accounts, forms, cookies, analytics, advertising or fingerprinting, and no JavaScript on the website. The packages' scripts send nothing anywhere when you install or run PowerShell; PowerShell's own telemetry is covered [below](#powershell-itself). The maintainer receives no logs of who visits the site or downloads a package.
 
 ## What third parties may see
 
@@ -24,7 +24,7 @@ The package installs Microsoft's PowerShell **unchanged**. Microsoft's build col
 
 ## Your rights
 
-The project holds no personal data about you, so there is nothing for it to give, correct or delete. For data held by GitHub, Cloudflare or Microsoft, use their own tools. You can edit or delete your issues and comments on GitHub.
+The project holds no personal data about you, so there is nothing for it to give, correct or delete. For data held by GitHub, Cloudflare or Microsoft, use their own tools. On GitHub you can edit your issues and edit or delete your comments; only the repository owner can delete an issue, so ask the maintainer to.
 
 ## Children
 

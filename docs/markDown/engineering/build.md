@@ -1,6 +1,6 @@
 # Build
 
-Everything here runs in Termux on a phone and on Linux, with the same scripts.
+Everything here runs in Termux on a phone and on Linux, with the same scripts. The commands are written for Termux; on Linux, drop `PATCHELF=…` (the default is `patchelf` on `PATH`) and first `export PREFIX=/data/data/com.termux/files/usr`, the path the packages install under.
 
 ## Toolchain
 
