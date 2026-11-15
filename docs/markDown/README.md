@@ -8,7 +8,7 @@ The user-facing side is the [website](https://pwsh-termux.machlev.org/) and the 
 
 ## Engineering
 
-- [Contributing](engineering/contributing.md): setup, rules, PR checklist (short version: [CONTRIBUTING.md](../../CONTRIBUTING.md))
+- [Contributing](engineering/contributing.md): setup, tests and coverage, rules, PR checklist (short version: [CONTRIBUTING.md](../../CONTRIBUTING.md))
 - [Architecture](engineering/architecture/README.md): the pipeline and its rules, then [releases](engineering/architecture/releases.md), [packaging](engineering/architecture/packaging.md), [repository](engineering/architecture/repository.md) and [hosting](engineering/architecture/hosting.md)
 - [Build](engineering/build.md): building and testing locally, the Termux quirks
 - [Release](engineering/release.md): how a release happens, one-time setup, the custom domain, key rotation; releases are on [GitHub](https://github.com/EliorMachlev/pwsh-termux/releases)

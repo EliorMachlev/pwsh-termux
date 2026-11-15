@@ -17,6 +17,14 @@ name: CI
 #               commit (keepalive-commit.sh) and the audit of main
 #               (audit-main-commits.sh), with local git repositories and a
 #               stub gh, offline
+#   packaging-tests  scripts/test-find-releases.sh, test-build-deb.sh,
+#               test-make-sboms.sh and test-assemble-site.sh: the release
+#               lookup, the .deb build, the SBOMs and the site assembly, with
+#               stub downloads, fake tarballs and local git repositories,
+#               offline
+#   coverage    every scripts/test-*.sh traced, and the Hypothesis tests under
+#               coverage.py: the share of scripts/ the tests run
+#               (.github/scripts/coverage.py), failing below a floor
 #   package     a real build of the current stable PowerShell (twice, compared
 #               byte for byte) and of the keyring package (reproducible,
 #               from keys/) into an apt
@@ -38,6 +46,10 @@ on:
       - '.github/workflows/**'
       - '.shellcheckrc'
       - '.github/dependabot.yml'
+      - 'tests/**'
+      - 'tools/coverage/**'
+      - 'tools/fuzz/**'
+      - 'tools/site-lint/**'
   workflow_dispatch:
 
 concurrency:
@@ -55,6 +67,11 @@ env:
   # lines by hand, after checking that file (ci-cd.md, "Dependabot").
   JACTIONLINT_VERSION: "2.4.0"
   JACTIONLINT_SHA256: "26ddba81db28fffc51163175c070ee1a9d1150260de4b5232f01d9b749f32d8e"
+  # shfmt's release binary (https://github.com/mvdan/sh), whose parser gives
+  # the coverage job the commands of each script; checked the same way (it
+  # matched the release asset's digest when it was pinned), updated by hand.
+  SHFMT_VERSION: "3.14.1"
+  SHFMT_SHA256: "76e77641faa025814b77f153b29796b8e6fa2fca03e0c76a691608b86c7ea7bf"
 
 # Every run: step runs as `bash --noprofile --norc -eo pipefail {0}`: a
 # failure anywhere in a pipeline fails the step.
@@ -183,6 +200,108 @@ jobs:
           persist-credentials: false
       - name: Test the keep-alive commit and the audit of main
         run: bash scripts/test-keepalive-commit.sh
+
+  # Stubs and fixtures, offline: a stub curl answering with a releases list,
+  # fake upstream tarballs (ELF headers, checksums files in each encoding),
+  # stub SBOM tools, local git repositories. What each script accepts,
+  # writes and refuses (each refusal checked for its reason).
+  packaging-tests:
+    name: Packaging script tests
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a # v2.22.4
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install tools
+        run: sudo apt-get update && sudo apt-get install -y patchelf jq xz-utils
+      - name: Test find-releases.sh
+        run: bash scripts/test-find-releases.sh
+      - name: Test build-deb.sh
+        run: bash scripts/test-build-deb.sh
+      - name: Test make-sboms.sh
+        run: bash scripts/test-make-sboms.sh
+      - name: Test assemble-site.sh
+        run: bash scripts/test-assemble-site.sh
+
+  # Statement coverage of scripts/: every test script run again with each
+  # Bash process traced (xtrace through BASH_ENV, into files under
+  # RUNNER_TEMP), then each line that starts a command (from shfmt's parser)
+  # counted as run or not; the Python under coverage.py while the Hypothesis
+  # tests run. Fails when a total drops below its floor. The traces hold
+  # every command's arguments: only tests run here (throwaway keys, stubs, no
+  # secret), and the traces are never uploaded. The floors are the measured
+  # coverage rounded down: raise them when tests are added, never lower them
+  # to let a change through.
+  coverage:
+    name: Coverage
+    runs-on: ubuntu-26.04
+    timeout-minutes: 20
+    env:
+      VNU_JAR: tools/site-lint/node_modules/vnu-jar/build/dist/vnu.jar
+      # Measured here: Bash 97.3%, Python 94.2%, total 96.9%. Hypothesis
+      # draws new inputs each run, so the Python figure moves a little (93.4%
+      # in another run): its floor is the lowest seen, rounded down.
+      COVERAGE_MIN_BASH: "97"
+      COVERAGE_MIN_PYTHON: "93"
+      COVERAGE_MIN_TOTAL: "96"
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a # v2.22.4
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # Hypothesis and coverage.py pinned by hash (tools/fuzz and
+      # tools/coverage, compiled on this Python version); Dependabot updates
+      # them.
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.14"
+      - name: Install Hypothesis and coverage.py
+        run: python -m pip install --quiet --require-hashes -r tools/fuzz/requirements.txt -r tools/coverage/requirements.txt
+      - name: Install tools
+        run: sudo apt-get update && sudo apt-get install -y patchelf jq xz-utils
+      - name: Install shfmt
+        run: |
+          curl -fsSL --retry 6 --retry-delay 10 --retry-all-errors -o "$RUNNER_TEMP/shfmt" "https://github.com/mvdan/sh/releases/download/v${SHFMT_VERSION}/shfmt_v${SHFMT_VERSION}_linux_amd64"
+          echo "${SHFMT_SHA256}  $RUNNER_TEMP/shfmt" | sha256sum --check --strict -
+          chmod 755 "$RUNNER_TEMP/shfmt"
+      # As in site.yaml: the lockfile's versions, no install script.
+      - name: Install vnu
+        working-directory: tools/site-lint
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm audit signatures
+      - name: Run the tests, traced
+        run: |
+          for test in scripts/test-*.sh; do
+            echo "::group::$test"
+            args=()
+            if [ "$test" = scripts/test-validate-site.sh ]; then args=("$VNU_JAR"); fi
+            python .github/scripts/coverage.py run "$RUNNER_TEMP/trace" -- bash "$test" "${args[@]}"
+            echo "::endgroup::"
+          done
+      - name: Run the Hypothesis tests under coverage.py
+        env:
+          HYPOTHESIS_PROFILE: ci
+          COVERAGE_FILE: ${{ runner.temp }}/python.coverage
+        run: |
+          python -m coverage run --include='scripts/*.py' -m unittest discover -s tests/fuzz
+          python -m coverage json -o "$RUNNER_TEMP/python-coverage.json"
+      - name: Report, and check the floors
+        run: |
+          python .github/scripts/coverage.py report "$RUNNER_TEMP/trace" \
+            --shfmt "$RUNNER_TEMP/shfmt" --python-json "$RUNNER_TEMP/python-coverage.json" \
+            --fail-under-bash "$COVERAGE_MIN_BASH" --fail-under-python "$COVERAGE_MIN_PYTHON" \
+            --fail-under-total "$COVERAGE_MIN_TOTAL"
 
   package:
     name: Package build

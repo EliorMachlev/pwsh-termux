@@ -98,3 +98,28 @@ updates:
       fuzz:
         patterns:
           - "*"
+
+  # coverage.py for ci.yaml's coverage job (CI tooling only; nothing ships
+  # with it), hash-pinned in tools/coverage/requirements.txt, compiled from
+  # its requirements.in with pip-compile. shfmt, which the same job uses to
+  # parse the scripts, is a pinned download (version and SHA-256 in ci.yaml),
+  # updated by hand like jactionlint.
+  - package-ecosystem: "pip"
+    directory: "/tools/coverage"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "05:00"
+      timezone: "Etc/UTC"
+    open-pull-requests-limit: 10
+    labels:
+      - "dependencies"
+    commit-message:
+      prefix: "chore(deps)"
+      include: "scope"
+    cooldown:
+      default-days: 7
+    groups:
+      coverage:
+        patterns:
+          - "*"

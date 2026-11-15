@@ -30,6 +30,15 @@ PATCHELF=$PREFIX/glibc/bin/patchelf DEB_COMPRESSION=gzip \
 
 Check it: `dpkg-deb -I out/*.deb` (control), `dpkg-deb -c out/*.deb` (contents: `pwsh` and `createdump` executable, the `bin/pwsh` symlink, the `copyright` file).
 
+The offline tests of the build and of the steps around it, with fake tarballs and stub downloads (no network, seconds each):
+
+```bash
+PATCHELF=$PREFIX/glibc/bin/patchelf bash scripts/test-build-deb.sh
+bash scripts/test-find-releases.sh
+bash scripts/test-make-sboms.sh
+bash scripts/test-assemble-site.sh
+```
+
 ## Testing on a device
 
 Extract to a scratch folder and run the binary there, without installing it:

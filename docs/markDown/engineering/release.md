@@ -173,12 +173,12 @@ Four rulesets apply. A bypass actor bypasses *every* rule of a ruleset, so the d
 
 | Ruleset | Target | Rules | Bypass actors |
 |---|---|---|---|
-| *Main* (id `27198868`) | `refs/heads/main` | `required_signatures`; `code_scanning` (CodeQL, zizmor); `pull_request` (no approval needed, squash merge only, stale approvals dismissed); `required_status_checks` (branch must be up to date; the [17 checks below](#required-status-checks), strict) | **`DeployKey`** only (`actor_id: null`, `bypass_mode: always`). **Not** the Admin role. |
+| *Main* (id `27198868`) | `refs/heads/main` | `required_signatures`; `code_scanning` (CodeQL, zizmor); `pull_request` (no approval needed, squash merge only, stale approvals dismissed); `required_status_checks` (branch must be up to date; the [19 checks below](#required-status-checks), strict) | **`DeployKey`** only (`actor_id: null`, `bypass_mode: always`). **Not** the Admin role. |
 | *Protection, other branches* (id `27198871`) | all branches except `refs/heads/main` | `required_signatures`, `code_scanning` (CodeQL, Scorecard, zizmor) | Admin role only |
 | *Protection* (id `27110284`) | all branches (`~ALL`) except Dependabot's (`refs/heads/dependabot/**/*`) | `deletion`, `non_fast_forward`, `creation` | Admin role only. **Not** the deploy key. |
 | *Tag Protection* (id `27110388`) | all tags (`~ALL`) | `deletion`, `non_fast_forward`, `update`, `required_signatures`, and a `required_status_checks` rule that lists no check; no `creation` | Admin role only |
 
-**What *Main* means in practice.** Every change reaches `main` through a pull request whose 17 required checks have passed on its head commit, merged with *Squash and merge*: GitHub makes that commit as `web-flow` and signs it, so it is *Verified* and passes `required_signatures`, and the [audit](ci-cd.md#the-audit-of-main) accepts it as a merged pull request's merge commit. The maintainer can no longer push to `main`, nor merge a pull request whose checks have not passed (a check that fails for an outside reason, such as a download in *Package build*, is re-run). The only bypass is the keep-alive deploy key. The maintainer, as an admin, can still edit the ruleset itself: that is the way out if a rule ever has to be lifted, and it shows in the ruleset's history.
+**What *Main* means in practice.** Every change reaches `main` through a pull request whose 19 required checks have passed on its head commit, merged with *Squash and merge*: GitHub makes that commit as `web-flow` and signs it, so it is *Verified* and passes `required_signatures`, and the [audit](ci-cd.md#the-audit-of-main) accepts it as a merged pull request's merge commit. The maintainer can no longer push to `main`, nor merge a pull request whose checks have not passed (a check that fails for an outside reason, such as a download in *Package build*, is re-run). The only bypass is the keep-alive deploy key. The maintainer, as an admin, can still edit the ruleset itself: that is the way out if a rule ever has to be lifted, and it shows in the ruleset's history.
 
 *Protection, other branches* holds the other branches to signed commits; without it, the deploy key could push unsigned commits to any existing branch, whose workflows then run. The Admin bypass on *Protection* is what lets the maintainer create branches: the `creation` rule with no bypass at all would stop that too.
 
@@ -197,6 +197,8 @@ A required check must report on **every** pull request into `main`, or that pull
 | `Key rules and key tests` | `ci.yaml` | `keys` |
 | `Schedule keep-alive tests` | `ci.yaml` | `keepalive` |
 | `Keep-alive commit and audit tests` | `ci.yaml` | `keepalive-commit` |
+| `Packaging script tests` | `ci.yaml` | `packaging-tests` |
+| `Coverage` | `ci.yaml` | `coverage` |
 | `Package build` | `ci.yaml` | `package` |
 | `Links (lychee)` | [`docs-checks.yaml`](../../../.github/workflows/docs-checks.yaml) | `links` (offline on pull requests) |
 | `Spelling (typos)` | `docs-checks.yaml` | `spelling` |
@@ -255,6 +257,8 @@ gh api -X PUT repos/EliorMachlev/pwsh-termux/rulesets/27198868 --input - <<'JSON
         {"context": "Key rules and key tests", "integration_id": 15368},
         {"context": "Schedule keep-alive tests", "integration_id": 15368},
         {"context": "Keep-alive commit and audit tests", "integration_id": 15368},
+        {"context": "Packaging script tests", "integration_id": 15368},
+        {"context": "Coverage", "integration_id": 15368},
         {"context": "Package build", "integration_id": 15368},
         {"context": "Links (lychee)", "integration_id": 15368},
         {"context": "Spelling (typos)", "integration_id": 15368},
@@ -312,7 +316,7 @@ JSON
 2. **The bypass lists**: `gh api $R/rulesets/<id> --jq .bypass_actors` for each. *Main* lists `DeployKey` and nothing else; the other three list the Admin role only. `gh api $R/keys --jq length` is `1`.
 3. **A keep-alive push succeeds** (verified when the rulesets were set up): run *Keep-alive commit* by hand with *ignore_age* checked (`gh workflow run keepalive-commit.yaml -f ignore_age=true`). The run pushes one commit that changes only `keep.alive` and posts `keepalive/pushed`; `main`'s history shows it as unsigned, by `github-actions[bot]`. Then **Rule insights** (`gh api "$R/rulesets/rule-suites?ref=refs/heads/main" --jq '.[0] | {actor_name, result, after_sha}'`) shows that push with result `bypass`, and run *Audit main* by hand: it must pass and leave no issue open.
 4. **Anything else is refused.** The deploy key's private half is only in the environment, so these are read from the configuration rather than tried with the key: a force push or deletion of `main`, or a new branch outside `dependabot/`, falls under *Protection*, which the deploy key cannot bypass (step 2); a push to another existing branch falls under *Protection, other branches* (unsigned is refused). Tags fall under the separate *Tag Protection* ruleset (no deploy-key bypass): `deletion`, `non_fast_forward`, `update` and `required_signatures` (a tag's commit must be signed), plus a `required_status_checks` rule that lists no check and so requires nothing; there is no `creation` rule, because `update.yaml` creates release tags with `GITHUB_TOKEN`, which cannot bypass a ruleset. So the deploy key could create a new tag on an existing signed commit (not on a keep-alive commit, which is unsigned), but not move or delete one. That would show up as an unexpected tag or release, not on `main`. What the deploy key *can* push to `main` beyond `keep.alive` is limited by `keepalive-commit.sh`'s guard and by who can run it, not by GitHub: that is the residual risk the audit is for. A maintainer who wants to see the refusals happen can rebuild the same three rulesets in a throwaway repository with its own deploy key; never add a second deploy key here (below).
-5. **Normal work**: a pull request merges with *Squash and merge* once its 17 required checks have passed and code scanning is clean; a direct push to `main` by the maintainer is refused; the maintainer can still create branches.
+5. **Normal work**: a pull request merges with *Squash and merge* once its 19 required checks have passed and code scanning is clean; a direct push to `main` by the maintainer is refused; the maintainer can still create branches.
 
 ### Rotating the keep-alive deploy key
 

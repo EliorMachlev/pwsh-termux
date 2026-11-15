@@ -1,0 +1,8 @@
+# coverage.py for the CI workflow's coverage job (the Python in scripts/,
+# measured while tests/fuzz runs), installed with --require-hashes.
+# requirements.txt is compiled from this file on Python 3.14 (the version the
+# job sets up):
+#   pip-compile --allow-unsafe --generate-hashes --strip-extras requirements.in
+# Dependabot (pip, this directory) recompiles it when coverage.py has a new
+# release.
+coverage==7.17.3
