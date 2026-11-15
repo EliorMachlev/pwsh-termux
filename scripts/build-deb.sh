@@ -81,7 +81,7 @@ packaging_revision() {
     [ -z "${seen["$pkg $upstream"]:-}" ] || die "$where: a second line for $pkg $upstream"
     seen["$pkg $upstream"]=1
     if [ "$pkg" = "$PKG" ] && [ "$upstream" = "$ver" ]; then revision=$rev; fi
-  done < "$REVISIONS_FILE"
+  done < "$REVISIONS_FILE" || die "cannot read $REVISIONS_FILE"
   printf '%s\n' "$revision"
 }
 

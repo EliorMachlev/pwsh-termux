@@ -49,7 +49,7 @@ The Debian revision comes from the committed [`packaging-revisions`](../../../..
 ```
 
 1. No line for a package and version (or no file): revision `1`. A new upstream release starts at `1` again.
-2. Every line is checked before the download: the package is `pwsh` or `pwsh-preview`, the version is the tag without `v` (`7.8.0-preview.1`), the revision a positive integer without a leading `0`, and no package and version appears twice. Anything else stops the build.
+2. Every line is checked before the download: the package is `pwsh` or `pwsh-preview`, the version is the tag without `v` (`7.8.0-preview.1`), the revision a positive integer without a leading `0`, and no package and version appears twice. Anything else, or a file that is not a readable regular file, stops the build.
 3. Keep a line while its version is built: removing it drops the package back to `-1`, a downgrade apt does not offer.
 
 To re-release the same PowerShell build, add or bump its line and merge. That is how a packaging fix ships, and the only way to release again when a tag name is burned: GitHub never reuses the tag of a deleted immutable release, so `pwsh-7.7.0-1` is retired and `7.7.0` ships as `7.7.0-2`.

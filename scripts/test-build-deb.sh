@@ -260,6 +260,10 @@ check "  nothing ran from the file" test ! -e "$T/pwned"
 mkdir -p "$T/rev/dir"
 refuse 'is not a regular file' "packaging-revisions is a folder" \
   env PACKAGING_REVISIONS="$T/rev/dir" bash "$BUILD_DEB" pwsh v7.5.1 "$T/r"
+revisions unreadable 'pwsh 7.5.1 2'
+chmod 000 "$T/rev/unreadable"
+refuse 'cannot read' "packaging-revisions cannot be read (not revision 1)" \
+  env PACKAGING_REVISIONS="$T/rev/unreadable" bash "$BUILD_DEB" pwsh v7.5.1 "$T/r"
 check "no package after a refusal" test ! -e "$T/r"
 
 echo
