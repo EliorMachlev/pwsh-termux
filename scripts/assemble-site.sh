@@ -160,16 +160,21 @@ markdown_documents() {
   printf '%s\n' "${TOP_LEVEL_DOCUMENTS[@]}"
 }
 
-# write_documents <out-file>: the documents table.
+# write_documents <out-file>: the documents table. Each part is assigned
+# before it is printed: an error in a $(...) that is an argument of printf
+# would not stop the script (printf's status is the command's), so a missing
+# or uncommitted document would get a row without a date.
 write_documents() {
-  local out=$1 path
+  local out=$1 path title updated
   {
     echo '<table>'
     echo '  <thead><tr><th>Document</th><th>Last change</th></tr></thead>'
     echo '  <tbody>'
     while read -r path; do
+      updated=$(last_updated_html "$path")
+      title=$(document_title "$path")
       printf '    <tr><td><a href="%s">%s</a><br><code>%s</code></td><td>%s</td></tr>\n' \
-        "$(project_blob_url "$path")" "$(document_title "$path")" "$path" "$(last_updated_html "$path")"
+        "$(project_blob_url "$path")" "$title" "$path" "$updated"
     done < <(markdown_documents)
     echo '  </tbody>'
     echo '</table>'
@@ -178,11 +183,12 @@ write_documents() {
 
 # fill_last_updated_blocks: each last-updated:<path> block in the pages.
 fill_last_updated_blocks() {
-  local name path html_file
+  local name path html_file updated
   while read -r name; do
     path=${name#"$LAST_UPDATED_BLOCK_PREFIX"}
     html_file=$WORK_DIR/last-updated-$(sha256sum <<<"$path" | cut -c1-16).html
-    printf '<p class="updated">%s</p>\n' "$(last_updated_html "$path")" > "$html_file"
+    updated=$(last_updated_html "$path")   # assigned first, as in write_documents
+    printf '<p class="updated">%s</p>\n' "$updated" > "$html_file"
     fill_blocks "$name" "$html_file"
   done < <(sed -n "s#^<!-- generated:\(${LAST_UPDATED_BLOCK_PREFIX}[^ ]*\) -->\$#\1#p" "$REPO_DIR"/*.html | sort -u)
 }

@@ -33,7 +33,7 @@ Current and planned work, in no fixed order. There are no dates.
 
 1. Keep up with PowerShell: stable and preview releases are picked up daily.
 2. Keep every scanner at zero findings, with no suppressions ([exceptions](exceptions.md)).
-3. Add automated tests for the packaging scripts beyond the key, keep-alive and site checks, and measure coverage.
+3. Tests and coverage. Done: every packaging script has an offline test (the release lookup, the `.deb` build, the SBOMs and the site assembly joined the key, keep-alive and site tests), and CI measures the statement coverage of `scripts/` on every pull request and fails below a floor ([CI / CD](ci-cd.md)). Ongoing: keep coverage at 80% or more, and add a regression test with each bug fix.
 4. Sign release tags. **Done:** every new release tag is an annotated tag signed with the online key, and verified before it is pushed ([signed release tags](release.md#signed-release-tags)); the one older tag, `pwsh-7.7.0-1`, stays unsigned.
 5. Find a second maintainer.
 6. Support other architectures only if Termux's glibc packages and PowerShell's builds allow it.

@@ -39,6 +39,17 @@ Signed-off-by: Ada Lovelace <ada@example.org>
 
 New behaviour and bug fixes come with an automated test. Shell logic is tested by a `scripts/test-*.sh` script that CI runs ([CI / CD](ci-cd.md)); the Python in `scripts/` is tested with Hypothesis under `tests/fuzz/`. A pull request that changes behaviour without a test needs a reason in its description. The pull request template asks for it, and the required checks must pass before merge.
 
+Every script in `scripts/` has a test, and each test runs offline: stubs stand in for `curl`, `gh`, the SBOM tools and the like, fixtures are written to a temporary folder, and local git repositories stand in for GitHub. A refusal is checked for its reason, not only for a failure. A bug fix adds a test that fails without the fix (a regression test). To add a test script, name it `scripts/test-<name>.sh` and add a step for it to a job in `ci.yaml`; the `Coverage` job runs every `scripts/test-*.sh` on its own.
+
+The `Coverage` check measures how much of `scripts/` the tests run: the lines that start a command in the Bash scripts (traced with xtrace) and the statements in the Python (coverage.py). It fails when Bash, Python or the total drops below its floor (`COVERAGE_MIN_*` in `ci.yaml`). When your tests raise the coverage, raise the floors to the new values, rounded down; never lower them to get a change through. To see what is not covered, run the tests under the tracer and read the report, which lists the lines never run in each file (it needs [shfmt](https://github.com/mvdan/sh); install it with `pkg install shfmt`):
+
+```bash
+for t in scripts/test-*.sh; do python3 .github/scripts/coverage.py run out/trace -- bash "$t"; done
+python3 .github/scripts/coverage.py report out/trace
+```
+
+`test-validate-site.sh` needs the path to `vnu.jar` ([build](build.md#check-the-website)); without it, `validate-site.sh` shows as not run.
+
 ## Style
 
 - **Bash.** `set -euo pipefail` at the top, quoted expansions, the shared `log`/`die` helpers (they write to stderr), and the other shared constants and helpers in [`scripts/lib/common.sh`](../../../scripts/lib/common.sh) (each script sources it; the repository's `.shellcheckrc` lets shellcheck follow it). Put a helper there when more than one script needs it; a constant goes there only if a helper there uses it. Nothing may need more than Bash, coreutils, `curl`, `jq`, `dpkg-deb`, `patchelf`, `gpg` and `python3`, plus `gh`, `git` and OpenSSH's `ssh-agent` for the scripts that talk to GitHub (the keep-alive and the audit of `main`). `shellcheck --severity=style` must be clean.
