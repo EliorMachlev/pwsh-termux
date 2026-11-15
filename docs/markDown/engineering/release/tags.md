@@ -28,4 +28,4 @@ After a [rotation](signing-keys.md#rotating-the-signing-key), an older tag verif
 
 ## Older tags
 
-`pwsh-7.7.0-1`, made earlier by `gh release create`, is a lightweight tag with no signature. It stays as it is: *Tag Protection* forbids moving it and its release is immutable.
+`pwsh-7.7.0-1`, made before tag signing as a lightweight tag, was deleted with its release. GitHub never reuses the tag name of a deleted immutable release, so it can never be signed: `7.7.0` is re-released as `7.7.0-2` through [`packaging-revisions`](../architecture/packaging.md#revisions), the way to release again whenever a tag name is burned.

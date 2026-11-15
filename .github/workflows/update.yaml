@@ -28,6 +28,7 @@ on:
     paths:
       - "scripts/**"
       - "keys/**"
+      - "packaging-revisions"
       - "docs/**"
       - ".github/workflows/update.yaml"
       - ".github/workflows/build-packages.yaml"

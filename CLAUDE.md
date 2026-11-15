@@ -23,6 +23,7 @@ If behaviour changes, update the relevant doc in the same commit.
 - **Never print, commit or copy the signing key** or its backups (logs, repo, website, artifacts, `GITHUB_ENV`, step outputs).
 - **Verify before you build.** Nothing is built from a download that has not matched Microsoft's `hashes.sha256` (UTF-16: decode it, don't `grep` it).
 - **Patch at build time, not on the device.** Packages ship an already-patched `pwsh` and do not depend on `glibc-runner` or `patchelf`.
+- **The Debian revision lives in `packaging-revisions`**, never in an env variable or workflow input, so every daily run builds the same version. Bump a line to re-release (a packaging fix, a burned tag name); never lower or remove the line of a version still built ([packaging](docs/markDown/engineering/architecture/packaging.md#revisions)).
 - **Pin every action to a commit SHA** with its version in a trailing comment (`uses: owner/repo@<sha> # vX.Y.Z`).
 - **No scripts or third-party loads on the website.** Keep each page's Content-Security-Policy limited to the site itself; `.github/scripts/site-check.py` rejects scripts, `'unsafe-*'`, URL schemes and wildcards, but not a bare host name. A new page goes into `docs/sitemap.xml`.
 - **Don't claim what the repo does not do.** Docs describe the implementation.

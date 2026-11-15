@@ -1,6 +1,6 @@
 # Release
 
-There is nothing to "cut". The scheduled [`update.yaml`](../../../.github/workflows/update.yaml) picks up new PowerShell releases, and the same workflow publishes a change to this repository's scripts, keys or site on push to `main`. A published version is a Microsoft version plus a Debian revision ([packages](../product/packages.md#version-numbers)).
+There is nothing to "cut". The scheduled [`update.yaml`](../../../.github/workflows/update.yaml) picks up new PowerShell releases, and the same workflow publishes a change to this repository's scripts, keys, `packaging-revisions` or site on push to `main`. A published version is a Microsoft version plus a Debian revision ([packages](../product/packages.md#version-numbers)).
 
 Run it by hand: **Actions → Update packages → Run workflow**, or `gh workflow run update.yaml`.
 
@@ -29,6 +29,10 @@ The run happens **every day, release or not**, and makes no commit. The index ca
 `build-deb.sh` and `build-keyring.sh` are reproducible, so an unchanged release rebuilds to the same bytes: `Packages`, `Packages.gz`, `Packages.xz` and every `.deb` stay identical, and only `Release`, `InRelease` and `Release.gpg` change. Clients re-download the small `InRelease` and are offered no upgrade. `test-keys.sh` proves it for the index; CI's package build builds the real `.deb` twice and compares.
 
 **If the pipeline is broken for more than 14 days**, the index expires and `pkg update` fails on every device with *Release file … is expired*. That is deliberate: a loud error instead of silently frozen packages. Fix the run (or start it by hand); the next deploy clears it for everyone, with nothing to change on the devices. [`staleness.yaml`](../../../.github/workflows/staleness.yaml) checks the live index daily and opens an issue when fewer than 7 days are left. GitHub's 60-day pause of scheduled workflows is handled by the [schedule keep-alive](ci-cd/keepalive.md#schedule-keep-alive).
+
+## Re-releasing the same PowerShell build
+
+Bump its revision in [`packaging-revisions`](../../../packaging-revisions) (`pwsh 7.7.0 2`) and merge: the next run builds `7.7.0-2`, tags `pwsh-7.7.0-2` and releases it. Do this for a packaging fix, or when a tag name is burned (a deleted release's tag is never reusable once releases are immutable). Never lower or remove the line of a version still built: that is a downgrade and reuses a used tag ([revisions](architecture/packaging.md#revisions)).
 
 ## If Microsoft publishes a bad release
 
