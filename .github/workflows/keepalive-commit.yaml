@@ -19,7 +19,7 @@ name: Keep-alive commit
 # posts the commit status keepalive/pushed, which audit-main.yaml requires of
 # every unsigned commit on main. Pull requests that touch this run a dry run
 # over https, with no environment and no key.
-# docs/markDown/engineering/ci-cd.md, "Keep-alive commit", has the model.
+# docs/markDown/engineering/ci-cd/keepalive.md, "Keep-alive commit", has the model.
 on:
   schedule:
     - cron: "17 5 * * 1"      # Mondays

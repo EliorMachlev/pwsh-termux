@@ -55,4 +55,4 @@ RFC 9116 asks for an `Expires` under a year ahead. On the 1st of each month [`re
 2. Check the contact and policy lines, and open a pull request; its merge deploys the site.
 3. The next run with more than four months left closes the issue.
 
-The workflow cannot commit the date itself: the [rulesets](release.md#rulesets) require signed commits and pull requests and refuse new branches, and GitHub Actions cannot bypass them in a personal repository, so it holds only `issues: write`. `site-check.py` also fails when fewer than 30 days remain.
+The workflow cannot commit the date itself: the [rulesets](ci-cd/rulesets.md) require signed commits and pull requests and refuse new branches, and GitHub Actions cannot bypass them in a personal repository, so it holds only `issues: write`. `site-check.py` also fails when fewer than 30 days remain.

@@ -19,7 +19,7 @@ Termux or Linux with Bash. You need `bash`, `curl`, `jq`, `python3`, `dpkg-deb` 
 3. Describe what changed and why, for whoever reads the history later.
 4. Sign off every commit with `git commit -s` ([below](#developer-certificate-of-origin)).
 5. Never put a skip-CI token in a commit message: the required checks would not run and the pull request could not merge.
-6. The pull request merges with *Squash and merge* once its [required checks](release.md#required-status-checks) pass.
+6. The pull request merges with *Squash and merge* once its [required checks](ci-cd/rulesets.md#required-status-checks) pass.
 
 ## Developer Certificate of Origin
 
@@ -34,7 +34,7 @@ Signed-off-by: Ada Lovelace <ada@example.org>
 - `git commit -s` adds the trailer from your `user.name` and `user.email`, which must match the commit's author. A commit made on GitHub's website gets one automatically (the repository requires it).
 - **Forgot?** `git rebase --signoff origin/main`, then `git push --force-with-lease`; for one commit, `git commit --amend --no-edit -s`. That signs as you: someone else's commit needs their own sign-off, or you re-author it with `git commit --amend --reset-author -s` once you have the right to submit it.
 - The required check **DCO** ([`dco.yaml`](../../../.github/workflows/dco.yaml), [`check-dco.sh`](../../../scripts/check-dco.sh)) fails a commit without the trailer, or whose trailer names someone other than the author (case and surrounding spaces ignored). The trailer must be in the message's last paragraph.
-- Not checked: merge commits (such as *Update branch*), commits already on `main`, Dependabot's commits in its own pull requests, and the [keep-alive commit](ci-cd.md#keep-alive-commit).
+- Not checked: merge commits (such as *Update branch*), commits already on `main`, Dependabot's commits in its own pull requests, and the [keep-alive commit](ci-cd/keepalive.md#keep-alive-commit).
 - The check runs the checker and its tests from the pull request's **base commit**, so a pull request cannot replace them. A pull request can still edit `dco.yaml` itself; the maintainer's review of workflow changes catches that.
 - **Commits are checked, not the description.** The squash commit on `main` takes the pull request's description and does not carry the sign-offs; the signed-off commits stay in `refs/pull/<n>/head`, linked by the pull request number.
 

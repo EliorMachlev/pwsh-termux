@@ -1,6 +1,6 @@
 # Signing keys and publish checks
 
-Which keys may sign the [apt index](repository.md#signing), what is checked before publishing, and how keys change. Procedures: [release](../release.md#rotating-the-signing-key).
+Which keys may sign the [apt index](repository.md#signing), what is checked before publishing, and how keys change. Procedures: [release](../release/signing-keys.md#rotating-the-signing-key).
 
 ## Key rules
 
@@ -33,14 +33,14 @@ This proves the keyring package was built by `build-packages.yaml` from the publ
 
 ## Testing
 
-`KEYRING_FILE` overrides the key file and its markers, for tests with throwaway keys only ([build](../build.md#build-and-test-a-repository)); `update.yaml`'s signing step clears it. [`test-keys.sh`](../../../../scripts/test-keys.sh) tests every rule and refusal with throwaway keys and a stub `gh`; [`test-release-tags.sh`](../../../../scripts/test-release-tags.sh) tests the [release tags](../release.md#signed-release-tags), which the same online key signs.
+`KEYRING_FILE` overrides the key file and its markers, for tests with throwaway keys only ([build](../build.md#build-and-test-a-repository)); `update.yaml`'s signing step clears it. [`test-keys.sh`](../../../../scripts/test-keys.sh) tests every rule and refusal with throwaway keys and a stub `gh`; [`test-release-tags.sh`](../../../../scripts/test-release-tags.sh) tests the [release tags](../release/tags.md), which the same online key signs.
 
 ## Rotation and recovery
 
 apt accepts an index signed by any key in the `signed-by` file, and the keyring package is in that index, so new keys reach users through `pkg upgrade` while a key they already trust signs it:
 
-1. **Planned rotation**: the next online key ships (marked by `keys/ROTATION`) while the current one still signs; the signer switches after a 180-day overlap ([release](../release.md#rotating-the-signing-key)).
-2. **Lost or compromised online key**: the maintainer signs, offline with the recovery key that every installed keyring trusts, a repository whose keyring carries a new online key ([`recovery-sign.sh`](../../../../scripts/recovery-sign.sh)). [`recover.yaml`](../../../../.github/workflows/recover.yaml) holds no key and deploys only what [`verify-recovery-repo.sh`](../../../../scripts/verify-recovery-repo.sh) verifies against the recovery key alone ([release](../release.md#recovery-with-the-offline-key)). This needs `keys/RECOVERY` set up, and the hosting and the maintainer's GitHub account intact.
+1. **Planned rotation**: the next online key ships (marked by `keys/ROTATION`) while the current one still signs; the signer switches after a 180-day overlap ([release](../release/signing-keys.md#rotating-the-signing-key)).
+2. **Lost or compromised online key**: the maintainer signs, offline with the recovery key that every installed keyring trusts, a repository whose keyring carries a new online key ([`recovery-sign.sh`](../../../../scripts/recovery-sign.sh)). [`recover.yaml`](../../../../.github/workflows/recover.yaml) holds no key and deploys only what [`verify-recovery-repo.sh`](../../../../scripts/verify-recovery-repo.sh) verifies against the recovery key alone ([release](../release/signing-keys.md#recovery-with-the-offline-key)). This needs `keys/RECOVERY` set up, and the hosting and the maintainer's GitHub account intact.
 
 A manual keyring reinstall from the site is needed by:
 

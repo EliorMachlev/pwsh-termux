@@ -1,0 +1,42 @@
+# CI / CD: Dependabot and pinned tools
+
+Part of the [CI / CD](../ci-cd.md) docs.
+
+## What Dependabot updates
+
+[`dependabot.yml`](../../../../.github/dependabot.yml) runs weekly (Mondays), with a 7-day cooldown after each upstream release. Five grouped pull requests:
+
+1. the pinned GitHub Actions, moving both the SHA and its `# vX.Y.Z` comment (every `uses:` is a full SHA, except the local reusable workflow, called as `$/.github/workflows/build-packages.yaml`);
+2. the hash-pinned Python requirements of `tools/zizmor` and `tools/docs-checks` (typos);
+3. Hypothesis and its dependencies in [`tools/fuzz/`](../../../../tools/fuzz), hash-pinned;
+4. the website's checkers in [`tools/site-lint/`](../../../../tools/site-lint) (npm: `vnu-jar`, `stylelint`, `stylelint-config-standard`; exact versions in `package.json`, integrity hashes in `package-lock.json`);
+5. coverage.py in [`tools/coverage/`](../../../../tools/coverage), hash-pinned, for the `coverage` job.
+
+These folders live under `tools/`, not `.github/`: Dependabot could not open pull requests for files under `.github/` (its API refused the change as "invalid or unauthorized"), while the same files at the top level were accepted.
+
+These are the only package ecosystems in the repository. The npm packages are CI tooling: `site.yaml` installs them with `npm ci --ignore-scripts` and checks them with `npm audit signatures`; no JavaScript ships on the site.
+
+Dependabot's pull requests are held to the same [required checks](rulesets.md#required-status-checks) as any other; Dependency Review and zizmor check them too.
+
+## Repository settings it needs
+
+Two things outside the repository's files go with `dependabot.yml`:
+
+1. **The `dependencies` label.** Every entry sets `labels: ["dependencies"]`. Dependabot does not create a missing label; the pull request then opens without it. Check with `gh label list`; create with `gh label create dependencies --description "Dependency updates"`.
+2. **The ruleset exclusion.** *Protection* excludes `refs/heads/dependabot/**/*`; without it, its `creation` rule refuses Dependabot's branches and no pull request opens ([rulesets](rulesets.md#the-four-rulesets)).
+
+## Pinned by hand
+
+Dependabot does not follow a download, and nothing reminds you when these fall behind. Each is pinned by version and SHA-256:
+
+1. the SBOM generators, at the top of `make-sboms.sh`;
+2. jactionlint and shfmt, in `ci.yaml` (`JACTIONLINT_*`, `SHFMT_*`);
+3. lychee, in `docs-checks.yaml` (`LYCHEE_*`).
+
+To move jactionlint to a new release:
+
+1. Pick a release at least two weeks old (`gh release list -R jdx/jactionlint`).
+2. Download `jactionlint_<version>_checksums.txt` and `jactionlint_<version>_linux_amd64.tar.gz`.
+3. Check that `sha256sum` of the archive matches its line in the checksums file.
+4. Read the release notes for new or changed rules: every rule of the `pedantic` profile runs, and any finding fails.
+5. Set `JACTIONLINT_VERSION` and `JACTIONLINT_SHA256` together.

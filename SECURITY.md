@@ -68,8 +68,8 @@ The file holds the online signing key, the recovery key and, only during a plann
 
 ### Rotation and recovery
 
-- **Planned rotation** reaches users through `pkg upgrade`. The next key is added to `keys/` (marked by `keys/ROTATION`) and shipped in a new `pwsh-termux-keyring` while the current key still signs. After an overlap of 180 days the signer switches and the old key is removed ([rotation](docs/markDown/engineering/release.md#rotating-the-signing-key)).
-- **A compromised or lost online key** cannot hand over to a successor itself. The maintainer publishes an advisory (with the revocation, if compromised) and uses the offline recovery key, whose public half is in every installed keyring, to sign a repository with a keyring carrying a new online key. A workflow that holds no key deploys it after checking the signature against the recovery key alone; users get the new key with `pkg upgrade` ([recovery](docs/markDown/engineering/release.md#recovery-with-the-offline-key)).
+- **Planned rotation** reaches users through `pkg upgrade`. The next key is added to `keys/` (marked by `keys/ROTATION`) and shipped in a new `pwsh-termux-keyring` while the current key still signs. After an overlap of 180 days the signer switches and the old key is removed ([rotation](docs/markDown/engineering/release/signing-keys.md#rotating-the-signing-key)).
+- **A compromised or lost online key** cannot hand over to a successor itself. The maintainer publishes an advisory (with the revocation, if compromised) and uses the offline recovery key, whose public half is in every installed keyring, to sign a repository with a keyring carrying a new online key. A workflow that holds no key deploys it after checking the signature against the recovery key alone; users get the new key with `pkg upgrade` ([recovery](docs/markDown/engineering/release/signing-keys.md#recovery-with-the-offline-key)).
 - **A manual reinstall** of `pwsh-termux-keyring.deb` from the site, with a fingerprint check, is needed by a user who does not run `pkg upgrade` within the 180-day window, for a key added by hand, and if the online key is compromised while the recovery key is lost. Recovery also needs the hosting and the maintainer's GitHub account intact.
 
 ### The keyring package
@@ -121,7 +121,7 @@ GitHub disables a public repository's schedules after 60 days without activity, 
 
 ## Commits on main
 
-Every change reaches `main` through a pull request on signed commits that passes 19 required checks, merged as a squash commit that GitHub signs; the maintainer's admin role cannot bypass that ([rulesets](docs/markDown/engineering/release.md#rulesets)). The one exception is the keep-alive commit, pushed with the repository's only deploy key. Every commit on `main` is audited on each push and daily; anything unexpected opens the issue *Unexpected unsigned commit on main*, which means the deploy key must be rotated ([threat model](docs/markDown/engineering/security/threat-model.md#leaked-keep-alive-deploy-key)).
+Every change reaches `main` through a pull request on signed commits that passes 19 required checks, merged as a squash commit that GitHub signs; the maintainer's admin role cannot bypass that ([rulesets](docs/markDown/engineering/ci-cd/rulesets.md)). The one exception is the keep-alive commit, pushed with the repository's only deploy key. Every commit on `main` is audited on each push and daily; anything unexpected opens the issue *Unexpected unsigned commit on main*, which means the deploy key must be rotated ([threat model](docs/markDown/engineering/security/threat-model.md#leaked-keep-alive-deploy-key)).
 
 ## Verifying a download
 
@@ -139,7 +139,7 @@ git tag -v pwsh-<version>
 
 `git tag -v` must print *Good signature from "pwsh-termux repository signing key"* and a *Primary key fingerprint* equal to `7086 C70B 4A25 576F E0C0  CE77 E43F B41F 02D0 1FC8`. gpg's warning that the key is not certified with a trusted signature only means you have not signed it yourself. A tag signed by any other key, or unsigned, did not come from this pipeline.
 
-GitHub shows these tags as unverified: the key is deliberately on no GitHub account, so it cannot make commits that GitHub would show as the maintainer's ([signed release tags](docs/markDown/engineering/release.md#signed-release-tags)). Tags made before tag signing, `pwsh-7.7.0-1` included, are lightweight and unsigned, and stay so; for those, use the build provenance above.
+GitHub shows these tags as unverified: the key is deliberately on no GitHub account, so it cannot make commits that GitHub would show as the maintainer's ([signed release tags](docs/markDown/engineering/release/tags.md)). Tags made before tag signing, `pwsh-7.7.0-1` included, are lightweight and unsigned, and stay so; for those, use the build provenance above.
 
 ## Related documents
 

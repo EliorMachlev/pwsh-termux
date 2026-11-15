@@ -11,8 +11,8 @@ The user-facing side is the [website](https://pwsh-termux.machlev.org/) and the 
 - [Contributing](engineering/contributing.md): setup, tests and coverage, rules, PR checklist (short version: [CONTRIBUTING.md](../../CONTRIBUTING.md))
 - [Architecture](engineering/architecture/README.md): the pipeline and its rules, then [releases](engineering/architecture/releases.md), [packaging](engineering/architecture/packaging.md), [repository](engineering/architecture/repository.md), [signing](engineering/architecture/signing.md), [keyring](engineering/architecture/keyring.md) and [hosting](engineering/architecture/hosting.md)
 - [Build](engineering/build.md): building and testing locally, the Termux quirks
-- [Release](engineering/release.md): how a release happens, one-time setup, the custom domain, key rotation; releases are on [GitHub](https://github.com/EliorMachlev/pwsh-termux/releases)
-- [CI / CD](engineering/ci-cd.md): workflows, scanners, Dependabot, permissions, pinning
+- [Release](engineering/release.md): how a release happens, then [setup](engineering/release/setup.md), [provenance](engineering/release/provenance.md), [tags](engineering/release/tags.md) and [signing keys](engineering/release/signing-keys.md); releases are on [GitHub](https://github.com/EliorMachlev/pwsh-termux/releases)
+- [CI / CD](engineering/ci-cd.md): the rules every workflow follows, then [workflows](engineering/ci-cd/workflows.md), [tests](engineering/ci-cd/tests.md), [rulesets](engineering/ci-cd/rulesets.md), [keep-alive](engineering/ci-cd/keepalive.md), [audit](engineering/ci-cd/audit.md), [Dependabot](engineering/ci-cd/dependabot.md) and [troubleshooting](engineering/ci-cd/troubleshooting.md)
 - [Branches and the pipeline](engineering/branching.md): `main`, pull requests, and which checks run where
 - [Security](engineering/security.md): secrets, then the [threat model](engineering/security/threat-model.md), [assurance case](engineering/security/assurance-case.md) and [supply chain](engineering/security/supply-chain.md)
 - [Governance and roadmap](engineering/governance.md): who decides, roles, continuity, what is planned

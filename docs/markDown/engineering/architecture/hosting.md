@@ -18,7 +18,7 @@ Each new `pwsh` or `pwsh-preview` `.deb` is also published once as a GitHub rele
 
 ## The custom domain
 
-`docs/CNAME` holds `pwsh-termux.machlev.org`; for a workflow-deployed site it is informational. The domain is set in the Pages settings (or `gh api -X PUT repos/EliorMachlev/pwsh-termux/pages -f cname=pwsh-termux.machlev.org`) and needs a DNS record `CNAME pwsh-termux → eliormachlev.github.io`. With *Enforce HTTPS* on, `https://eliormachlev.github.io/pwsh-termux/` redirects to the domain, which apt follows. Full checklist: [release](../release.md#custom-domain).
+`docs/CNAME` holds `pwsh-termux.machlev.org`; for a workflow-deployed site it is informational. The domain is set in the Pages settings (or `gh api -X PUT repos/EliorMachlev/pwsh-termux/pages -f cname=pwsh-termux.machlev.org`) and needs a DNS record `CNAME pwsh-termux → eliormachlev.github.io`. With *Enforce HTTPS* on, `https://eliormachlev.github.io/pwsh-termux/` redirects to the domain, which apt follows. Full checklist: [release](../release/setup.md#custom-domain).
 
 ## Concurrency and failure
 

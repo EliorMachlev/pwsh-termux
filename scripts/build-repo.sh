@@ -102,7 +102,7 @@ check_signer() {
     die "the secret of the recovery key $recovery_fpr is in this gpg home; it must never be where the online key is"
   fi
   grep -qx -- "$sign_fpr" <<<"$online_fprs" \
-    || die "the signing key $sign_fpr is not the online key in $KEYRING_FILE ($(tr '\n' ' ' <<<"$online_fprs")); see release.md, rotating the signing key"
+    || die "the signing key $sign_fpr is not the online key in $KEYRING_FILE ($(tr '\n' ' ' <<<"$online_fprs")); see release/signing-keys.md, rotating the signing key"
 }
 
 # The keyring package is the file whose attestation the caller verified.

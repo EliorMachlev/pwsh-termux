@@ -32,7 +32,7 @@ name: CI
 #               the website checks and assembly
 on:
   # Every pull request, whatever it changes: its jobs are required status
-  # checks on main (release.md, "Rulesets"), and a workflow a path filter
+  # checks on main (ci-cd/rulesets.md), and a workflow a path filter
   # skips never reports, which would leave the pull request unmergeable.
   pull_request:
   push:
@@ -64,7 +64,7 @@ env:
   # https://github.com/jdx/jactionlint), checked against this SHA-256 before
   # it runs (it matched the release's own checksums file when it was pinned).
   # Dependabot doesn't follow a download: for a new release, update both
-  # lines by hand, after checking that file (ci-cd.md, "Dependabot").
+  # lines by hand, after checking that file (ci-cd/dependabot.md).
   JACTIONLINT_VERSION: "2.4.0"
   JACTIONLINT_SHA256: "26ddba81db28fffc51163175c070ee1a9d1150260de4b5232f01d9b749f32d8e"
   # shfmt's release binary (https://github.com/mvdan/sh), whose parser gives

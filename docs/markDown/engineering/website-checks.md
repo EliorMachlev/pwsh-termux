@@ -30,7 +30,7 @@ It runs on `docs/` in [`site.yaml`](../../../.github/workflows/site.yaml) and be
 
 ## Tool pinning
 
-Both are pinned in [`tools/site-lint/`](../../../tools/site-lint): exact versions in `package.json`, integrity hashes in `package-lock.json`; Dependabot updates them ([ci-cd.md](ci-cd.md#dependabot)).
+Both are pinned in [`tools/site-lint/`](../../../tools/site-lint): exact versions in `package.json`, integrity hashes in `package-lock.json`; Dependabot updates them ([ci-cd.md](ci-cd/dependabot.md)).
 
 1. vnu comes from `vnu-jar`, the validator project's own npm release of `vnu.jar`, with a provenance attestation that `npm audit signatures` checks (its GitHub releases offer only a rolling `latest`). It runs on the runner's Java (17 or later).
 2. `npm ci --ignore-scripts` installs the tools; nothing from them reaches `docs/`, and the site still has no JavaScript.

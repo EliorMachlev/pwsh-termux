@@ -1,7 +1,7 @@
 name: Deploy a recovery-signed repository
 
 # Used only after the online signing key is compromised or lost
-# (docs/markDown/engineering/release.md, "Recovery with the offline key").
+# (docs/markDown/engineering/release/signing-keys.md, "Recovery with the offline key").
 # The maintainer builds the repository and signs it on their own machine with
 # the offline recovery key (scripts/recovery-sign.sh), attaches it to a
 # release tagged recovery-* as recovery-repo.tar.gz, and starts this workflow

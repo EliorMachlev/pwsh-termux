@@ -10,7 +10,7 @@ name: Schedule keep-alive
 # Any one of the three still running renews the other two. A workflow turned
 # off by hand stays off; one GitHub disabled is enabled again and the run
 # fails, so the maintainer hears of it. SECURITY.md, "Index freshness", and
-# docs/markDown/engineering/ci-cd.md say what is verified and what is assumed.
+# docs/markDown/engineering/ci-cd/keepalive.md say what is verified and what is assumed.
 on:
   schedule:
     - cron: "29 2 * * 0,3"    # Sunday and Wednesday

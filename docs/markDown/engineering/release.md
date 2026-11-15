@@ -1,339 +1,35 @@
 # Release
 
-There is nothing to "cut". New PowerShell releases are picked up by the scheduled [`update.yaml`](../../../.github/workflows/update.yaml) workflow, and a change to this repository's scripts or site is published by the same workflow on push to `main`. A published version is a Microsoft version plus a Debian revision ([packages](../product/packages.md#version-numbers)).
-
-## What happens on a run
-
-1. `find-releases.sh` picks the stable and, if newer, the preview release ([releases](architecture/releases.md)).
-2. `build-deb.sh` builds a `.deb` of each after verifying Microsoft's hash ([packaging](architecture/packaging.md)); `build-keyring.sh` builds `pwsh-termux-keyring` from `keys/` ([the keyring package](architecture/repository.md#the-keyring-package)).
-3. The `verify` job checks the keyring package's build provenance with `gh attestation verify` (read-only token, no signing key). Then `build-repo.sh`, in the job with the signing key, checks that key against `keys/` and the package against the verified digest and `keys/`, writes the apt index and signs it; `assemble-site.sh` merges the website ([repository](architecture/repository.md), [hosting](architecture/hosting.md)).
-4. In the same step, with the same key, `release-tags.sh` signs an annotated tag `<package>-<version>` on the commit being published for each `pwsh` or `pwsh-preview` `.deb` that has no tag yet ([signed release tags](#signed-release-tags)). Then each such `.deb` not yet released becomes a GitHub release on that tag (pushed first, then `gh release create --verify-tag`), with the public key and the keyring package attached. A release is created once with all its files and never changed afterwards.
-5. The result is deployed to Pages.
-
-This happens **every day, whether or not Microsoft released anything**, and makes no commit. The index carries a `Valid-Until` 14 days after its `Date` (`VALID_UNTIL_DAYS` in [`scripts/lib/common.sh`](../../../scripts/lib/common.sh)), so apt refuses an index that has not been re-signed for 14 days ([SECURITY.md](../../../SECURITY.md#index-freshness-valid-until)); the daily run is what moves that date on. An unchanged release rebuilds to the same bytes (`build-deb.sh` and `build-keyring.sh` are reproducible), so `Packages`, `Packages.gz`, `Packages.xz` and every `.deb` are byte-identical from one day to the next and only `Release`, `InRelease` and `Release.gpg` change: clients re-download the small `InRelease` and are offered no upgrade. `test-keys.sh` proves it for the index, and CI's package build builds the real `.deb` twice and compares.
-
-**If the pipeline is broken for more than 14 days**, the deployed index expires and `pkg update` on every device fails with *Release file … is expired*. That is deliberate: a loud error instead of silently frozen packages. Fix the run (or start it by hand) and the next deploy clears it for everyone; nothing needs to change on the devices. [`staleness.yaml`](../../../.github/workflows/staleness.yaml) checks the live index daily and opens an issue when fewer than 7 days are left, so this should be caught a week early. GitHub's 60-day pause of scheduled workflows in an inactive repository is handled by the [schedule keep-alive](ci-cd.md#schedule-keep-alive).
+There is nothing to "cut". The scheduled [`update.yaml`](../../../.github/workflows/update.yaml) picks up new PowerShell releases, and the same workflow publishes a change to this repository's scripts, keys or site on push to `main`. A published version is a Microsoft version plus a Debian revision ([packages](../product/packages.md#version-numbers)).
 
 Run it by hand: **Actions → Update packages → Run workflow**, or `gh workflow run update.yaml`.
 
-## One-time setup
+## Topics
 
-1. **Signing key.** Create a dedicated Ed25519 key with a random passphrase, keep the private half out of Git, and back both up outside GitHub (a GitHub secret cannot be read back):
-   ```bash
-   gpg --quick-generate-key "pwsh-termux <noreply@users.noreply.github.com>" ed25519 sign never   # asks for the passphrase
-   gpg --armor --export-secret-keys <fingerprint> > signing-secret.asc         # still passphrase-protected
-   gpg --export <fingerprint> > keys/pwsh-termux-archive-keyring.gpg     # public half only, binary
-   bash scripts/check-keys.sh                                              # prints the fingerprint
-   ```
-   Commit `keys/pwsh-termux-archive-keyring.gpg`; `build-repo.sh` refuses to sign with any other key. Also create a revocation certificate (`gpg --gen-revoke`, which needs a terminal) and store it separately.
+1. [One-time setup](release/setup.md): the signing key, the `signing` environment, Pages, the custom domain.
+2. [SBOMs, provenance and verification](release/provenance.md)
+3. [Signed release tags](release/tags.md)
+4. [Signing keys](release/signing-keys.md): rotation, the offline recovery key, recovery.
+5. Related, under CI / CD: [rulesets and required checks](ci-cd/rulesets.md), [the keep-alive deploy key](ci-cd/keepalive.md#the-keep-alive-deploy-key), [when a run fails](ci-cd/troubleshooting.md).
 
-   **What the passphrase is worth.** Little, and it should not be counted on: the workflow runs unattended, so the passphrase is a second secret (`GPG_PASSPHRASE`) in the same environment as the key, and anything that can read one can read the other. It stops a leak of the exported key alone (a backup, a stray copy of `signing-secret.asc`) from being usable as it is, and nothing more. It is not a second factor.
-2. **Secrets, in the environment `signing`.** `update.yaml`'s `publish` job, the only one that reads `GPG_PRIVATE_KEY` and `GPG_PASSPHRASE`, runs in the environment `signing`. Restrict it to `main` and put both there, not in the repository's secrets, so that a workflow run on any other branch cannot read them:
-   ```bash
-   R=repos/EliorMachlev/pwsh-termux
-   gh api -X PUT $R/environments/signing --input - <<<'{"deployment_branch_policy":{"protected_branches":false,"custom_branch_policies":true}}'
-   gh api -X POST $R/environments/signing/deployment-branch-policies -f name=main -f type=branch
-   gh secret set GPG_PRIVATE_KEY --env signing < signing-secret.asc
-   gh secret set GPG_PASSPHRASE --env signing                       # asks for the value; do not put it on the command line
-   ```
-   The job imports the key with `gpg --batch --import`, writes the passphrase to a mode-600 file under the runner's `RUNNER_TEMP` (removed when the step ends) and signs with `--pinentry-mode loopback --passphrase-file`. Without `GPG_PASSPHRASE` it still signs with a key that has no passphrase, and logs a warning that the key has none; a protected key without its passphrase fails to sign, and nothing is published.
+## What happens on a run
 
-   **Current state:** done. The environment `signing` exists with the deployment branch policy `main`, and holds `GPG_PRIVATE_KEY` (passphrase-protected) and `GPG_PASSPHRASE`; there is no repository secret `GPG_PRIVATE_KEY`. Check it with `gh secret list` (lists neither) and `gh secret list --env signing` (lists both). A job in an environment reads the environment's secret when there is one and the repository's otherwise, so a repository secret of the same name must never come back: it would be readable by a run on any branch.
+1. `find-releases.sh` picks the stable release and, if newer, the preview ([releases](architecture/releases.md)).
+2. `build-deb.sh` builds a `.deb` of each after verifying Microsoft's hash ([packaging](architecture/packaging.md)); `build-keyring.sh` builds `pwsh-termux-keyring` from `keys/` ([the keyring package](architecture/repository.md#the-keyring-package)). The same build writes the SBOMs and attests them ([provenance](release/provenance.md)).
+3. The `verify` job (read-only token, no signing key) checks the keyring package's build provenance with `gh attestation verify`.
+4. The `publish` job, which holds the signing key, runs `build-repo.sh`: it checks the key against `keys/` and the keyring package against the verified digest and `keys/`, writes the apt index and signs it. `assemble-site.sh` merges the website ([repository](architecture/repository.md), [hosting](architecture/hosting.md)).
+5. In the same step, with the same key, `release-tags.sh` signs a tag `<package>-<version>` on the commit being published for each `pwsh` or `pwsh-preview` `.deb` that has none yet ([signed release tags](release/tags.md)).
+6. Each such `.deb` not yet released becomes a GitHub release on its tag (pushed first, then `gh release create --verify-tag`), with the public key and the keyring package attached. A release is created once with all its files and never changed.
+7. The result is deployed to Pages.
 
-   **Adding a passphrase to a key that has none** (if a key is ever restored from an unprotected backup): on the machine that holds the backup (outside GitHub), `gpg --import signing-secret.asc`, `gpg --passwd <fingerprint>` (set a random passphrase), `gpg --armor --export-secret-keys <fingerprint> > signing-secret.asc`, then `gh secret set GPG_PASSPHRASE --env signing` first and `gh secret set GPG_PRIVATE_KEY --env signing < signing-secret.asc` second (with the passphrase set and the key not yet protected, the run still signs). Run `update.yaml` by hand and check that it publishes without the *no passphrase* warning. The fingerprint does not change, so `keys/` does not either.
-3. **Pages.** Settings → Pages → *Source: GitHub Actions* (or `gh api -X POST repos/EliorMachlev/pwsh-termux/pages -f build_type=workflow`).
-4. **Run the workflow once**, then check the site.
-5. **Custom domain** ([below](#custom-domain)).
-6. **Private vulnerability reporting** on (Settings → Code security), because [SECURITY.md](../../../SECURITY.md) and `security.txt` point to it.
-7. **Recovery key** (recommended; [below](#the-recovery-key)). It is set up; without it a compromised or lost online key would mean every user reinstalls the keyring by hand.
-8. **Immutable releases** (optional, recommended): Settings → General, *Releases* section, *Enable release immutability*. A published release's tag and assets can then no longer be changed or replaced. The workflow is compatible: it creates each release once with all its files (`gh release create` uploads to a draft and publishes it at the end) and never uploads to an existing release. This is a repository setting; whether it is on is not visible from the code.
-9. **The keep-alive deploy key** and the [rulesets](#rulesets) that let it push to `main` only ([below](#the-keep-alive-deploy-key)). In place, and the keep-alive commit verified end to end.
+## Daily re-signing
 
-## Custom domain
+The run happens **every day, release or not**, and makes no commit. The index carries a `Valid-Until` 14 days after its `Date` (`VALID_UNTIL_DAYS` in [`common.sh`](../../../scripts/lib/common.sh)), so apt refuses an index not re-signed for 14 days ([SECURITY.md](../../../SECURITY.md#index-freshness-valid-until)).
 
-The site is served at `pwsh-termux.machlev.org`.
+`build-deb.sh` and `build-keyring.sh` are reproducible, so an unchanged release rebuilds to the same bytes: `Packages`, `Packages.gz`, `Packages.xz` and every `.deb` stay identical, and only `Release`, `InRelease` and `Release.gpg` change. Clients re-download the small `InRelease` and are offered no upgrade. `test-keys.sh` proves it for the index; CI's package build builds the real `.deb` twice and compares.
 
-1. **DNS.** At the DNS provider for `machlev.org` (Cloudflare), add a record:
-
-   | Type | Name | Target | Proxy |
-   |---|---|---|---|
-   | `CNAME` | `pwsh-termux` | `eliormachlev.github.io` | DNS only |
-
-   Leave the proxy off (grey cloud): GitHub has to see the DNS record itself to issue the certificate.
-2. **Set the domain** in the repository's Pages settings, or `gh api -X PUT repos/EliorMachlev/pwsh-termux/pages -f cname=pwsh-termux.machlev.org`. Do this **after** the DNS record resolves: while the domain is set but unresolvable, the old `github.io` address redirects to a site nobody can reach.
-3. **Enforce HTTPS** once GitHub shows the certificate as issued (usually minutes; it can take up to an hour): `gh api -X PUT repos/EliorMachlev/pwsh-termux/pages -F https_enforced=true`.
-4. **Verify the domain** in your GitHub account settings (Settings → Pages → *Add a domain*, a `TXT` record). It stops anyone else claiming `pwsh-termux.machlev.org` for their own Pages site if the `CNAME` record is ever left dangling.
-
-Check from a shell: `dig +short CNAME pwsh-termux.machlev.org` should print `eliormachlev.github.io.`.
-
-## SBOMs and provenance
-
-[`build-packages.yaml`](../../../.github/workflows/build-packages.yaml) is a reusable workflow that `update.yaml` calls. Its `build` job builds the `.deb` files and writes their SBOMs with [`scripts/make-sboms.sh`](../../../scripts/make-sboms.sh) (CycloneDX 1.6 and three SPDX files, each from a different generator; [what they show](../../../SECURITY.md#software-bill-of-materials-sbom-and-build-provenance)); it has no signing key and no token to sign provenance with. Its `attest` job (the only one with `id-token` and `attestations` write) attests the `.deb` files and the SBOMs with `actions/attest-build-provenance` and keeps the bundle as a release file in the in-toto JSON Lines format, named the way OpenSSF Scorecard's Signed-Releases check expects. `update.yaml`'s `publish` job, the only one with the apt signing key, then builds the repository and attaches the `.deb`, its SBOMs, `SHA256SUMS`, the provenance and the public key to the release.
-
-A run builds and attests every day, not only for a new release; a release keeps the files of the build that created it. The keyring package goes through the same build, SBOMs and attestation, and the `verify` job checks its attestation before anything is signed.
-
-Verify with:
-
-```bash
-gh attestation verify pwsh_<version>_aarch64.deb --repo EliorMachlev/pwsh-termux --signer-workflow EliorMachlev/pwsh-termux/.github/workflows/build-packages.yaml
-for f in pwsh_<version>_aarch64.*.json; do gh attestation verify "$f" --repo EliorMachlev/pwsh-termux --signer-workflow EliorMachlev/pwsh-termux/.github/workflows/build-packages.yaml || break; done
-```
-
-If the `verify` job fails, the keyring package has no valid provenance from `build-packages.yaml` at this commit: nothing is signed or published. If `publish` fails in `build-repo.sh` with "is not the key in", the `GPG_PRIVATE_KEY` secret and `keys/` disagree (one was changed without the other, or `keys/ROTATION` is missing or stale). If it fails with "gpg could not sign", the key is passphrase-protected and `GPG_PASSPHRASE` is missing or wrong. Fix the cause; do not skip the check.
-
-If CI fails in "Write the SBOMs", a tool's download or a validation failed: the log names the file. The tool versions and hashes are at the top of `make-sboms.sh`; Dependabot does not track them, so update them by hand.
-
-## Verifying a release
-
-`apt` verifies the signed index and each package's SHA-256 for you. By hand, for a `.deb` from a release: compare `sha256sum <file>` with its `SHA256:` line in `https://pwsh-termux.machlev.org/dists/stable/main/binary-aarch64/Packages`, and check the key's fingerprint against [SECURITY.md](../../../SECURITY.md#signing-key). The release's tag is signed with the same key: `git tag -v <tag>` ([SECURITY.md](../../../SECURITY.md#verifying-a-release-tag)).
-
-## Signed release tags
-
-Each `pwsh` and `pwsh-preview` release made since this was added sits on an **annotated tag signed with the online signing key**, the key in `keys/` that signs the apt index, so `git tag -v <tag>` shows which commit built the release and that this repository's pipeline signed it. This is what OpenSSF's `version_tags_signed` criterion asks for. [`scripts/release-tags.sh`](../../../scripts/release-tags.sh) does it in `update.yaml`'s `publish` job:
-
-1. **`sign`**, in the step that holds the key, after `build-repo.sh` has signed the index: for each `pwsh` and `pwsh-preview` `.deb` whose tag `<package>-<version>` (`~` written as `-`) this clone does not have (the checkout fetches every tag), it writes the tag object with `git mktag`: the commit being published (`GITHUB_SHA`), the tagger `github-actions[bot]`, a title `<package> <version>` and a message naming the key, then an armored detached signature by the online key, exactly as `git tag -s` would. It checks the result as `verify` does before it creates `refs/tags/<tag>`. A failure stops the run: nothing is published.
-2. **`push`**, in the release step, which no longer holds the key: it verifies the tag again, pushes it with the job's `GITHUB_TOKEN` (`contents: write`; git gets the token from `gh auth git-credential` for that command only) unless the remote has it already (then it must be the same tag object), and `gh release create --verify-tag` makes the release on it, so `gh` never creates a lightweight tag itself.
-3. **`verify`**: the tag is annotated, names itself, points at a commit and carries exactly one signature, which verifies with `gpgv` against `keys/` alone and was made by an online key (during a rotation, either one), never the recovery key.
-
-**Why `GITHUB_TOKEN` can push it.** *Tag Protection* has no `creation` rule, and its `required_signatures` rule checks the commits a push brings, not the tag object ([GitHub community discussion](https://github.com/orgs/community/discussions/154293)): a release tag points at a commit that is already on `main`, signed, so the push brings none. Moving or deleting a tag stays refused, for the workflow as for anyone without the Admin bypass. One limit: a `GITHUB_TOKEN` never holds the `workflows` permission, and GitHub refuses a new ref it creates on a commit whose `.github/workflows` differs from the default branch's ([discussion](https://github.com/orgs/community/discussions/151442)). That happens only if a pull request changing a workflow merges while a run is in progress; `push` then compares the tagged commit's `.github/workflows` with the remote `main`'s, pushes nothing, exits 3, and the release step logs a warning and skips that release. The next run (a merge to `main` starts one) tags its own commit and releases it.
-
-**The key is on no GitHub account**, on purpose: added to the maintainer's account it would make GitHub show commits it signs as the maintainer's, *Verified*, which the [audit of `main`](ci-cd.md#the-audit-of-main) trusts, so a leak of the unattended signing key would reach further. So GitHub shows these tags as unverified; the check is `git tag -v` with the published key ([SECURITY.md](../../../SECURITY.md#verifying-a-release-tag)). After a [rotation](#rotating-the-signing-key) an older tag verifies with the key that signed it, which is in the keyring file at the tag's own commit (`git show <tag>:keys/pwsh-termux-archive-keyring.gpg`), since the publish job signs only with an online key of that file.
-
-**Older tags.** `pwsh-7.7.0-1`, made before this change by `gh release create`, is a lightweight tag with no signature. It stays as it is: *Tag Protection* forbids moving it and its release is immutable. The tests are in `scripts/test-release-tags.sh`, run by CI's *Key rules and key tests* job ([CI / CD](ci-cd.md#workflows)).
+**If the pipeline is broken for more than 14 days**, the index expires and `pkg update` fails on every device with *Release file … is expired*. That is deliberate: a loud error instead of silently frozen packages. Fix the run (or start it by hand); the next deploy clears it for everyone, with nothing to change on the devices. [`staleness.yaml`](../../../.github/workflows/staleness.yaml) checks the live index daily and opens an issue when fewer than 7 days are left. GitHub's 60-day pause of scheduled workflows is handled by the [schedule keep-alive](ci-cd/keepalive.md#schedule-keep-alive).
 
 ## If Microsoft publishes a bad release
 
-There is no pin or skip list: the repository follows upstream. If a release is broken, wait for Microsoft's fix (the next daily run picks it up), or change `find-releases.sh` to skip that tag and push. Users who already upgraded can [go back](../product/packages.md#pinning-or-downgrading) to the previous build from its release asset.
-
-## Rotating the signing key
-
-apt accepts an index signed by any key in the `signed-by` file, and the keyring package is part of the signed index. So a planned rotation reaches users through `pkg upgrade`, in four steps. The key rules ([repository](architecture/repository.md#signing)) allow a second online key in `keys/` only while `keys/ROTATION` names it; CI and the publish job refuse anything else. The recovery key, if set up, stays in `keys/` throughout.
-
-1. **Ship the next key** (a pull request). Generate the new key as in step 1 of the setup; keep both secrets. Append its public half and mark the rotation:
-   ```bash
-   gpg --export <new-fingerprint> >> keys/pwsh-termux-archive-keyring.gpg
-   echo <NEW-FINGERPRINT> > keys/ROTATION            # 40 hex digits, upper case
-   bash scripts/check-keys.sh                        # current, next (and recovery)
-   ```
-   Bump `KEYRING_VERSION` in `scripts/build-keyring.sh`, and add the new fingerprint to [`SECURITY.md`](../../../SECURITY.md#signing-key) as the next key. Merge. The **current** key still signs; the publish run puts a keyring with both online keys in the index, and `pkg upgrade` installs it.
-2. **Overlap: 180 days.** A user who runs `pkg upgrade` at any time in this window receives step 1. 180 days rather than a few weeks because a phone's Termux may go unused for months, and nothing is lost by waiting: the rotation is planned, the current key is not suspect. The overlap is state in the repository (`keys/ROTATION` stays committed until step 4), not a timer: nothing happens on its own when it ends; the maintainer does step 3.
-3. **Switch the signer.** Replace the secrets (`gh secret set GPG_PRIVATE_KEY --env signing < new-signing-secret.asc` and `gh secret set GPG_PASSPHRASE --env signing`, the new key's passphrase) and, at the same time, merge a pull request that only makes the new fingerprint the current one in `SECURITY.md`, `docs/install.html`, the README and `docs/index.html` (it removes nothing from `keys/`). Check that the publish run succeeds signed by the new key: `keys/ROTATION` is still there and names the signer, which the rules allow.
-4. **Drop the old key** (a pull request). Rewrite `keys/pwsh-termux-archive-keyring.gpg` with the new online key (and the recovery key, if any): `gpg --export <new-fingerprint> [<recovery-fingerprint>] > keys/pwsh-termux-archive-keyring.gpg`; `git rm keys/ROTATION`; bump `KEYRING_VERSION` again; remove the old fingerprint from `SECURITY.md`. Destroy the old secret.
-
-A user who did not run `pkg upgrade` during the overlap, or who added the key by hand, has to reinstall the keyring from the site after step 3.
-
-## The recovery key
-
-An offline Ed25519 key that only the maintainer holds, never on a networked machine, in GitHub or in CI. Its public half is in every installed keyring, so it can sign the way out of a lost or compromised online key ([below](#recovery-with-the-offline-key)). It never signs the repository otherwise: `build-repo.sh` refuses it as a signer and refuses to sign if its secret is in the gpg home.
-
-**It is set up**: its fingerprint is in `keys/RECOVERY` and [SECURITY.md](../../../SECURITY.md#signing-key). The code still accepts `keys/` without a recovery key, which is how a fork or a rebuilt repository would start. The steps below are how it was made and how to replace it. Do not generate one on a phone or on any machine that is online.
-
-1. **Generate it offline**, on a machine that is not and will not be connected to a network (a live system booted without networking is enough), with a strong passphrase:
-   ```bash
-   gpg --quick-generate-key "pwsh-termux recovery key <noreply@users.noreply.github.com>" ed25519 sign never
-   gpg --armor --export-secret-keys <recovery-fingerprint> > recovery-secret.asc     # passphrase-protected
-   gpg --gen-revoke <recovery-fingerprint> > recovery-revoke.asc
-   gpg --export <recovery-fingerprint> > recovery-public.gpg                          # the only file that leaves
-   ```
-2. **Store it**: `recovery-secret.asc` on at least two offline media kept in different places (for example two encrypted USB drives, or one plus a paper copy made with `paperkey`); `recovery-revoke.asc` separately from both; the passphrase written down apart from the media. Never copy the secret to an online machine, a cloud drive, a password manager that syncs, or a GitHub secret.
-3. **Add it** (a pull request): append `recovery-public.gpg` to `keys/pwsh-termux-archive-keyring.gpg`, `echo <RECOVERY-FINGERPRINT> > keys/RECOVERY`, bump `KEYRING_VERSION`, add a *Recovery key* row with its fingerprint to [`SECURITY.md`](../../../SECURITY.md#signing-key) (CI checks it is there), and run `bash scripts/check-keys.sh` (`current`, `recovery`). From the next publish on, `pkg upgrade` gives every user a keyring that trusts it.
-
-Once a year [`key-review.yaml`](../../../.github/workflows/key-review.yaml) opens an issue reminding you to check these backups (offline, by hand) and to review the rotation plan above; the issue holds no key material.
-
-## Recovery with the offline key
-
-When the online key is compromised or lost. It needs the recovery key to be set up, and it needs the hosting (GitHub Pages and the domain) and the maintainer's GitHub account to be intact: the recovery key only replaces the online key, nothing else. With the online key compromised **and** the recovery key lost (or never set up), there is no way around it: every user reinstalls the keyring from the site after an advisory.
-
-1. **Stop the online key.** `gh secret delete GPG_PRIVATE_KEY --env signing` and `gh secret delete GPG_PASSPHRASE --env signing` and `gh workflow disable update.yaml`. A workflow disabled by hand stays off: the [schedule keep-alive](ci-cd.md#schedule-keep-alive) re-enables only what GitHub disabled for inactivity. Publish a GitHub security advisory; if the key was compromised, attach its revocation certificate.
-2. **New online key** (a pull request). Generate it as in step 1 of the setup (do not set the secret yet). Write `keys/pwsh-termux-archive-keyring.gpg` as the new online key plus the recovery key, with `keys/RECOVERY` unchanged and no `ROTATION`; bump `KEYRING_VERSION`; make the new fingerprint the current one in `SECURITY.md` and the pages. Merge (nothing is published: the pipeline is disabled).
-3. **Build and sign offline**, from that commit, on the machine with the recovery key. Bring in the current `pwsh`/`pwsh-preview` `.deb` files from their releases (check them with `gh attestation verify` first, on an online machine), then:
-   ```bash
-   bash scripts/build-keyring.sh debs                 # the new keyring, from keys/
-   bash scripts/build-repo.sh debs repo               # unsigned
-   bash scripts/recovery-sign.sh repo                 # signs with the recovery key, then verifies
-   tar -czf recovery-repo.tar.gz -C repo .
-   ```
-   `build-repo.sh` writes `Release` with a `Valid-Until` 14 days ahead; `recovery-sign.sh` refuses to sign one with fewer than 7 days left or a longer window.
-4. **Deploy it** (online again): `gh release create recovery-<date> recovery-repo.tar.gz --latest=false --title "Recovery <date>" --notes "Repository signed with the recovery key; see the advisory."`, then `gh workflow run recover.yaml -f tag=recovery-<date>`. The workflow has no signing key: it deploys only if `verify-recovery-repo.sh` finds `InRelease` and `Release.gpg` signed by the recovery key alone, a `Valid-Until` at most 14 days after `Date` with at least 7 days left, `Release`, `Packages` and every `.deb` in `pool/` consistent, and the key files equal to `keys/`; it takes the public key files and the website from the commit, not from the tarball. Adding required reviewers to the `github-pages` environment (Settings → Environments) puts a second confirmation in front of it.
-5. **Users** run `pkg upgrade` as usual: apt accepts the index because it trusts the recovery key, and installs the keyring with the new online key in place of the old one. Nothing manual.
-6. **Recovery window: 180 days**, as for a rotation. Leave the pipeline disabled. The recovery-signed index expires 14 days after `build-repo.sh` wrote it (`Valid-Until`), and nothing online can re-sign it, so **repeat steps 3 and 4 at least every 14 days** (weekly is comfortable), and for a new PowerShell release. `recovery-sign.sh` refuses a `Release` with fewer than 7 days left (run `build-repo.sh` and it in one sitting), and `recover.yaml` refuses to deploy one.
-7. **Back to normal.** `gh secret set GPG_PRIVATE_KEY --env signing < new-signing-secret.asc`, `gh secret set GPG_PASSPHRASE --env signing` (its passphrase) and `gh workflow enable update.yaml`. From now on the online key signs again. A user who did not run `pkg upgrade` in the window reinstalls the keyring from the site.
-
-Until a user upgrades, whoever holds a compromised key can still sign an index that user accepts, though serving it to them takes control of their connection or of the hosting.
-
-## The keep-alive deploy key
-
-[`keepalive-commit.yaml`](../../../.github/workflows/keepalive-commit.yaml) pushes at most one commit a month to `main`, changing only `keep.alive`, with a deploy key ([why, and what the key can do](ci-cd.md#keep-alive-commit)). Already in place: the read-write deploy key *pwsh-termux keepalive (push to main)*, and the environment `keepalive` (deployment branch policy: `main` only) holding its private half as the secret `KEEPALIVE_DEPLOY_KEY`. The private half exists nowhere else; nobody needs a copy, since rotation makes a new key.
-
-### Rulesets
-
-**Status:** *Main* as described here (no Admin bypass, a `pull_request` rule and the required status checks below) has been applied since 2026-11-14 with [the command below](#applying-main). No ruleset has a `required_deployments` rule.
-
-Four rulesets apply. A bypass actor bypasses *every* rule of a ruleset, so the deploy key could not simply be added to one ruleset for all branches: it would then also be able to delete `main`, force-push it and create branches. So deletion, force push and creation sit in a ruleset the deploy key has no bypass on, and the deploy key is a bypass actor only on a ruleset for `main` alone. Rulesets stack: a push must pass every ruleset that applies to its ref, each bypassed only by that ruleset's own actors. The Admin role is `RepositoryRole` 5.
-
-| Ruleset | Target | Rules | Bypass actors |
-|---|---|---|---|
-| *Main* (id `27198868`) | `refs/heads/main` | `required_signatures`; `code_scanning` (CodeQL, zizmor); `pull_request` (no approval needed, squash merge only, stale approvals dismissed); `required_status_checks` (branch must be up to date; the [19 checks below](#required-status-checks), strict) | **`DeployKey`** only (`actor_id: null`, `bypass_mode: always`). **Not** the Admin role. |
-| *Protection, other branches* (id `27198871`) | all branches except `refs/heads/main` | `required_signatures`, `code_scanning` (CodeQL, Scorecard, zizmor) | Admin role only |
-| *Protection* (id `27110284`) | all branches (`~ALL`) except Dependabot's (`refs/heads/dependabot/**/*`) | `deletion`, `non_fast_forward`, `creation` | Admin role only. **Not** the deploy key. |
-| *Tag Protection* (id `27110388`) | all tags (`~ALL`) | `deletion`, `non_fast_forward`, `update`, `required_signatures`, and a `required_status_checks` rule that lists no check; no `creation` | Admin role only |
-
-**What *Main* means in practice.** Every change reaches `main` through a pull request whose 19 required checks have passed on its head commit, merged with *Squash and merge*: GitHub makes that commit as `web-flow` and signs it, so it is *Verified* and passes `required_signatures`, and the [audit](ci-cd.md#the-audit-of-main) accepts it as a merged pull request's merge commit. The maintainer can no longer push to `main`, nor merge a pull request whose checks have not passed (a check that fails for an outside reason, such as a download in *Package build*, is re-run). The only bypass is the keep-alive deploy key. The maintainer, as an admin, can still edit the ruleset itself: that is the way out if a rule ever has to be lifted, and it shows in the ruleset's history.
-
-*Protection, other branches* holds the other branches to signed commits; without it, the deploy key could push unsigned commits to any existing branch, whose workflows then run. The Admin bypass on *Protection* is what lets the maintainer create branches: the `creation` rule with no bypass at all would stop that too.
-
-**Dependabot's branches are excluded from *Protection*** (`"exclude": ["refs/heads/dependabot/**/*"]`). Dependabot is not the Admin role, so the `creation` rule refused every branch it tried to open a pull request from; it also force-pushes its branches when it rebases them and deletes them when their pull request closes, which `non_fast_forward` and `deletion` would refuse. Its branch names have several path segments (`dependabot/github_actions/actions-<hash>`, `dependabot/npm_and_yarn/tools/site-lint/site-lint-<hash>`), and `refs/heads/dependabot/**` alone did not match them; `refs/heads/dependabot/**/*` does. Those branches are still under *Protection, other branches*: a push to them must carry signed commits (Dependabot's are), and its `code_scanning` rule applies to pull requests into them, not to the push itself. They reach `main` only through a pull request held to *Main* like any other. What the exclusion gives up: anyone who can push (the maintainer, and the deploy key if it leaked) can create, force-push and delete a branch under `dependabot/`. New commits must be signed, but a new or force-pushed branch may point at a commit already in the repository, an unsigned keep-alive commit included, since GitHub checks signatures only on commits not yet reachable from another branch. No `push` workflow runs for it (every `push` trigger is limited to `main`), but a push to the branch of an open Dependabot pull request runs that pull request's workflows (read-only token, no secrets) and changes what the pull request would merge, so read a Dependabot pull request's diff, not only its title, before merging it. Opening a pull request needs the API, which a deploy key cannot use. The exclusion is part of the ruleset's body: the `PUT` under *Re-creating them* below sends it, so re-applying *Protection* from this page keeps it, and a `PUT` without it would block Dependabot again.
-
-**Honest limits.** The `DeployKey` bypass has no key id: it applies to *every* deploy key the repository has or will have, so there must only ever be one ([below](#rotating-the-keep-alive-deploy-key)). `GITHUB_TOKEN` cannot be a bypass actor in a personal repository, so no workflow can push a commit with it to any branch, nor create a branch for a pull request outside `dependabot/` (no workflow here uses that namespace, and a pull request opened with `GITHUB_TOKEN` starts no workflow, so its required checks would never report): the keep-alive commit uses the deploy key, and [`renew-security-txt.yaml`](../../../.github/workflows/renew-security-txt.yaml) opens an issue for the maintainer instead ([website](website.md#updating-securitytxt)). `update.yaml` pushes the [signed release tags](#signed-release-tags) with `GITHUB_TOKEN`, which is why *Tag Protection* has no `creation` rule.
-
-#### Required status checks
-
-A required check must report on **every** pull request into `main`, or that pull request can never merge: GitHub's documentation says that when a workflow is skipped by branch filtering, path filtering or a commit message, "checks associated with that workflow will remain in a "Pending" state" and the pull request is "blocked from merging" ([workflow syntax](https://docs.github.com/en/actions/writing-workflows/workflow-syntax-for-github-actions#onpushpull_requestpull_request_targetpathspaths-ignore)). So the workflows below have no `paths` filter on `pull_request` (their `push` filters on `main` are unchanged), and a pull request's commits must not carry a skip-CI token in their messages. Each check is the job's `name:`, as the check run is named, from the GitHub Actions app (`integration_id` **15368**): pinning the app matters because GitHub Advanced Security (app 57789) also posts check runs named `zizmor` and `CodeQL` for the uploaded results.
-
-| Check | Workflow | Job |
-|---|---|---|
-| `shellcheck` | [`ci.yaml`](../../../.github/workflows/ci.yaml) | `shellcheck` |
-| `jactionlint` | `ci.yaml` | `jactionlint` |
-| `Key rules and key tests` | `ci.yaml` | `keys` |
-| `Schedule keep-alive tests` | `ci.yaml` | `keepalive` |
-| `Keep-alive commit and audit tests` | `ci.yaml` | `keepalive-commit` |
-| `Packaging script tests` | `ci.yaml` | `packaging-tests` |
-| `Coverage` | `ci.yaml` | `coverage` |
-| `Package build` | `ci.yaml` | `package` |
-| `Links (lychee)` | [`docs-checks.yaml`](../../../.github/workflows/docs-checks.yaml) | `links` (offline on pull requests) |
-| `Spelling (typos)` | `docs-checks.yaml` | `spelling` |
-| `Check the website` | [`site.yaml`](../../../.github/workflows/site.yaml) | `check` |
-| `Validate the HTML and CSS` | `site.yaml` | `validate` |
-| `zizmor` | [`zizmor.yaml`](../../../.github/workflows/zizmor.yaml) | `zizmor` |
-| `CodeQL (actions)` | [`codeql.yaml`](../../../.github/workflows/codeql.yaml) | `analyze` |
-| `Dependency Review` | [`dependency-review.yaml`](../../../.github/workflows/dependency-review.yaml) | `dependency-review` |
-| `Gitleaks (whole history)` | [`gitleaks.yaml`](../../../.github/workflows/gitleaks.yaml) | `gitleaks` |
-| `Fuzz (Hypothesis)` | [`fuzz.yaml`](../../../.github/workflows/fuzz.yaml) | `fuzz` |
-| `CodeRabbit` | the CodeRabbit GitHub App (`integration_id` 347564) | review |
-| `DCO` | [`dco.yaml`](../../../.github/workflows/dco.yaml) | `dco` |
-
-Why these names hold: none of these jobs has a matrix or calls a reusable workflow (which would name the check `caller / callee` or add the matrix values), no two jobs that run on a pull request share a name, and none has a job-level `if:`. **Not required**, on purpose: *Keep-alive commit (dry run)* and *Renew the scheduled workflows (dry run)* run only when their own files change (a `paths` filter), and their non-dry-run twins are skipped by `if:` on a pull request. A job skipped by its `if:` reports success ("A job that is skipped will report its status as "Success". It will not prevent a pull request from merging, even if it is a required check.", [using conditions](https://docs.github.com/en/actions/writing-workflows/choosing-when-your-workflow-runs/using-conditions-to-control-job-execution)), so requiring one would check nothing. *Scorecard analysis* does not run on pull requests at all (the action supports `push` and `schedule`; `pull_request` is experimental).
-
-**Scorecard is not in *Main*'s `code_scanning` rule** for the same reason: the rule waits for results from every listed tool on the pull request, and Scorecard has none. Rule insights showed it when #11 was merged with the Admin bypass: `code_scanning` failed with *Code scanning is waiting for results from Scorecard for the commits …*. Without the bypass, listing Scorecard would block every pull request. CodeQL and zizmor run on every pull request and upload their results, so they stay. Scorecard still runs on each push to `main` and weekly, and its alerts stay in code scanning; *Protection, other branches* keeps all three tools, as it has an Admin bypass and no pull requests target other branches.
-
-**Cancelled runs.** Each of these workflows cancels its own older run when a newer commit is pushed to the same pull request (`concurrency`, grouped by workflow and pull request number). The cancelled run belonged to the older head commit; the required checks are read from the new head commit, whose run is not cancelled, so this never leaves a check stuck. A run cancelled by hand or by a time-out is re-run. `strict_required_status_checks_policy` is `true`: a branch must be up to date with `main` before it merges, so merging one pull request leaves the others behind until each is updated.
-
-**Dependabot** pull requests run the same workflows, with a read-only token unless a job asks for more, and no secrets; none of the required jobs needs a secret.
-
-#### Applying Main
-
-A `PUT` replaces the whole ruleset; read it first with `gh api repos/EliorMachlev/pwsh-termux/rulesets/27198868`.
-
-```bash
-gh api -X PUT repos/EliorMachlev/pwsh-termux/rulesets/27198868 --input - <<'JSON'
-{
-  "name": "Main",
-  "target": "branch",
-  "enforcement": "active",
-  "conditions": {"ref_name": {"include": ["refs/heads/main"], "exclude": []}},
-  "bypass_actors": [
-    {"actor_type": "DeployKey", "actor_id": null, "bypass_mode": "always"}
-  ],
-  "rules": [
-    {"type": "required_signatures"},
-    {"type": "code_scanning", "parameters": {"code_scanning_tools": [
-      {"tool": "CodeQL", "alerts_threshold": "all", "security_alerts_threshold": "all"},
-      {"tool": "zizmor", "alerts_threshold": "all", "security_alerts_threshold": "all"}
-    ]}},
-    {"type": "pull_request", "parameters": {
-      "required_approving_review_count": 0,
-      "dismiss_stale_reviews_on_push": true,
-      "require_code_owner_review": false,
-      "require_last_push_approval": false,
-      "required_review_thread_resolution": false,
-      "allowed_merge_methods": ["squash"]
-    }},
-    {"type": "required_status_checks", "parameters": {
-      "strict_required_status_checks_policy": true,
-      "do_not_enforce_on_create": false,
-      "required_status_checks": [
-        {"context": "shellcheck", "integration_id": 15368},
-        {"context": "jactionlint", "integration_id": 15368},
-        {"context": "Key rules and key tests", "integration_id": 15368},
-        {"context": "Schedule keep-alive tests", "integration_id": 15368},
-        {"context": "Keep-alive commit and audit tests", "integration_id": 15368},
-        {"context": "Packaging script tests", "integration_id": 15368},
-        {"context": "Coverage", "integration_id": 15368},
-        {"context": "Package build", "integration_id": 15368},
-        {"context": "Links (lychee)", "integration_id": 15368},
-        {"context": "Spelling (typos)", "integration_id": 15368},
-        {"context": "Check the website", "integration_id": 15368},
-        {"context": "Validate the HTML and CSS", "integration_id": 15368},
-        {"context": "zizmor", "integration_id": 15368},
-        {"context": "CodeQL (actions)", "integration_id": 15368},
-        {"context": "Dependency Review", "integration_id": 15368},
-        {"context": "Gitleaks (whole history)", "integration_id": 15368},
-        {"context": "Fuzz (Hypothesis)", "integration_id": 15368},
-        {"context": "CodeRabbit", "integration_id": 347564},
-        {"context": "DCO", "integration_id": 15368}
-      ]
-    }}
-  ]
-}
-JSON
-```
-
-A renamed job is a renamed check: change the job's `name:` and the list above in one pull request. That pull request cannot report the old name, so the maintainer replaces the name in the ruleset just before merging it; other open pull requests then need `main` merged in to report the new one.
-
-**Re-creating them** (only if they are lost, or for a new repository; the ids above then change, and so must this page). Order matters, so `main` is never unprotected: create *Main* (with the body above, as a `POST $R/rulesets`), then *Protection, other branches*, then reduce *Protection* to its three rules (here a `PUT` on the existing ruleset; `POST $R/rulesets` instead if it is gone).
-
-```bash
-R=repos/EliorMachlev/pwsh-termux
-ADMIN='{"actor_type":"RepositoryRole","actor_id":5,"bypass_mode":"always"}'
-
-# 1. Main: the body of the PUT above, sent with -X POST $R/rulesets instead.
-
-# 2. Signatures and code scanning on every other branch, with no deploy-key bypass.
-gh api -X POST $R/rulesets --input - <<JSON
-{"name":"Protection, other branches","target":"branch","enforcement":"active",
- "conditions":{"ref_name":{"include":["~ALL"],"exclude":["refs/heads/main"]}},
- "bypass_actors":[$ADMIN],
- "rules":[{"type":"required_signatures"},
-  {"type":"code_scanning","parameters":{"code_scanning_tools":[
-   {"tool":"CodeQL","alerts_threshold":"all","security_alerts_threshold":"all"},
-   {"tool":"Scorecard","alerts_threshold":"all","security_alerts_threshold":"all"},
-   {"tool":"zizmor","alerts_threshold":"all","security_alerts_threshold":"all"}]}}]}
-JSON
-
-# 3. Protection keeps only deletion, non-fast-forward and creation, on all branches
-#    but Dependabot's (it must create, rebase and delete them).
-gh api -X PUT $R/rulesets/27110284 --input - <<JSON
-{"name":"Protection","target":"branch","enforcement":"active",
- "conditions":{"ref_name":{"include":["~ALL"],"exclude":["refs/heads/dependabot/**/*"]}},
- "bypass_actors":[$ADMIN],
- "rules":[{"type":"deletion"},{"type":"non_fast_forward"},{"type":"creation"}]}
-JSON
-```
-
-### Checking them
-
-1. **The rules on `main`**: `gh api $R/rules/branches/main --jq '[.[] | "\(.type) \(.ruleset_id)"]'` lists `deletion`, `non_fast_forward` and `creation` from *Protection*, and `required_signatures`, `code_scanning`, `pull_request` and `required_status_checks` from *Main*; on any other branch (`$R/rules/branches/<branch>`), `required_signatures` and `code_scanning` come from *Protection, other branches*, plus *Protection's* three rules except on a branch under `dependabot/`.
-2. **The bypass lists**: `gh api $R/rulesets/<id> --jq .bypass_actors` for each. *Main* lists `DeployKey` and nothing else; the other three list the Admin role only. `gh api $R/keys --jq length` is `1`.
-3. **A keep-alive push succeeds** (verified when the rulesets were set up): run *Keep-alive commit* by hand with *ignore_age* checked (`gh workflow run keepalive-commit.yaml -f ignore_age=true`). The run pushes one commit that changes only `keep.alive` and posts `keepalive/pushed`; `main`'s history shows it as unsigned, by `github-actions[bot]`. Then **Rule insights** (`gh api "$R/rulesets/rule-suites?ref=refs/heads/main" --jq '.[0] | {actor_name, result, after_sha}'`) shows that push with result `bypass`, and run *Audit main* by hand: it must pass and leave no issue open.
-4. **Anything else is refused.** The deploy key's private half is only in the environment, so these are read from the configuration rather than tried with the key: a force push or deletion of `main`, or a new branch outside `dependabot/`, falls under *Protection*, which the deploy key cannot bypass (step 2); a push to another existing branch falls under *Protection, other branches* (unsigned is refused). Tags fall under the separate *Tag Protection* ruleset (no deploy-key bypass): `deletion`, `non_fast_forward`, `update` and `required_signatures` (a tag's commit must be signed), plus a `required_status_checks` rule that lists no check and so requires nothing; there is no `creation` rule, because `update.yaml` creates release tags with `GITHUB_TOKEN`, which cannot bypass a ruleset. So the deploy key could create a new tag on an existing signed commit (not on a keep-alive commit, which is unsigned), but not move or delete one. That would show up as an unexpected tag or release, not on `main`. What the deploy key *can* push to `main` beyond `keep.alive` is limited by `keepalive-commit.sh`'s guard and by who can run it, not by GitHub: that is the residual risk the audit is for. A maintainer who wants to see the refusals happen can rebuild the same three rulesets in a throwaway repository with its own deploy key; never add a second deploy key here (below).
-5. **Normal work**: a pull request merges with *Squash and merge* once its 19 required checks have passed and code scanning is clean; a direct push to `main` by the maintainer is refused; the maintainer can still create branches.
-
-### Rotating the keep-alive deploy key
-
-Rotate it at once if the audit issue is open and the commits are not yours, or if the secret may have been exposed; otherwise when you like (the yearly key review is a good moment). The bypass applies to whichever deploy key the repository has, so the ruleset does not change.
-
-```bash
-ssh-keygen -t ed25519 -N '' -C "pwsh-termux keepalive" -f keepalive_key        # on a trusted machine
-gh api $R/keys --jq '.[] | {id, title}'                                          # the old key's id
-gh api -X DELETE $R/keys/<old-id>                                                # first: the old key stops working now
-gh api -X POST $R/keys -f title="pwsh-termux keepalive (push to main)" -f key="$(cat keepalive_key.pub)" -F read_only=false
-gh secret set KEEPALIVE_DEPLOY_KEY --env keepalive < keepalive_key
-shred -u keepalive_key keepalive_key.pub                                         # no copy is kept
-gh api $R/keys --jq length                                                       # 1
-```
-
-Then run *Keep-alive commit* with *ignore_age* once (step 3 above). **Never add a second deploy key**, not even for a moment or read-only: a `DeployKey` bypass has no key id, so it covers every deploy key the repository has; delete the old key before adding the new one.
-
-## Troubleshooting a failed run
-
-See [CI / CD: when a run fails](ci-cd.md#when-a-run-fails).
+There is no pin or skip list: the repository follows upstream. Wait for Microsoft's fix (the next daily run picks it up), or change `find-releases.sh` to skip that tag and push. Users who already upgraded can [go back](../product/packages.md#pinning-or-downgrading) to the previous build from its release asset.

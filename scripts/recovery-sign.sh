@@ -3,7 +3,7 @@
 # machine, after the online key is compromised or lost. apt accepts an index
 # that ANY key in the signed-by keyring signs, and every installed keyring
 # holds the recovery key, so users can then `pkg upgrade` to a keyring with a
-# new online key. The procedure: docs/markDown/engineering/release.md
+# new online key. The procedure: docs/markDown/engineering/release/signing-keys.md
 # ("Recovery with the offline key").
 #
 # Usage: recovery-sign.sh <repo-dir>

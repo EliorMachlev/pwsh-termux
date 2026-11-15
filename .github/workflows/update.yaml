@@ -18,7 +18,7 @@ name: Update packages
 # keepalive job renews every scheduled workflow, so GitHub's 60-day
 # inactivity rule does not stop it (scripts/keep-schedules-alive.sh).
 #
-# One-time setup (secret, Pages source, custom domain): docs/markDown/engineering/release.md
+# One-time setup (secret, Pages source, custom domain): docs/markDown/engineering/release/setup.md
 on:
   schedule:
     - cron: "23 4 * * *"      # daily, release or not: re-signs the index (Valid-Until)
@@ -103,8 +103,8 @@ jobs:
     timeout-minutes: 30
     # GPG_PRIVATE_KEY and GPG_PASSPHRASE are secrets of this environment
     # (deployment branches: main only), not of the repository, so no workflow
-    # on another branch can read them (docs/markDown/engineering/release.md,
-    # "One-time setup"). A repository secret of the same name must never come
+    # on another branch can read them (docs/markDown/engineering/release/setup.md,
+    # "The signing environment"). A repository secret of the same name must never come
     # back: a job reads it when its environment has no secret of that name.
     environment: signing
     permissions:

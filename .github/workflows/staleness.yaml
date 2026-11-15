@@ -121,10 +121,10 @@ jobs:
           }
           status=0
           sync_issue "$INDEX_ISSUE_TITLE" "$INDEX_HEALTHY" "$INDEX_SUMMARY" \
-            "apt refuses the index once its Valid-Until passes, and update.yaml re-signs it daily, so this usually means update.yaml has been failing or is disabled. Check its recent runs and fix or re-run it; during a recovery, re-sign offline (docs/markDown/engineering/release.md, \"Recovery with the offline key\")." \
+            "apt refuses the index once its Valid-Until passes, and update.yaml re-signs it daily, so this usually means update.yaml has been failing or is disabled. Check its recent runs and fix or re-run it; during a recovery, re-sign offline (docs/markDown/engineering/release/signing-keys.md, \"Recovery with the offline key\")." \
             || status=1
           sync_issue "$SCHEDULES_ISSUE_TITLE" "$SCHEDULES_HEALTHY" "$SCHEDULES_SUMMARY" \
-            "GitHub disables a public repository's scheduled workflows after 60 days without repository activity. The keep-alive (keepalive.yaml, and a job in update.yaml and in this workflow) renews them through the API; this run's keepalive job has just tried to enable them again. If update.yaml was among them, run it by hand now (the index expires 14 days after its last re-sign) and check the index issue. If this recurs, the API renewal does not count as activity: make any commit on main (a Dependabot merge will do) and see docs/markDown/engineering/ci-cd.md, \"A scheduled workflow stops running\"." \
+            "GitHub disables a public repository's scheduled workflows after 60 days without repository activity. The keep-alive (keepalive.yaml, and a job in update.yaml and in this workflow) renews them through the API; this run's keepalive job has just tried to enable them again. If update.yaml was among them, run it by hand now (the index expires 14 days after its last re-sign) and check the index issue. If this recurs, the API renewal does not count as activity: make any commit on main (a Dependabot merge will do) and see docs/markDown/engineering/ci-cd/troubleshooting.md, \"A scheduled workflow stops running\"." \
             || status=1
           exit "$status"
 

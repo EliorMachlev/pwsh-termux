@@ -13,7 +13,7 @@
 # online key, the maintainer signs the index that carries the new keyring with
 # the recovery key. Only a user who misses those windows, or a compromise with
 # no recovery key, needs a manual reinstall. See
-# docs/markDown/engineering/release.md.
+# docs/markDown/engineering/release/signing-keys.md.
 #
 # Usage: build-keyring.sh <outdir>
 # Prints the path of the built .deb on stdout (everything else goes to stderr)

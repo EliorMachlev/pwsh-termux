@@ -6,9 +6,9 @@ Other reference docs are in [`docs/markDown/`](docs/markDown/README.md) (index t
 
 - [`engineering/architecture/`](docs/markDown/engineering/architecture/README.md): the pipeline stage by stage
 - [`engineering/build.md`](docs/markDown/engineering/build.md): building and testing locally, Termux quirks
-- [`engineering/release.md`](docs/markDown/engineering/release.md): releases, one-time setup, key rotation
+- [`engineering/release.md`](docs/markDown/engineering/release.md): releases; [`release/`](docs/markDown/engineering/release/setup.md) has one-time setup, provenance, tags and key rotation
 - [`product/packages.md`](docs/markDown/product/packages.md): the packages and how versions map
-- [`engineering/ci-cd.md`](docs/markDown/engineering/ci-cd.md): workflows, permissions, pinning
+- [`engineering/ci-cd.md`](docs/markDown/engineering/ci-cd.md): workflow rules and secrets; [`ci-cd/`](docs/markDown/engineering/ci-cd/workflows.md) has the workflows, tests, rulesets, keep-alive, audit, Dependabot and troubleshooting
 - [`engineering/security.md`](docs/markDown/engineering/security.md): security posture, split into [threat model](docs/markDown/engineering/security/threat-model.md), [assurance case](docs/markDown/engineering/security/assurance-case.md) and [supply chain](docs/markDown/engineering/security/supply-chain.md)
 - [`engineering/exceptions.md`](docs/markDown/engineering/exceptions.md): the only suppressions allowed
 - [`engineering/website.md`](docs/markDown/engineering/website.md): the GitHub Pages site and its checks
@@ -18,7 +18,7 @@ If behaviour changes, update the relevant doc in the same commit.
 ## Easy to get wrong
 
 - **Never publish an unsigned repository.** `scripts/build-repo.sh` skips signing only when `SIGN_KEY` is unset (local tests); the workflow refuses to run without `GPG_PRIVATE_KEY`.
-- **`keys/` holds the online signing key plus only what a marker names.** `keys/pwsh-termux-archive-keyring.gpg` is what users trust (shipped in `pwsh-termux-keyring` and as `/pwsh-termux.gpg`): exactly one online key, the signer; the recovery key only if `keys/RECOVERY` names it; a next online key only while `keys/ROTATION` names it. `check-keys.sh`, CI and the publish job refuse anything else, refuse the recovery key as a signer, and refuse a keyring package whose provenance does not verify. Change `keys/` and `GPG_PRIVATE_KEY` only as [release.md](docs/markDown/engineering/release.md#rotating-the-signing-key) says. `KEYRING_FILE` is for tests only; never set it in a publishing workflow.
+- **`keys/` holds the online signing key plus only what a marker names.** `keys/pwsh-termux-archive-keyring.gpg` is what users trust (shipped in `pwsh-termux-keyring` and as `/pwsh-termux.gpg`): exactly one online key, the signer; the recovery key only if `keys/RECOVERY` names it; a next online key only while `keys/ROTATION` names it. `check-keys.sh`, CI and the publish job refuse anything else, refuse the recovery key as a signer, and refuse a keyring package whose provenance does not verify. Change `keys/` and `GPG_PRIVATE_KEY` only as [release.md](docs/markDown/engineering/release/signing-keys.md#rotating-the-signing-key) says. `KEYRING_FILE` is for tests only; never set it in a publishing workflow.
 - **The recovery key never goes near GitHub or CI**, and an agent must never generate it: only the maintainer creates it, offline.
 - **Never print, commit or copy the signing key** or its backups (logs, repo, website, artifacts, `GITHUB_ENV`, step outputs).
 - **Verify before you build.** Nothing is built from a download that has not matched Microsoft's `hashes.sha256` (UTF-16: decode it, don't `grep` it).
