@@ -14,7 +14,7 @@ The user-facing side is the [website](https://pwsh-termux.machlev.org/) and the 
 - [Release](engineering/release.md): how a release happens, one-time setup, the custom domain, key rotation; releases are on [GitHub](https://github.com/EliorMachlev/pwsh-termux/releases)
 - [CI / CD](engineering/ci-cd.md): workflows, scanners, Dependabot, permissions, pinning
 - [Branches and the pipeline](engineering/branching.md): `main`, pull requests, and which checks run where
-- [Security](engineering/security.md): supply chain, secrets, signing, code analysis
+- [Security](engineering/security.md): secrets, then the [threat model](engineering/security/threat-model.md), [assurance case](engineering/security/assurance-case.md) and [supply chain](engineering/security/supply-chain.md)
 - [Governance and roadmap](engineering/governance.md): who decides, roles, continuity, what is planned
 - [Exceptions](engineering/exceptions.md): the only suppressed findings, and why
 - [Website](engineering/website.md): the GitHub Pages site

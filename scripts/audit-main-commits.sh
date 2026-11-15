@@ -18,7 +18,7 @@
 #
 # Anything else is a finding. This is detection, not prevention: whoever can
 # push to main can also change this script and its workflow
-# (docs/markDown/engineering/security.md says what does prevent it).
+# (docs/markDown/engineering/security/threat-model.md says what does prevent it).
 #
 # Usage: audit-main-commits.sh audit [<before> <after>]
 #        audit-main-commits.sh report

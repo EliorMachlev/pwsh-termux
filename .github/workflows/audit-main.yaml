@@ -12,7 +12,7 @@ name: Audit main
 # audit that finishes closes. On a push it
 # also checks the pushed range; daily and by hand, the last 90 days and the
 # newest 50 commits. This is detection, not prevention: whoever can push to
-# main can change this file too (docs/markDown/engineering/security.md).
+# main can change this file too (docs/markDown/engineering/security/threat-model.md).
 on:
   push:
     branches: [main]
