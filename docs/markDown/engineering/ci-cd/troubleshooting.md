@@ -10,7 +10,7 @@ If `build`, `verify` or `publish` in `update.yaml` fails, `deploy` does not run 
 - **"GPG_PRIVATE_KEY secret is not set":** the secret is missing ([setup](../release/setup.md#the-signing-environment)).
 - **"the signing key … is not the online key in …"** from `build-repo.sh`: the `GPG_PRIVATE_KEY` secret and `keys/` disagree (one changed without the other, or `keys/ROTATION` is missing or stale; [signing keys](../release/signing-keys.md#rotating-the-signing-key)).
 - **"gpg could not sign …"** from `build-repo.sh` or `release-tags.sh`: the key is passphrase-protected and `GPG_PASSPHRASE` is missing or wrong, or the key itself is unusable.
-- **Warning *GPG_PASSPHRASE secret is not set*:** the run signed with a key that has no passphrase, so `GPG_PRIVATE_KEY` is no longer the protected key. Add a passphrase and set both secrets again ([adding a passphrase](../release/setup.md#the-signing-environment)).
+- **Warning *GPG_PASSPHRASE secret is not set*:** printed before signing, when `GPG_PASSPHRASE` is missing from `signing`. If signing then fails with "gpg could not sign", the key is protected: restore `GPG_PASSPHRASE`. If signing succeeds, `GPG_PRIVATE_KEY` has no passphrase: add one and set both secrets again ([adding a passphrase](../release/setup.md#the-signing-environment)).
 - **"Write the SBOMs" fails:** a tool's download or a validation failed; the log names the file ([pinned by hand](dependabot.md#pinned-by-hand)).
 
 ## Packages and index
