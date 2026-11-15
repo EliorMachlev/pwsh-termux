@@ -25,13 +25,12 @@ It runs on `docs/` in [`site.yaml`](../../../.github/workflows/site.yaml) and be
    2. the site as deployed, assembled by `build-repo.sh` (unsigned) and `assemble-site.sh` around a stand-in `pwsh` package, so generated blocks are checked filled;
    3. `art/brand/`.
 
-   Errors, warnings and info messages all fail; no `--filterfile`, `--filterpattern` or `--skip-info-messages`. Pages are served from `127.0.0.1` rather than opened as `file:` URLs, so the CSP's `'self'` is the site's origin as in a browser (a `file:` page has none, and vnu would report the stylesheet and icon as blocked). The `nu.validator.servlet.allow-forbidden-hosts` property lets vnu fetch from loopback and changes nothing in what it reports. [`test-validate-site.sh`](../../../scripts/test-validate-site.sh) tests the script on fixture sites first.
+   Errors, warnings and info messages all fail; no `--filterfile`, `--filterpattern` or `--skip-info-messages`. Pages are served from `127.0.0.1`, not opened as `file:` URLs, so the CSP's `'self'` is the site's origin as in a browser; `nu.validator.servlet.allow-forbidden-hosts` lets vnu fetch from loopback and changes nothing it reports. [`test-validate-site.sh`](../../../scripts/test-validate-site.sh) tests the script on fixture sites first.
 2. **Stylelint** with [`stylelint-config-standard`](https://github.com/stylelint/stylelint-config-standard), unchanged ([`.stylelintrc.json`](../../../tools/site-lint/.stylelintrc.json) only extends it), on `docs/style.css` and the deployed copy, with `--max-warnings 0` and `--ignore-disables`, so a `stylelint-disable` comment hides nothing.
 
 ## Tool pinning
 
 Both are pinned in [`tools/site-lint/`](../../../tools/site-lint): exact versions in `package.json`, integrity hashes in `package-lock.json`; Dependabot updates them ([ci-cd.md](ci-cd.md#dependabot)).
 
-1. vnu is the `vnu-jar` npm package, the validator project's own release of `vnu.jar`, published with a provenance attestation (`npm audit signatures` checks it). The project's GitHub releases only offer a rolling `latest`, replaced in place.
-2. It runs on the runner's Java (17 or later).
-3. `npm ci --ignore-scripts` installs the tools; nothing from them reaches `docs/`, and the site still has no JavaScript.
+1. vnu comes from `vnu-jar`, the validator project's own npm release of `vnu.jar`, with a provenance attestation that `npm audit signatures` checks (its GitHub releases offer only a rolling `latest`). It runs on the runner's Java (17 or later).
+2. `npm ci --ignore-scripts` installs the tools; nothing from them reaches `docs/`, and the site still has no JavaScript.

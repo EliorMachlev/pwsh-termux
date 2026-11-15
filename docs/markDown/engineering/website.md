@@ -22,7 +22,7 @@ A page can mark fallback HTML between `<!-- generated:<name> -->` and `<!-- /gen
 2. `documents` (documents page): a table of the handbook in `docs/markDown/` plus the top-level `README.md`, `SECURITY.md`, `CONTRIBUTING.md` and `NOTICE.md`, each with *Last updated &lt;date&gt; · &lt;short SHA&gt;* linked to the commit.
 3. `last-updated:<path>` (privacy page, for the full policy): that line for one file.
 
-No Markdown file holds its own date: a file cannot name the commit that changes it, and a typed date goes stale. The date (`%cs`) and SHA come from `git log -1 -- <file>` at deploy time, which needs full history: the deploying checkouts use `fetch-depth: 0`, and the script stops in a shallow clone, outside Git, or for an uncommitted document rather than print a wrong or empty date ([`test-assemble-site.sh`](../../../scripts/test-assemble-site.sh)). A change to a top-level Markdown file does not trigger a deploy, so its date updates at the next daily run.
+No Markdown file holds its own date (a file cannot name the commit that changes it). The date (`%cs`) and SHA come from `git log -1 -- <file>` at deploy time, so the deploying checkouts use `fetch-depth: 0`; the script stops in a shallow clone, outside Git, or for an uncommitted document rather than print a wrong or empty date ([`test-assemble-site.sh`](../../../scripts/test-assemble-site.sh)). A change to a top-level Markdown file does not trigger a deploy; its date updates at the next daily run.
 
 ## Nothing loads from another site
 
@@ -49,6 +49,10 @@ The repository's description, homepage and topics are set in GitHub's settings.
 
 ## Updating security.txt
 
-RFC 9116 asks for an `Expires` under a year ahead. On the 1st of each month [`renew-security-txt.yaml`](../../../.github/workflows/renew-security-txt.yaml) checks it: with fewer than four months left, it opens (or comments on) the issue *Renew security.txt* and fails. The issue gives the command that moves the date about eleven months ahead (a `sed` on `Expires`, `site-check.py`, a signed commit). Check the contact and policy, open a pull request, and its merge deploys the site. The next run with more than four months left closes the issue.
+RFC 9116 asks for an `Expires` under a year ahead. On the 1st of each month [`renew-security-txt.yaml`](../../../.github/workflows/renew-security-txt.yaml) checks it; with fewer than four months left it opens (or comments on) the issue *Renew security.txt* and fails. Then:
 
-The workflow cannot commit the date itself: the rulesets require signed commits on every branch, pull requests with passing checks on `main`, and refuse new branches outside `dependabot/`; GitHub Actions cannot bypass them in a personal repository ([rulesets](release.md#rulesets)). So its only write permission is `issues: write`. `site-check.py` also fails when fewer than 30 days remain, in case the issue is missed.
+1. Run the issue's command, which moves `Expires` about eleven months ahead, runs `site-check.py` and makes a signed commit.
+2. Check the contact and policy lines, and open a pull request; its merge deploys the site.
+3. The next run with more than four months left closes the issue.
+
+The workflow cannot commit the date itself: the [rulesets](release.md#rulesets) require signed commits and pull requests and refuse new branches, and GitHub Actions cannot bypass them in a personal repository, so it holds only `issues: write`. `site-check.py` also fails when fewer than 30 days remain.

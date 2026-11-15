@@ -30,7 +30,7 @@ Clients use this line in `$PREFIX/etc/apt/sources.list.d/pwsh-termux.list`:
 deb [signed-by=/data/data/com.termux/files/usr/share/keyrings/pwsh-termux-archive-keyring.gpg] https://pwsh-termux.machlev.org stable main
 ```
 
-The [keyring package](keyring.md) installs exactly that, and the manual install on the site writes the same two files (creating `share/keyrings`, which Termux lacks). Keep the file name: two sources for one URI with different `Signed-By` values are an apt error.
+The [keyring package](keyring.md) and the site's manual install write exactly that and the key (creating `share/keyrings`, which Termux lacks). Keep the file name: two sources for one URI with different `Signed-By` values are an apt error.
 
 ## The index without apt tooling
 
@@ -41,13 +41,11 @@ Termux has neither `dpkg-scanpackages` nor `apt-ftparchive`, so the index is wri
 
 ## Signing
 
-With `SIGN_KEY` set, the script writes `InRelease` (`gpg --clearsign`, which apt prefers) and `Release.gpg` (`gpg -abs`). Without it, it warns that the repository is unsigned (local tests only); [`update.yaml`](../../../../.github/workflows/update.yaml) refuses to run without the key.
-
-The public key comes from Git, not from the secret: `keys/pwsh-termux-archive-keyring.gpg` is published byte for byte as `pwsh-termux.gpg`, and armored as `pwsh-termux.asc`. Which keys `keys/` may hold, what the script checks before it signs, and how keys are rotated or recovered: [signing](signing.md).
+With `SIGN_KEY` set, the script writes `InRelease` (`gpg --clearsign`, preferred by apt) and `Release.gpg` (`gpg -abs`); without it, it warns that the result is unsigned (local tests only), and [`update.yaml`](../../../../.github/workflows/update.yaml) fails. The public key comes from Git, not the secret: `keys/pwsh-termux-archive-keyring.gpg` is published byte for byte as `pwsh-termux.gpg` and armored as `pwsh-termux.asc`. Key rules, pre-signing checks, rotation and recovery: [signing](signing.md).
 
 ## The keyring package
 
-`pwsh-termux-keyring` installs the key and the source line above, so trusting the repository is one `dpkg -i`. `build-repo.sh` lists it in the index and copies it to `/pwsh-termux-keyring.deb`, the fixed URL the install line downloads. Details: [keyring](keyring.md).
+`build-repo.sh` indexes `pwsh-termux-keyring` and copies it to `/pwsh-termux-keyring.deb`, the fixed URL the install line downloads ([keyring](keyring.md)).
 
 ## Valid-Until
 
