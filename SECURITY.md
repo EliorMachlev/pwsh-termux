@@ -37,19 +37,31 @@ Out of scope, report to their owners:
 
 The apt repository is signed with a dedicated key. apt trusts it for this repository only: the source line names it with `signed-by`; it is not in apt's global `trusted.gpg.d`.
 
-- **Algorithm:** Ed25519 (OpenPGP v4).
-- **Fingerprint:** `7086 C70B 4A25 576F E0C0  CE77 E43F B41F 02D0 1FC8`
-- **Recovery key:** `937A 3D41 5103 CFF8 9DCD  A982 A4B4 5397 EEB6 D752` (also in `keys/RECOVERY`). An offline Ed25519 key, generated offline and never in GitHub or CI. It signs only to recover from a lost or compromised online key.
+| | |
+|---|---|
+| Algorithm | Ed25519 (OpenPGP v4) |
+| Fingerprint | `7086 C70B 4A25 576F E0C0  CE77 E43F B41F 02D0 1FC8` |
+| Recovery key | `937A 3D41 5103 CFF8 9DCD  A982 A4B4 5397 EEB6 D752` |
+| Expiry | None; replaced by rotation |
+
+CI reads the fingerprint from this table and checks it against `keys/`.
+
+- **Recovery key:** also in `keys/RECOVERY`. An offline Ed25519 key, generated offline and never in GitHub or CI. It signs only to recover from a lost or compromised online key.
 - **Public key:** [`keys/pwsh-termux-archive-keyring.gpg`](keys/pwsh-termux-archive-keyring.gpg); on the site as <https://pwsh-termux.machlev.org/pwsh-termux.gpg> (the same file) and `.asc` (armored). Every [release](https://github.com/EliorMachlev/pwsh-termux/releases) since the keyring package exists carries a copy, a `FINGERPRINT.txt` and `pwsh-termux-keyring.deb`, as they were when it was made.
 - **Installed at:** `$PREFIX/share/keyrings/pwsh-termux-archive-keyring.gpg`, named by `signed-by` in `$PREFIX/etc/apt/sources.list.d/pwsh-termux.list`.
-- **Expiry:** none; replaced by rotation.
 
 ### Checking the key
 
 ```bash
 pkg install gnupg
 gpg --show-keys $PREFIX/share/keyrings/pwsh-termux-archive-keyring.gpg     # compare with the fingerprints above
-gh attestation verify $TMPDIR/pwsh-termux-keyring.deb --repo EliorMachlev/pwsh-termux --signer-workflow EliorMachlev/pwsh-termux/.github/workflows/build-packages.yaml
+```
+
+Optionally, check the keyring package's build provenance (needs `pkg install gh` and `gh auth login`):
+
+```bash
+curl -fsSL https://pwsh-termux.machlev.org/pwsh-termux-keyring.deb -o $TMPDIR/pwsh-termux-keyring.deb
+gh attestation verify $TMPDIR/pwsh-termux-keyring.deb --repo EliorMachlev/pwsh-termux --signer-workflow EliorMachlev/pwsh-termux/.github/workflows/build-packages.yaml --deny-self-hosted-runners
 ```
 
 The file holds the online signing key, the recovery key and, only during a planned rotation (while `keys/ROTATION` names it), the announced next online key. Every key in it is listed here. This page and the website are separate channels: a mismatch between them is a warning sign. The first download rests on HTTPS, as any first key download does.

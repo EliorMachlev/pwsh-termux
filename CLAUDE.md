@@ -22,7 +22,7 @@ If behaviour changes, update the relevant doc in the same commit.
 - **Verify before you build.** Nothing is built from a download that has not matched Microsoft's `hashes.sha256` (UTF-16: decode it, don't `grep` it).
 - **Patch at build time, not on the device.** Packages ship an already-patched `pwsh` and do not depend on `glibc-runner` or `patchelf`.
 - **Pin every action to a commit SHA** with its version in a trailing comment (`uses: owner/repo@<sha> # vX.Y.Z`).
-- **No scripts or third-party loads on the website.** Each page's Content-Security-Policy allows only the site itself (`.github/scripts/site-check.py` enforces it). A new page goes into `docs/sitemap.xml`.
+- **No scripts or third-party loads on the website.** Keep each page's Content-Security-Policy limited to the site itself; `.github/scripts/site-check.py` rejects scripts, `'unsafe-*'`, URL schemes and wildcards, but not a bare host name. A new page goes into `docs/sitemap.xml`.
 - **Don't claim what the repo does not do.** Docs describe the implementation.
 
 ## Working in Termux

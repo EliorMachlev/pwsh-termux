@@ -47,11 +47,14 @@ New behaviour and bug fixes come with an automated test; a pull request without 
 - A refusal is checked for its reason, not only for failing. A bug fix adds a test that fails without the fix.
 - A new test script is named `scripts/test-<name>.sh` and gets a step in a job in `ci.yaml`; the `Coverage` job runs every `scripts/test-*.sh` on its own.
 
-The `Coverage` check measures how much of `scripts/` the tests run: in Bash, the lines that start a command (traced with xtrace); in Python, statements (coverage.py). It fails when Bash, Python or the total drops below its floor (`COVERAGE_MIN_*` in `ci.yaml`). When your tests raise coverage, raise the floors to the new values, rounded down; never lower them. To list uncovered lines (needs [shfmt](https://github.com/mvdan/sh): `pkg install shfmt`):
+The `Coverage` check measures how much of `scripts/` the tests run: in Bash, the lines that start a command (traced with xtrace); in Python, statements (coverage.py). It fails when Bash, Python or the total drops below its floor (`COVERAGE_MIN_*` in `ci.yaml`). When your tests raise coverage, raise the floors to the new values, rounded down; never lower them. To list uncovered lines (needs [shfmt](https://github.com/mvdan/sh): `pkg install shfmt`; and, for the Python, coverage.py and Hypothesis: `pip install coverage hypothesis`):
 
 ```bash
+rm -rf out/trace
 for t in scripts/test-*.sh; do python3 .github/scripts/coverage.py run out/trace -- bash "$t"; done
-python3 .github/scripts/coverage.py report out/trace
+COVERAGE_FILE=out/python.coverage python3 -m coverage run --include='scripts/*.py' -m unittest discover -s tests/fuzz
+COVERAGE_FILE=out/python.coverage python3 -m coverage json -o out/python-coverage.json
+python3 .github/scripts/coverage.py report out/trace --python-json out/python-coverage.json
 ```
 
 `test-validate-site.sh` needs the path to `vnu.jar` ([build](build.md#check-the-website)); without it, `validate-site.sh` shows as not run.
