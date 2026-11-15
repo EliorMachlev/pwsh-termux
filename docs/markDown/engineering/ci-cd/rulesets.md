@@ -141,9 +141,12 @@ Only if they are lost, or for a new repository (the ids then change, and so must
 1. Create *Main*: the body above, sent with `-X POST $R/rulesets`.
 2. Create *Protection, other branches*.
 3. Reduce *Protection* to its three rules (a `PUT` on the existing ruleset; `POST $R/rulesets` if it is gone).
+4. Create *Tag Protection* if it is gone.
+
+For another repository, set `R`, and the path of the `PUT` above, to that repository.
 
 ```bash
-R=repos/EliorMachlev/pwsh-termux
+R=repos/EliorMachlev/pwsh-termux    # the repository being restored
 ADMIN='{"actor_type":"RepositoryRole","actor_id":5,"bypass_mode":"always"}'
 
 # 2. Signatures and code scanning on every other branch, with no deploy-key bypass.
@@ -165,6 +168,17 @@ gh api -X PUT $R/rulesets/27110284 --input - <<JSON
  "conditions":{"ref_name":{"include":["~ALL"],"exclude":["refs/heads/dependabot/**/*"]}},
  "bypass_actors":[$ADMIN],
  "rules":[{"type":"deletion"},{"type":"non_fast_forward"},{"type":"creation"}]}
+JSON
+
+# 4. Tags: no deletion, move or update, signed only; no creation rule, so update.yaml can tag.
+gh api -X POST $R/rulesets --input - <<JSON
+{"name":"Tag Protection","target":"tag","enforcement":"active",
+ "conditions":{"ref_name":{"include":["~ALL"],"exclude":[]}},
+ "bypass_actors":[$ADMIN],
+ "rules":[{"type":"deletion"},{"type":"non_fast_forward"},{"type":"update"},
+  {"type":"required_signatures"},
+  {"type":"required_status_checks","parameters":{"strict_required_status_checks_policy":true,
+   "do_not_enforce_on_create":false,"required_status_checks":[]}}]}
 JSON
 ```
 

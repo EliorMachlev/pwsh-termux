@@ -2,7 +2,7 @@
 
 Part of the [CI / CD](../ci-cd.md) docs. Fix the cause; never skip a check.
 
-If `update.yaml` fails, the site stays as it was: nothing is deployed from a failed run.
+If `build`, `verify` or `publish` in `update.yaml` fails, `deploy` does not run and the site stays as it was. The `keepalive` job runs independently, so a run can fail after `deploy` has published: check the `deploy` job, not only the run.
 
 ## Provenance and signing
 
@@ -10,7 +10,7 @@ If `update.yaml` fails, the site stays as it was: nothing is deployed from a fai
 - **"GPG_PRIVATE_KEY secret is not set":** the secret is missing ([setup](../release/setup.md#the-signing-environment)).
 - **"the signing key … is not the online key in …"** from `build-repo.sh`: the `GPG_PRIVATE_KEY` secret and `keys/` disagree (one changed without the other, or `keys/ROTATION` is missing or stale; [signing keys](../release/signing-keys.md#rotating-the-signing-key)).
 - **"gpg could not sign …"** from `build-repo.sh` or `release-tags.sh`: the key is passphrase-protected and `GPG_PASSPHRASE` is missing or wrong, or the key itself is unusable.
-- **Warning *GPG_PASSPHRASE secret is not set*:** the run signed with a key that has no passphrase. That should not happen, since the key in `signing` is protected: check that `gh secret list --env signing` lists `GPG_PASSPHRASE`.
+- **Warning *GPG_PASSPHRASE secret is not set*:** the run signed with a key that has no passphrase, so `GPG_PRIVATE_KEY` is no longer the protected key. Add a passphrase and set both secrets again ([adding a passphrase](../release/setup.md#the-signing-environment)).
 - **"Write the SBOMs" fails:** a tool's download or a validation failed; the log names the file ([pinned by hand](dependabot.md#pinned-by-hand)).
 
 ## Packages and index
@@ -24,7 +24,7 @@ If `update.yaml` fails, the site stays as it was: nothing is deployed from a fai
 ## Audit and keep-alive
 
 - **A scheduled workflow stops running**, or issue *A scheduled workflow is disabled*: GitHub disabled it after 60 days without activity and the [keep-alive](keepalive.md#schedule-keep-alive) did not hold, or a keep-alive run failed with *GitHub had disabled … for inactivity*.
-  1. Re-enable every scheduled workflow (`gh workflow enable <file>`, or the Actions tab).
+  1. Re-enable each scheduled workflow in state `disabled_inactivity` (`gh workflow enable <file>`, or the Actions tab). Leave one in `disabled_manually` off: a [recovery](../release/signing-keys.md#recovery-with-the-offline-key) turns `update.yaml` off on purpose.
   2. If `update.yaml` was among them, run it by hand (the index expires 14 days after its last re-sign).
   3. If it keeps happening, merge something to `main`.
 - ***could not enable … (does the job have actions: write?)*:** the job's `permissions:` lost `actions: write`.

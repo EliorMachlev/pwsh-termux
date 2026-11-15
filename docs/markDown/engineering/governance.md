@@ -5,7 +5,7 @@
 pwsh-termux is a single-maintainer project: **[Elior Machlev](https://github.com/EliorMachlev)** owns the repository, the signing key, the domain and the decisions. There is no committee and no vote.
 
 - **What the project packages** follows Microsoft's PowerShell releases ([architecture](architecture/releases.md)). It does not patch PowerShell's behaviour; the only changes are those in [NOTICE.md](../../../NOTICE.md).
-- **Changes** reach `main` only through a pull request that passes every required check ([branching](branching.md)), the maintainer's included. Every commit is signed off under the [Developer Certificate of Origin](contributing.md#developer-certificate-of-origin), enforced by the required check *DCO*; there is no contributor license agreement.
+- **Changes** reach `main` only through a pull request that passes every required check ([branching](branching.md)), the maintainer's included. The one exception is the automated keep-alive commit, which changes only `keep.alive` ([keep-alive commit](ci-cd/keepalive.md#keep-alive-commit)). Every commit is signed off under the [Developer Certificate of Origin](contributing.md#developer-certificate-of-origin), enforced by the required check *DCO*; there is no contributor license agreement.
 - **Disputes** are settled by the maintainer, in the open, in the issue or pull request concerned. Conduct follows the [code of conduct](../../../CODE_OF_CONDUCT.md).
 - **Becoming a maintainer:** someone with several accepted pull requests can be asked to become a collaborator. It has not happened yet.
 
