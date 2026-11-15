@@ -110,7 +110,7 @@ GH_REPO=EliorMachlev/pwsh-termux bash scripts/keep-schedules-alive.sh check     
 GH_REPO=EliorMachlev/pwsh-termux bash scripts/keep-schedules-alive.sh refresh --dry-run  # what refresh would enable
 ```
 
-Both real calls use your `gh` login and write nothing ([keep-alive](ci-cd.md#schedule-keep-alive)).
+Both real calls use your `gh` login and write nothing ([keep-alive](ci-cd/keepalive.md#schedule-keep-alive)).
 
 ## Check the sign-offs
 

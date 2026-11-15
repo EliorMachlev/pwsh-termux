@@ -24,7 +24,7 @@ Each built `.deb` is also published as a GitHub release (`<package>-<version>`, 
 |---|---|---|
 | `CNAME` | `pwsh-termux` | `eliormachlev.github.io` |
 
-Once GitHub has issued the certificate, *Enforce HTTPS* can be switched on. After that, `https://eliormachlev.github.io/pwsh-termux/` redirects to the custom domain, which apt follows. [Release](../release.md#custom-domain) has the full checklist, including domain verification.
+Once GitHub has issued the certificate, *Enforce HTTPS* can be switched on. After that, `https://eliormachlev.github.io/pwsh-termux/` redirects to the custom domain, which apt follows. [Release setup](../release/setup.md#custom-domain) has the full checklist, including domain verification.
 
 ## Concurrency and failure
 

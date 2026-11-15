@@ -4,7 +4,7 @@
 # Only commits on the default branch count as activity, and main's ruleset
 # requires signed commits, a pull request and passing status checks, so the
 # commit is pushed with a deploy key that the main-only ruleset lets bypass
-# (docs/markDown/engineering/ci-cd.md, "Keep-alive commit"). Run by
+# (docs/markDown/engineering/ci-cd/keepalive.md, "Keep-alive commit"). Run by
 # .github/workflows/keepalive-commit.yaml, weekly, in the main-only
 # environment `keepalive` that holds the key.
 #

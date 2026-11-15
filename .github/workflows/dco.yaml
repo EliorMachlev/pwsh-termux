@@ -8,7 +8,7 @@ name: DCO
 # pull request (refs/pull/<n>/head), each with its sign-off
 # (contributing.md, "Developer Certificate of Origin").
 #
-# Its job is a required status check on main (release.md, "Rulesets").
+# Its job is a required status check on main (ci-cd/rulesets.md).
 on:
   # Every pull request, whatever it changes: a workflow a path filter skips
   # never reports, which would leave the pull request unmergeable.

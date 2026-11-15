@@ -172,7 +172,7 @@ issue_body() {
     "" "| Commit | Author | Why |" "|---|---|---|"
   awk -F'\t' '{printf "| `%s` | %s | %s |\n", $1, $2, $3}' <<<"$1"
   printf '%s\n' "" \
-    "**This may mean the keep-alive deploy key leaked**: it is the only credential that can push to \`main\` without a signature. Rotate it now (docs/markDown/engineering/release.md, \"Rotating the keep-alive deploy key\"), look at what each commit changed, revert what is not yours, and check the workflow runs and secrets since. Then move \`AUDIT_BASELINE_COMMIT\` in the script past the reviewed commits; this issue closes on the next clean run."
+    "**This may mean the keep-alive deploy key leaked**: it is the only credential that can push to \`main\` without a signature. Rotate it now (docs/markDown/engineering/ci-cd/keepalive.md, \"Rotating the keep-alive deploy key\"), look at what each commit changed, revert what is not yours, and check the workflow runs and secrets since. Then move \`AUDIT_BASELINE_COMMIT\` in the script past the reviewed commits; this issue closes on the next clean run."
 }
 
 # open_issue_number <title>: the number of the open issue with exactly this
@@ -225,7 +225,7 @@ failed() {
     gh issue create --title "$FAILED_ISSUE_TITLE" --body "$(printf '%s\n' \
       "The audit of \`main\` (\`scripts/audit-main-commits.sh\`, run by \`audit-main.yaml\`) failed before it finished, so the commits on \`main\` were not checked: $run" \
       "" \
-      "Read the run's log. An API error or an outage: run *Audit main* again. *the baseline ... is not an ancestor of HEAD* or *is not in this clone*: \`main\` was rewritten, or the baseline moved; treat a rewrite like a finding (docs/markDown/engineering/ci-cd.md, \"When a run fails\"). This issue closes on the next run that finishes.")"
+      "Read the run's log. An API error or an outage: run *Audit main* again. *the baseline ... is not an ancestor of HEAD* or *is not in this clone*: \`main\` was rewritten, or the baseline moved; treat a rewrite like a finding (docs/markDown/engineering/ci-cd/troubleshooting.md). This issue closes on the next run that finishes.")"
   else
     gh issue comment "$existing" --body "Failed again: $run"
   fi

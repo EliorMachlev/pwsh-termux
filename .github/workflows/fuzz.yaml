@@ -7,7 +7,7 @@ name: Fuzz
 # every pull request and push; tens of thousands weekly.
 on:
   # Every pull request, whatever it changes: its job is a required status
-  # check on main (release.md, "Rulesets"), and a workflow a path filter
+  # check on main (ci-cd/rulesets.md), and a workflow a path filter
   # skips never reports, which would leave the pull request unmergeable.
   pull_request:
   push:
