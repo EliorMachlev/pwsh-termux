@@ -4,24 +4,26 @@ Short version: [CONTRIBUTING.md](../../../CONTRIBUTING.md). This is the full gui
 
 ## What to contribute
 
-- **Bug fixes** to the scripts, the workflows, the website or the docs are welcome as pull requests.
-- **New features and refactors:** open an [issue](https://github.com/EliorMachlev/pwsh-termux/issues) first, so the idea can be agreed before the work is done. Things that change what users install (a new package, architecture, suite or channel rule) are decisions for the maintainer.
-- **Problems in PowerShell itself** belong to [Microsoft](https://github.com/PowerShell/PowerShell/issues); this project repackages it and does not patch its behavior.
+- **Bug fixes** to the scripts, workflows, website or docs: open a pull request.
+- **New features and refactors:** open an [issue](https://github.com/EliorMachlev/pwsh-termux/issues) first. Changes to what users install (a new package, architecture, suite or channel rule) are the maintainer's decision.
+- **Problems in PowerShell itself** go to [Microsoft](https://github.com/PowerShell/PowerShell/issues); this project repackages PowerShell and does not patch its behaviour.
 
 ## Setup
 
-Everything runs on Termux or Linux with Bash. You need `bash`, `curl`, `jq`, `python3`, `dpkg-deb` and `patchelf` (on Termux: the glibc one at `$PREFIX/glibc/bin/patchelf`), plus `gnupg` to test signing. [Build](build.md) has the commands and the Termux quirks.
+Termux or Linux with Bash. You need `bash`, `curl`, `jq`, `python3`, `dpkg-deb` and `patchelf` (on Termux, the glibc one at `$PREFIX/glibc/bin/patchelf`), plus `gnupg` to test signing. Commands and Termux quirks: [build](build.md).
 
 ## Branches and commits
 
-- One long-lived branch, `main`; branch from `origin/main` and open a pull request ([branching](branching.md)). It merges with *Squash and merge* once its required checks pass ([required status checks](ci-cd/rulesets.md#required-status-checks)); nobody can push to `main` directly. Never put a skip-CI token in a pull request's commit messages: the checks would not run, and the pull request could not merge.
-- Title the pull request `type(scope): short description`: `feat`, `fix`, `docs`, `ci`, `build`, `chore`, `deps`, `test`; the scope is the script or area (`build-deb`, `site`, `release`). Example: `fix(build-deb): handle a missing checksum`. Dependabot uses `chore(deps)`.
-- Write the description for the person who reads the release notes or the history later: what changed and why.
-- **Sign off every commit** ([below](#developer-certificate-of-origin)): `git commit -s`.
+1. Branch from `origin/main` ([branching](branching.md)); nobody can push to `main` directly.
+2. Title the pull request `type(scope): short description`. Types: `feat`, `fix`, `docs`, `ci`, `build`, `chore`, `deps`, `test`; the scope is the script or area (`build-deb`, `site`, `release`). Example: `fix(build-deb): handle a missing checksum`. Dependabot uses `chore(deps)`.
+3. Describe what changed and why, for whoever reads the history later.
+4. Sign off every commit with `git commit -s` ([below](#developer-certificate-of-origin)).
+5. Never put a skip-CI token in a commit message: the required checks would not run and the pull request could not merge.
+6. The pull request merges with *Squash and merge* once its [required checks](ci-cd/rulesets.md#required-status-checks) pass.
 
 ## Developer Certificate of Origin
 
-Every commit in a pull request certifies the [Developer Certificate of Origin 1.1](https://developercertificate.org/): that you wrote the change, or otherwise have the right to submit it under the project's [license](../../../LICENSE), and that it may be kept and redistributed as part of the project's public record. You certify it by signing off the commit, with a `Signed-off-by:` trailer that gives your name and e-mail address, as the commit's author:
+Each commit in a pull request certifies the [Developer Certificate of Origin 1.1](https://developercertificate.org/): you wrote the change, or have the right to submit it under the project's [license](../../../LICENSE), and it may be redistributed as part of the project's public record. Certify it with a `Signed-off-by:` trailer naming the commit's author:
 
 ```text
 fix(build-deb): handle a missing checksum
@@ -29,55 +31,68 @@ fix(build-deb): handle a missing checksum
 Signed-off-by: Ada Lovelace <ada@example.org>
 ```
 
-- `git commit -s` (`--signoff`) adds the trailer from your `user.name` and `user.email`, which must be the commit's author. A commit made on GitHub's website gets one by itself (the repository requires it of web commits).
-- Forgot? Sign off the pull request's commits and push again: `git rebase --signoff origin/main`, then `git push --force-with-lease`. One commit: `git commit --amend --no-edit -s`. That signs as you: a commit another person wrote needs that person's own sign-off (they amend it with `-s`), or you re-author it with `git commit --amend --reset-author -s` once you have the right to submit it.
-- The required check **DCO** ([`dco.yaml`](../../../.github/workflows/dco.yaml), [`check-dco.sh`](../../../scripts/check-dco.sh)) fails a pull request with a commit that lacks the trailer, or whose trailer names someone other than the author (case and spaces aside). The trailer must be in the message's last paragraph, where `git commit -s` puts it. Not checked: merge commits (such as GitHub's *Update branch*), commits already on `main` that reached the branch by merging it in, Dependabot's commits in its own pull requests, and the [keep-alive commit](ci-cd/keepalive.md#keep-alive-commit).
-- The check runs the checker and its tests from the pull request's **base commit**, not from the pull request, so a pull request cannot replace them with ones that always pass; a pull request that changes the checker is judged by the base's copy. Limit: a pull request can still edit `dco.yaml` itself, and the maintainer's review of workflow changes is what catches that.
-- **The commits are checked, not the pull request's description.** `main` takes a squash merge, and its message is the pull request's description, so the commit on `main` does not carry the sign-offs; the signed-off commits stay in the pull request (`refs/pull/<n>/head`), linked from the squash commit through its pull request number. Checking the commits means each sign-off is made by `git commit -s` on the work it covers, at the time, rather than a line typed into a description that can still be edited after the check.
+- `git commit -s` adds the trailer from your `user.name` and `user.email`, which must match the commit's author. A commit made on GitHub's website gets one automatically (the repository requires it).
+- **Forgot?** `git rebase --signoff origin/main`, then `git push --force-with-lease`; for one commit, `git commit --amend --no-edit -s`. That signs as you: someone else's commit needs their own sign-off, or you re-author it with `git commit --amend --reset-author -s` once you have the right to submit it.
+- The required check **DCO** ([`dco.yaml`](../../../.github/workflows/dco.yaml), [`check-dco.sh`](../../../scripts/check-dco.sh)) fails a commit without the trailer, or whose trailer names someone other than the author (case and surrounding spaces ignored). The trailer must be in the message's last paragraph.
+- Not checked: merge commits (such as *Update branch*), commits already on `main`, Dependabot's commits in its own pull requests, and the [keep-alive commit](ci-cd/keepalive.md#keep-alive-commit).
+- The check runs the checker and its tests from the pull request's **base commit**, so a pull request cannot replace them. A pull request can still edit `dco.yaml` itself; the maintainer's review of workflow changes catches that.
+- **Commits are checked, not the description.** The squash commit on `main` takes the pull request's description and does not carry the sign-offs; the signed-off commits stay in `refs/pull/<n>/head`, linked by the pull request number.
 
 ## Tests
 
-New behaviour and bug fixes come with an automated test. Shell logic is tested by a `scripts/test-*.sh` script that CI runs ([CI / CD](ci-cd.md)); the Python in `scripts/` is tested with Hypothesis under `tests/fuzz/`. A pull request that changes behaviour without a test needs a reason in its description. The pull request template asks for it, and the required checks must pass before merge.
+New behaviour and bug fixes come with an automated test; a pull request without one says why.
 
-Every script in `scripts/` has a test, and each test runs offline: stubs stand in for `curl`, `gh`, the SBOM tools and the like, fixtures are written to a temporary folder, and local git repositories stand in for GitHub. A refusal is checked for its reason, not only for a failure. A bug fix adds a test that fails without the fix (a regression test). To add a test script, name it `scripts/test-<name>.sh` and add a step for it to a job in `ci.yaml`; the `Coverage` job runs every `scripts/test-*.sh` on its own.
+- Shell logic: a `scripts/test-*.sh` script. Python in `scripts/`: Hypothesis tests under `tests/fuzz/`.
+- Every script in `scripts/` has a test, and tests run offline: stubs stand in for `curl`, `gh` and the SBOM tools, fixtures go to a temporary folder, and local git repositories stand in for GitHub.
+- A refusal is checked for its reason, not only for failing. A bug fix adds a test that fails without the fix.
+- A new test script is named `scripts/test-<name>.sh` and gets a step in a job in `ci.yaml`; the `Coverage` job runs every `scripts/test-*.sh` on its own.
 
-The `Coverage` check measures how much of `scripts/` the tests run: the lines that start a command in the Bash scripts (traced with xtrace) and the statements in the Python (coverage.py). It fails when Bash, Python or the total drops below its floor (`COVERAGE_MIN_*` in `ci.yaml`). When your tests raise the coverage, raise the floors to the new values, rounded down; never lower them to get a change through. To see what is not covered, run the tests under the tracer and read the report, which lists the lines never run in each file (it needs [shfmt](https://github.com/mvdan/sh); install it with `pkg install shfmt`):
+The `Coverage` check measures how much of `scripts/` the tests run: in Bash, the lines that start a command (traced with xtrace); in Python, statements (coverage.py). It fails when Bash, Python or the total drops below its floor (`COVERAGE_MIN_*` in `ci.yaml`). When your tests raise coverage, raise the floors to the new values, rounded down; never lower them. To list uncovered lines (needs [shfmt](https://github.com/mvdan/sh): `pkg install shfmt`; and, for the Python, coverage.py and Hypothesis: `pip install coverage hypothesis`):
 
 ```bash
+rm -rf out/trace
 for t in scripts/test-*.sh; do python3 .github/scripts/coverage.py run out/trace -- bash "$t"; done
-python3 .github/scripts/coverage.py report out/trace
+COVERAGE_FILE=out/python.coverage python3 -m coverage run --include='scripts/*.py' -m unittest discover -s tests/fuzz
+COVERAGE_FILE=out/python.coverage python3 -m coverage json -o out/python-coverage.json
+python3 .github/scripts/coverage.py report out/trace --python-json out/python-coverage.json
 ```
 
 `test-validate-site.sh` needs the path to `vnu.jar` ([build](build.md#check-the-website)); without it, `validate-site.sh` shows as not run.
 
 ## Style
 
-- **Bash.** `set -euo pipefail` at the top, quoted expansions, the shared `log`/`die` helpers (they write to stderr), and the other shared constants and helpers in [`scripts/lib/common.sh`](../../../scripts/lib/common.sh) (each script sources it; the repository's `.shellcheckrc` lets shellcheck follow it). Put a helper there when more than one script needs it; a constant goes there only if a helper there uses it. Nothing may need more than Bash, coreutils, `curl`, `jq`, `dpkg-deb`, `patchelf`, `gpg` and `python3`, plus `gh`, `git` and OpenSSH's `ssh-agent` for the scripts that talk to GitHub (the keep-alive and the audit of `main`). `shellcheck --severity=style` must be clean.
-- **Python** is for checks only, standard library only, and run with `python3 -I` where it reads untrusted files.
-- **Markdown** with sentences that say what the code does. Do not document what it might do.
-- **Workflows.** Least privilege (`permissions: contents: read` at the top, more only on the job that needs it), `persist-credentials: false` on checkouts, `step-security/harden-runner` first in each job, and **every action pinned to a commit SHA** with its version in a trailing comment. jactionlint runs at its `pedantic` profile and fails on any finding, so also: `defaults: run: shell: bash`, a fixed runner image (`ubuntu-24.04` or `ubuntu-26.04`, never `ubuntu-latest`), a `name:` on each job, `if: ${{ … }}`, and a comment on each permission beyond `contents: read` ([ci-cd.md](ci-cd.md)). Do not use `pull_request_target`, and do not put untrusted input (`github.event.*`) into a `run:` script; pass it through `env:`.
+- **Bash.** `set -euo pipefail`, quoted expansions, and the shared `log`/`die` helpers and constants in [`scripts/lib/common.sh`](../../../scripts/lib/common.sh), which every script sources. A helper goes there when more than one script needs it; a constant only if a helper there uses it. Allowed tools: Bash, coreutils, `curl`, `jq`, `dpkg-deb`, `patchelf`, `gpg`, `python3`, plus `gh`, `git` and `ssh-agent` for the scripts that talk to GitHub. `shellcheck --severity=style` must be clean.
+- **Python** is for checks only: standard library only, run with `python3 -I` where it reads untrusted files.
+- **Markdown** says what the code does, not what it might do.
+- **Workflows.**
+  - Least privilege: `permissions: contents: read` at the top, more only on the job that needs it, with a comment on each extra permission.
+  - `persist-credentials: false` on checkouts; `step-security/harden-runner` first in each job.
+  - Every action pinned to a commit SHA, its version in a trailing comment.
+  - jactionlint runs at `pedantic` and fails on any finding: `defaults: run: shell: bash`, a fixed runner image (`ubuntu-24.04` or `ubuntu-26.04`, never `ubuntu-latest`), a `name:` on each job, `if: ${{ … }}` ([CI / CD](ci-cd.md)).
+  - No `pull_request_target`; untrusted input (`github.event.*`) goes through `env:`, never straight into `run:`.
 
 ## No suppressions, no cosmetic workarounds
 
-- **Never add a suppression of any kind**: a `# shellcheck disable=` comment, a `# zizmor: ignore`, an allowlist entry in a scanner's config, a line in a lychee ignore file, a word added to `_typos.toml`, or a disabled rule.
-- **Never write a workaround that hides a real issue** just to quiet a tool (a rename or restructure done only so a rule stops matching, excluding a file from a check). If the problem is still there, the warning must be too.
-- **Fix the cause.** If there is no real fix yet, leave the warning visible and say what it is and why it can't be fixed now.
-- The only suppressions in the tree are the ones in [exceptions.md](exceptions.md). Adding one is the maintainer's decision, not the contributor's.
+- **Never add a suppression**: a `# shellcheck disable=`, a `# zizmor: ignore`, a scanner allowlist entry, a lychee ignore line, a word in `_typos.toml`, or a disabled rule.
+- **Never hide a real issue** to quiet a tool (a rename or restructure only so a rule stops matching, excluding a file from a check). If the problem remains, so does the warning.
+- **Fix the cause.** If there is no fix yet, leave the warning visible and explain what it is and why.
+- The only suppressions are those in [exceptions.md](exceptions.md); adding one is the maintainer's decision.
 
 ## Pull request checklist
 
 The [template](../../../.github/pull_request_template.md) is the checklist:
 
-- Every commit is signed off ([DCO](#developer-certificate-of-origin)).
-- `shellcheck --shell=bash --severity=style scripts/*.sh scripts/lib/*.sh` is clean.
-- `python3 .github/scripts/site-check.py docs` passes.
-- A changed script was run locally, and the PR says what you ran.
-- Nothing is suppressed beyond [exceptions.md](exceptions.md).
-- A new or changed action is pinned to a SHA with its version in a comment.
-- A new site page is in `docs/sitemap.xml` and keeps the Content-Security-Policy.
-- Docs are updated where the change needs it, in the same PR.
+1. Every commit is signed off ([DCO](#developer-certificate-of-origin)).
+2. `shellcheck --shell=bash --severity=style scripts/*.sh scripts/lib/*.sh` is clean.
+3. `python3 .github/scripts/site-check.py docs` passes.
+4. A changed script was run locally, and the pull request says what you ran.
+5. Changed behaviour or a bug fix comes with a test, or the pull request says why not.
+6. Nothing is suppressed beyond [exceptions.md](exceptions.md).
+7. A new or changed action is pinned to a SHA with its version in a comment.
+8. A new site page is in `docs/sitemap.xml` and keeps the Content-Security-Policy.
+9. Docs are updated in the same pull request.
 
-CI ([ci-cd.md](ci-cd.md)) runs the rest: the DCO check, jactionlint, a real package build, CodeQL, zizmor, Gitleaks, the Hypothesis fuzzing of `spdx-build-view.py`, the link and spelling checks, and the HTML and CSS validation (vnu and Stylelint; to run it locally, see [build.md](build.md#check-the-website)).
+CI runs the rest ([CI / CD](ci-cd.md)); to validate the HTML and CSS locally, see [build](build.md#check-the-website).
 
 ## Reporting a vulnerability
 
