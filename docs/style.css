@@ -218,6 +218,11 @@ pre {
   white-space: pre-wrap;
 }
 
+/* A linked name needs no chip: in the dark palette the link colour on the chip is only 3.9:1. */
+a code {
+  background: none;
+}
+
 pre code {
   background: none;
   padding: 0;
@@ -510,8 +515,13 @@ ol.steps li {
   text-decoration: none;
 }
 
+/* Inside a sentence the colour must not be the only cue (WCAG 1.4.1). */
+:is(p, li):not(.actions) > .more {
+  text-decoration: underline;
+}
+
 .more::after {
-  content: "\203a";
+  content: "\203a" / ""; /* decorative: no alternative text, so a screen reader skips it */
   margin-left: .3em;
   font-size: 1.3em;
   line-height: 1;
@@ -640,6 +650,10 @@ nav a {
   }
 }
 
+.diagram .source summary {
+  margin-inline: auto;
+}
+
 .source pre {
   margin-top: .25rem;
 }
@@ -692,7 +706,7 @@ footer.site [aria-current="page"] {
 }
 
 .crumbs li + li::before {
-  content: "\203a";
+  content: "\203a" / "";
   margin-inline: .5em;
 }
 

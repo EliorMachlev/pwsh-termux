@@ -9,9 +9,9 @@ The pwsh-termux website (`pwsh-termux.machlev.org`) is meant to be usable by eve
 - **Semantic HTML:** one `<h1>` per page, ordered headings, `<nav>`, `<main>` and `<footer>` landmarks, `lang="en"`, and a "Skip to content" link as the first focusable element. [`site-check.py`](../../../.github/scripts/site-check.py) fails the build if a page loses its `lang`, its single `<h1>`, its `<main>` or its skip link, or if an image has no `alt`; heading order, the `<nav>` and `<footer>` landmarks and the skip link's position are checked by hand.
 - **No JavaScript.** Everything works without it; nothing moves or updates by itself.
 - **Keyboard:** every link and control is reachable and operable by keyboard, with a visible focus ring.
-- **Colour and contrast:** light and dark palettes follow your system (`prefers-color-scheme`). Every text and background pair meets WCAG AA (4.5:1) in both; the lowest, links on a card in the light palette, is 4.9:1, and body text is above 15:1. Information is never conveyed by colour alone.
-- **Zoom and layout:** responsive, in relative units; text can be enlarged without loss of content, and tables and code blocks scroll sideways instead of breaking the page. Narrow-screen layout has not been tested on every device.
-- **Motion:** none; `prefers-reduced-motion` is respected anyway.
+- **Colour and contrast:** light and dark palettes follow your system (`prefers-color-scheme`). Every text and background pair meets WCAG AA (4.5:1) in both; the lowest, links on a card in the light palette, is 4.9:1, and body text is above 15:1. Links inside a sentence are underlined, and information is never conveyed by colour alone.
+- **Zoom and layout:** responsive, in relative units; text can be enlarged without loss of content, and tables and code blocks wrap instead of scrolling sideways or breaking the page. Narrow-screen layout has not been tested on every device.
+- **Motion:** nothing moves by itself. The two diagrams show as still pictures; an animated version opens only when you choose *Play the animation*. `prefers-reduced-motion` is respected anyway.
 - **Code samples** are plain text in `<pre>` blocks, read by screen readers as written.
 
 ## Conformance
