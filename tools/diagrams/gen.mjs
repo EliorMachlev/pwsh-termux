@@ -1,7 +1,7 @@
 // Draws the animated diagrams of the README, INSTALL.md and the site (docs/img/).
 // usage: node tools/diagrams/gen.mjs <outdir>, then copy the .gif and .png files to docs/img/.
 // needs: node, ffmpeg, rsvg-convert (librsvg) and the Roboto font known to fontconfig
-//   (on Termux: FONTCONFIG_FILE=<conf that adds /system/fonts>; see tools/diagrams/README.md).
+//   (on Termux: FONTCONFIG_FILE=<conf that adds /system/fonts>; see docs/markDown/engineering/build.md).
 // The steps below are the single source: copy the written <name>.mmd into the Mermaid
 // <details> blocks (README.md, INSTALL.md, docs/index.html, docs/install.html) when they change.
 // writes <name>.gif and <name>-still.png (640 wide, README and site 1x),
