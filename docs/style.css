@@ -35,7 +35,7 @@
     --surface: #1c1c1e;
     --ink: #f5f5f7;
     --ink-2: #a1a1a6;
-    --accent: #2997ff;
+    --accent: #4aa8ff; /* 4.5:1 on the .status chip too */
     --line: rgb(255 255 255 / 16%);
     --code-bg: #000;
     --code-edge: rgb(255 255 255 / 16%); /* nearly the page's colour, so it needs an edge */

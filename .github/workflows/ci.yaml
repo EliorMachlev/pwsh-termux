@@ -349,7 +349,7 @@ jobs:
         env:
           DOTNET_SYSTEM_GLOBALIZATION_INVARIANT: "1"
         run: |
-          "$TERMUX_PREFIX/opt/pwsh/pwsh" -NoProfile -Command '$PSVersionTable.PSVersion.ToString()'
+          "$TERMUX_PREFIX/opt/pwsh/pwsh" -NoProfile -Command "\$PSVersionTable.PSVersion.ToString()"
           test "$("$TERMUX_PREFIX/bin/pwsh" -NoProfile -Command '1 + 1')" = 2
 
   package:
