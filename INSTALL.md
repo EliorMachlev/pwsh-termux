@@ -55,7 +55,7 @@ flowchart TD
 
 </details>
 
-Prefer not to install a package for the key? [Add it by hand](https://pwsh-termux.machlev.org/install.html#by-hand). A key added by hand is not updated by `pkg upgrade`.
+Prefer not to install a package for the key? [Add it by hand](https://pwsh-termux.machlev.org/install.html#by-hand). The manual steps include the glibc repository. A key added by hand is not updated by `pkg upgrade`.
 
 ## 3. Stable: the regular install
 
@@ -113,10 +113,11 @@ To stay on an older build, see [pinning and downgrading](docs/markDown/product/p
 
 ## 6. Uninstall
 
-Remove PowerShell (either or both packages), then the key and the apt source:
+Remove PowerShell, then the key and the apt source. Remove `pwsh-preview` only if you installed it; apt stops with an error for a package it does not know.
 
 ```bash
-pkg remove pwsh pwsh-preview
+pkg remove pwsh
+pkg remove pwsh-preview    # only if installed
 pkg remove pwsh-termux-keyring
 pkg update
 ```
@@ -183,11 +184,13 @@ pkg list-installed | grep -E 'glibc|icu|pwsh'
 
 ## 9. Turn off Microsoft's telemetry
 
-This project does not change PowerShell. Microsoft's build sends usage telemetry unless you opt out, and it can print a notice about newer versions. To turn both off, append this to `~/.bashrc` (or your shell's startup file):
+This project does not change PowerShell. Microsoft's build sends usage telemetry unless you opt out, and it can print a notice about newer versions. To turn both off, append this to `~/.bashrc` (or your shell's startup file) and export them in the current shell, which does not re-read that file:
 
 ```bash
 echo 'export POWERSHELL_TELEMETRY_OPTOUT=1' >> ~/.bashrc
 echo 'export POWERSHELL_UPDATECHECK=Off' >> ~/.bashrc
+export POWERSHELL_TELEMETRY_OPTOUT=1
+export POWERSHELL_UPDATECHECK=Off
 ```
 
 Back to the [README](README.md).

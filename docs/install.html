@@ -117,10 +117,11 @@ pkg update</code></pre>
 
   <section class="panel">
     <h2 id="uninstall">Uninstall</h2>
-<pre class="copy"><code>pkg remove pwsh pwsh-preview
+<pre class="copy"><code>pkg remove pwsh
+pkg remove pwsh-preview    # only if installed
 pkg remove pwsh-termux-keyring
 pkg update</code></pre>
-    <p>The first line removes PowerShell (either or both packages). The second removes the key and the apt source, so <code>pkg</code> stops contacting this site. If you added them by hand, delete the two files yourself:</p>
+    <p>The first line removes PowerShell. Remove <code>pwsh-preview</code> only if you installed it: apt stops with an error for a package it does not know. The third line removes the key and the apt source, so <code>pkg</code> stops contacting this site. If you added them by hand, delete the two files yourself:</p>
 <pre class="copy"><code>rm "$PREFIX/share/keyrings/pwsh-termux-archive-keyring.gpg" "$PREFIX/etc/apt/sources.list.d/pwsh-termux.list"</code></pre>
     <p>Your profile and modules in <code>~/.config/powershell</code> and <code>~/.local/share/powershell</code> stay. Delete them for a clean slate.</p>
   </section>
@@ -160,8 +161,9 @@ grep -E '^(Date|Valid-Until):' "$TMPDIR/InRelease"</code></pre>
 
   <section class="panel">
     <h2 id="by-hand">Add the key by hand instead</h2>
-    <p>If you would rather not install a package for it, these commands write the same two files with the same content, then install stable:</p>
-<pre class="copy"><code>mkdir -p "$PREFIX/share/keyrings"
+    <p>If you would rather not install a package for it, these commands write the same two files with the same content, then install stable. Stable needs Termux&rsquo;s glibc repository, so the first line enables it:</p>
+<pre class="copy"><code>pkg install -y glibc-repo
+mkdir -p "$PREFIX/share/keyrings"
 curl -fsSL https://pwsh-termux.machlev.org/pwsh-termux.gpg \
   -o "$PREFIX/share/keyrings/pwsh-termux-archive-keyring.gpg"
 echo "deb [signed-by=$PREFIX/share/keyrings/pwsh-termux-archive-keyring.gpg] https://pwsh-termux.machlev.org stable main" \
@@ -195,9 +197,11 @@ pkg list-installed | grep -E 'glibc|icu|pwsh'</code></pre>
 
   <section class="panel">
     <h2 id="telemetry">Turn off Microsoft&rsquo;s telemetry</h2>
-    <p>This package does not change PowerShell. Microsoft&rsquo;s build collects usage telemetry unless you opt out, and it can print a notice about newer versions. To turn both off, append this to <code>~/.bashrc</code> (or your shell&rsquo;s startup file):</p>
+    <p>This package does not change PowerShell. Microsoft&rsquo;s build collects usage telemetry unless you opt out, and it can print a notice about newer versions. To turn both off, append this to <code>~/.bashrc</code> (or your shell&rsquo;s startup file) and export them in the current shell, which does not re-read that file:</p>
 <pre class="copy"><code>echo 'export POWERSHELL_TELEMETRY_OPTOUT=1' &gt;&gt; ~/.bashrc
-echo 'export POWERSHELL_UPDATECHECK=Off' &gt;&gt; ~/.bashrc</code></pre>
+echo 'export POWERSHELL_UPDATECHECK=Off' &gt;&gt; ~/.bashrc
+export POWERSHELL_TELEMETRY_OPTOUT=1
+export POWERSHELL_UPDATECHECK=Off</code></pre>
     <p>This page is also on GitHub as <a href="https://github.com/EliorMachlev/pwsh-termux/blob/main/INSTALL.md">INSTALL.md</a>.</p>
   </section>
 </div></main>

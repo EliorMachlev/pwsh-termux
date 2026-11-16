@@ -470,7 +470,7 @@ ol.steps li {
 }
 
 .btn:active {
-  background: color-mix(in srgb, var(--fill) 80%, var(--ink));
+  background: color-mix(in srgb, var(--fill) 80%, black);
   transition-duration: 0ms;
 }
 
@@ -488,7 +488,7 @@ ol.steps li {
 
 @media (hover: hover) and (pointer: fine) {
   .btn:hover {
-    background: color-mix(in srgb, var(--fill) 88%, var(--ink));
+    background: color-mix(in srgb, var(--fill) 88%, black);
   }
 }
 
