@@ -114,15 +114,19 @@ jobs:
       - name: Harden the runner
         uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a # v2.22.4
         with:
-          egress-policy: audit
+          # Secrets are in this job: nothing may leave the runner except to GitHub (checkout, tag push, releases, artifacts).
+          egress-policy: block
+          allowed-endpoints: >
+            github.com:443
+            api.github.com:443
+            uploads.github.com:443
+            *.actions.githubusercontent.com:443
+            *.blob.core.windows.net:443
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
           fetch-depth: 0       # assemble-site.sh reads each document's last commit (git log); every tag, for release-tags.sh
-
-      - name: Install tools
-        run: sudo apt-get update && sudo apt-get install -y gnupg xz-utils
 
       - name: Check the website
         run: python3 .github/scripts/site-check.py docs
