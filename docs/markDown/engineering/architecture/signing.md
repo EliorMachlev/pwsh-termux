@@ -22,10 +22,10 @@ The signer must be the current key, or the next one while `ROTATION` exists. `bu
 2. **`assemble`** (no key) runs `build-repo.sh` unsigned and writes the release tag payloads; `Release`, `Packages` and the payloads go to `sign` as a job output ([`signing-bundle.sh`](../../../../scripts/signing-bundle.sh)).
 3. **`sign`** (the only job with the key, no `.deb`, no artifact access) runs [`sign-release.sh`](../../../../scripts/sign-release.sh) with the signing key and `KEYRING_DEB_SHA256` set to that digest, and `release-tags.sh sign-payloads`. `publish` (no key) installs the signatures only if they verify (`sign-release.sh install`, `release-tags.sh assemble`).
 
-`sign-release.sh` (like `build-repo.sh`, which it calls) refuses to sign unless:
+`sign-release.sh` (given the `Release` and `Packages` files `build-repo.sh` wrote in `assemble`, never a `.deb`) refuses to sign unless:
 
 1. `keys/` passes the key rules and the signing key is an allowed signer;
-2. the `.deb` folder holds exactly one `pwsh-termux-keyring`, with SHA-256 `KEYRING_DEB_SHA256`, shipping `keys/pwsh-termux-archive-keyring.gpg` byte for byte;
+2. `Packages` holds exactly one `pwsh-termux-keyring` stanza, with a `SHA256` field equal to `KEYRING_DEB_SHA256` (the digest of the file `verify` attested), and `Release` lists that `Packages` file under `SHA256:`;
 3. `InRelease` and `Release.gpg` verify with `gpgv` against `keys/` alone, as apt will.
 
 It then publishes that file unchanged. A secret replaced without changing `keys/`, or the reverse, publishes nothing.

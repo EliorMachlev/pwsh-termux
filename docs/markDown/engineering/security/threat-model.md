@@ -48,7 +48,7 @@ GitHub disables a public repository's schedules after 60 days without activity, 
 
 ## Wrong key in the keyring package
 
-- **Mitigation.** `keys/` holds exactly one online key plus only keys named by `keys/RECOVERY` or `keys/ROTATION`; `check-keys.sh` enforces it in CI and the `sign` job. The package is attested in the unprivileged build job, a job without the signing key verifies the attestation, and the publish job signs only that verified file, only if it ships `keys/` byte for byte and the signer is the online key ([repository](../architecture/repository.md#signing)).
+- **Mitigation.** `keys/` holds exactly one online key plus only keys named by `keys/RECOVERY` or `keys/ROTATION`; `check-keys.sh` enforces it in CI and the `sign` job. The package is attested in the unprivileged build job, a job without the signing key verifies the attestation, and the `sign` job signs only an index that lists that verified file (by its SHA-256) and only if the signer is the online key; the `publish` job has no key and installs the signatures only if they verify against `keys/` ([repository](../architecture/repository.md#signing)).
 - **Left over.** That the committed keys are the right ones rests on review of `keys/` and on users comparing fingerprints with [SECURITY.md](../../../../SECURITY.md#signing-key). The first download rests on HTTPS.
 
 ## Malicious change to the workflows or scripts

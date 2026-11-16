@@ -130,6 +130,18 @@ expect refuse "sign: another keyring digest" as_a env KEYRING_DEB_SHA256="$(prin
 expect refuse "sign: no keyring digest" as_a env -u KEYRING_DEB_SHA256 bash "$SR" sign "$T/in" "$T/s6"
 mkdir "$T/in-p"; cp "$T/in/Release" "$T/in-p/"; { cat "$T/in/Packages"; echo; echo "Package: extra"; } > "$T/in-p/Packages"
 expect refuse "sign: a Packages file Release does not list" as_a bash "$SR" sign "$T/in-p" "$T/s7"
+# Release listing a different Packages digest under SHA256: and the right one only under SHA512:
+mkdir "$T/in-sec"; cp "$T/in/Packages" "$T/in-sec/"
+sha=$(sha256_of "$T/in/Packages"); size=$(file_size "$T/in/Packages")
+sed "s/^ $sha $size \(.*Packages\)$/ $(printf 0%.0s {1..64}) $size \1\r/" "$T/in/Release" > "$T/in-sec/Release"
+printf 'SHA512:\n %s %s %s/Packages\n' "$sha" "$size" "$(repo_index_subdir)" >> "$T/in-sec/Release"
+expect refuse "sign: Packages listed correctly only outside the SHA256 section" as_a bash "$SR" sign "$T/in-sec" "$T/s7b"
+# a second keyring stanza with no SHA256 field, listed correctly by Release
+mkdir "$T/in-nosum"
+{ cat "$T/in/Packages"; printf '\nPackage: %s\nVersion: 99\nSHA512: 00\n' "$KEYRING_PACKAGE"; } > "$T/in-nosum/Packages"
+nsha=$(sha256_of "$T/in-nosum/Packages"); nsize=$(file_size "$T/in-nosum/Packages")
+sed "s/^ $sha $size / $nsha $nsize /" "$T/in/Release" > "$T/in-nosum/Release"
+expect refuse "sign: a second keyring stanza with no SHA256 field" as_a bash "$SR" sign "$T/in-nosum" "$T/s7c"
 mkdir "$T/in-old"; cp "$T/in/Packages" "$T/in-old/"
 now=$(now_epoch); old=$((now - 3 * SECONDS_PER_DAY))
 sed -e "s/^Date: .*/Date: $(release_date "$old")/" -e "s/^Valid-Until: .*/Valid-Until: $(release_date $((old + 14 * SECONDS_PER_DAY)))/" "$T/in/Release" > "$T/in-old/Release"

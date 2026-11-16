@@ -46,7 +46,7 @@ keyring_stanza_sha256() {
         if ($i ~ /^Package: /) name = substr($i, 10)
         if ($i ~ /^SHA256: /) sum = substr($i, 9)
       }
-      if (name == pkg) print sum }' "$1")
+      if (name == pkg) print (sum == "" ? "missing" : sum) }' "$1")
   [ "$(grep -c . <<<"$sums")" -eq 1 ] || die "$1 does not hold exactly one $KEYRING_PACKAGE package"
   printf '%s\n' "$sums"
 }
@@ -106,7 +106,7 @@ sign_index() {
   date=$(release_field_epoch "$in/Release" Date)
   [ $(($(now_epoch) - date)) -le "$MAX_RELEASE_AGE_SECONDS" ] || die "$in/Release was written more than a day ago"
   # Release lists Packages by digest and size; only that file is here.
-  [ "$(awk -v p="$INDEX_SUBDIR/Packages" '$3 == p {print $1, $2}' "$in/Release")" = "$(sha256_of "$in/Packages") $(file_size "$in/Packages")" ] \
+  [ "$(awk -v p="$INDEX_SUBDIR/Packages" '$0 == "SHA256:" {on = 1; next} on && /^ / {if ($3 == p) print $1, $2; next} {on = 0}' "$in/Release")" = "$(sha256_of "$in/Packages") $(file_size "$in/Packages")" ] \
     || die "$in/Release does not list this Packages file"
   check_index_is_verified "$in/Packages"
   mkdir -p "$out"
