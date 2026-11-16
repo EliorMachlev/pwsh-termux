@@ -1,6 +1,6 @@
 # pwsh-termux documentation
 
-The user-facing side is the [website](https://pwsh-termux.machlev.org/) and the [README](../../README.md); this folder is for contributors and anyone auditing the project.
+The user-facing side is the [website](https://pwsh-termux.machlev.org/), the [README](../../README.md) and the [install guide](../../INSTALL.md); this folder is for contributors and anyone auditing the project.
 
 ## Product
 
