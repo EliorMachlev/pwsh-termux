@@ -13,6 +13,11 @@ name: Site
 #             any level fails. Both tools are CI tooling only, pinned with
 #             their integrity hashes in tools/site-lint/package-lock.json
 #             (Dependabot updates them); no script ships on the site.
+#   accessibility  axe-core in headless Chrome on every deployed page (light
+#             and dark, with and without reduced motion, desktop and 320 px):
+#             any WCAG 2.2 level A or AA violation, sideways scrolling at
+#             320 px, or a diagram without its pause checkbox fails
+#             (tools/site-lint/axe-check.mjs).
 on:
   # Every pull request, whatever it changes: its jobs are required status
   # checks on main (ci-cd/rulesets.md), and a workflow a path filter
@@ -64,6 +69,8 @@ jobs:
           persist-credentials: false
       - name: Check the website
         run: python3 .github/scripts/site-check.py docs
+      - name: Compile the checker
+        run: python3 -I -m py_compile .github/scripts/site-check.py
 
   validate:
     name: Validate the HTML and CSS
@@ -123,3 +130,41 @@ jobs:
         run: |
           tools/site-lint/node_modules/.bin/stylelint --config tools/site-lint/.stylelintrc.json \
             --ignore-disables --max-warnings 0 docs/*.css "$RUNNER_TEMP/site"/*.css
+
+  accessibility:
+    name: Accessibility (WCAG 2.2)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a # v2.22.4
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0       # assemble-site.sh reads each document's last commit (git log)
+      - name: Install axe-core and puppeteer-core
+        working-directory: tools/site-lint
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm audit signatures
+      # The deployed pages, with the generated blocks filled, as the validate job builds them.
+      - name: Assemble the site
+        run: |
+          umask 022
+          stage="$RUNNER_TEMP/stage"
+          mkdir -p "$stage/pkg/DEBIAN" "$stage/debs"
+          printf '%s\n' 'Package: pwsh' 'Version: 0.0.0-1' 'Architecture: aarch64' \
+            'Maintainer: CI <ci@example.invalid>' 'Description: stand-in for the site check' \
+            > "$stage/pkg/DEBIAN/control"
+          dpkg-deb --root-owner-group --build "$stage/pkg" "$stage/debs/pwsh_0.0.0-1_aarch64.deb"
+          bash scripts/build-repo.sh "$stage/debs" "$RUNNER_TEMP/site"
+          bash scripts/assemble-site.sh docs "$RUNNER_TEMP/site"
+      - name: Check the accessibility of docs and of the assembled site
+        env:
+          CHROME_BIN: /usr/bin/google-chrome
+        run: |
+          node tools/site-lint/axe-check.mjs docs
+          node tools/site-lint/axe-check.mjs "$RUNNER_TEMP/site"

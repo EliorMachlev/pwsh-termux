@@ -132,6 +132,13 @@ node tools/site-lint/node_modules/stylelint/bin/stylelint.mjs --config tools/sit
   --ignore-disables --max-warnings 0 docs/*.css
 ```
 
+The accessibility check (axe-core) needs Chrome, which Termux does not have; CI runs it ([website checks](website-checks.md#accessibility)). Where you have Chrome or Chromium:
+
+```bash
+(cd tools/site-lint && npm ci --ignore-scripts)
+CHROME_BIN=/path/to/chrome node tools/site-lint/axe-check.mjs docs
+```
+
 ## Regenerate the diagrams
 
 The animated diagrams of the README and `INSTALL.md` ([website.md](website.md#diagrams); the site uses HTML lists) are drawn by `tools/diagrams/gen.mjs`. Needs `node`, `ffmpeg`, `rsvg-convert` (librsvg) and the Roboto font.

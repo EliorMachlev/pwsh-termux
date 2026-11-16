@@ -63,6 +63,8 @@ Each check is the job's `name:`, from the GitHub Actions app (`integration_id` *
 18. `CodeRabbit`: the CodeRabbit GitHub App (`integration_id` 347564), its review
 19. `DCO`: [`dco.yaml`](../../../../.github/workflows/dco.yaml), job `dco`
 
+Two more jobs run on every pull request but are not required yet: `Accessibility (WCAG 2.2)` (`site.yaml`, job `accessibility`) and `Run the package (arm64)` (`ci.yaml`, job `device-smoke`). Add them to the list and to the command below once they have been green for a while.
+
 **Why these names hold.** None of these jobs has a matrix or calls a reusable workflow (which would name the check `caller / callee` or add the matrix values), no two jobs that run on a pull request share a name, and none has a job-level `if:`.
 
 **Not required, on purpose:**
