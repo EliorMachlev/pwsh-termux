@@ -16,12 +16,13 @@ The signer must be the current key, or the next one while `ROTATION` exists. `bu
 
 ## Publish checks
 
-[`update.yaml`](../../../../.github/workflows/update.yaml) runs them in two jobs:
+[`update.yaml`](../../../../.github/workflows/update.yaml) runs them in three jobs:
 
 1. **`verify`** (read-only token, no signing key) runs [`verify-attestation.sh`](../../../../scripts/verify-attestation.sh) on the keyring package the build uploaded: `gh attestation verify --repo EliorMachlev/pwsh-termux --signer-workflow …/build-packages.yaml --source-digest <this commit> --deny-self-hosted-runners`. It outputs the file's SHA-256.
-2. **`publish`** runs `build-repo.sh` with the signing key and `KEYRING_DEB_SHA256` set to that digest.
+2. **`assemble`** (no key) runs `build-repo.sh` unsigned and writes the release tag payloads; `Release`, `Packages` and the payloads go to `sign` as a job output ([`signing-bundle.sh`](../../../../scripts/signing-bundle.sh)).
+3. **`sign`** (the only job with the key, no `.deb`, no artifact access) runs [`sign-release.sh`](../../../../scripts/sign-release.sh) with the signing key and `KEYRING_DEB_SHA256` set to that digest, and `release-tags.sh sign-payloads`. `publish` (no key) installs the signatures only if they verify (`sign-release.sh install`, `release-tags.sh assemble`).
 
-`build-repo.sh` refuses to sign unless:
+`sign-release.sh` (like `build-repo.sh`, which it calls) refuses to sign unless:
 
 1. `keys/` passes the key rules and the signing key is an allowed signer;
 2. the `.deb` folder holds exactly one `pwsh-termux-keyring`, with SHA-256 `KEYRING_DEB_SHA256`, shipping `keys/pwsh-termux-archive-keyring.gpg` byte for byte;
@@ -33,7 +34,7 @@ This proves the keyring package was built by `build-packages.yaml` from the publ
 
 ## Testing
 
-`KEYRING_FILE` overrides the key file and its markers, for tests with throwaway keys only ([build](../build.md#build-and-test-a-repository)); `update.yaml`'s signing step clears it. [`test-keys.sh`](../../../../scripts/test-keys.sh) tests every rule and refusal with throwaway keys and a stub `gh`; [`test-release-tags.sh`](../../../../scripts/test-release-tags.sh) tests the [release tags](../release/tags.md), which the same online key signs.
+`KEYRING_FILE` overrides the key file and its markers, for tests with throwaway keys only ([build](../build.md#build-and-test-a-repository)); `update.yaml`'s signing step clears it. [`test-keys.sh`](../../../../scripts/test-keys.sh) tests every rule and refusal with throwaway keys and a stub `gh`; [`test-release-tags.sh`](../../../../scripts/test-release-tags.sh) tests the [release tags](../release/tags.md), which the same online key signs; [`test-sign-release.sh`](../../../../scripts/test-sign-release.sh) tests the hand-off between `assemble`, `sign` and `publish`.
 
 ## Rotation and recovery
 

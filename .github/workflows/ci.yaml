@@ -166,6 +166,11 @@ jobs:
       # the push, and its deferral when main's workflows changed.
       - name: Test the signed release tags
         run: bash scripts/test-release-tags.sh
+      # Offline, throwaway keys: the hand-off between the unsigned job and the
+      # signing job (bundle, sign, install, tag payloads); anything altered,
+      # stale, linked or signed by another key is refused.
+      - name: Test the split signing
+        run: bash scripts/test-sign-release.sh
 
   # A stub gh, offline: which workflows count as scheduled, what refresh
   # enables and leaves alone (never one turned off by hand), when refresh and

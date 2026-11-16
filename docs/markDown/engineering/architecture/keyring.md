@@ -15,7 +15,7 @@ It has no maintainer scripts and no conffiles, so an upgrade replaces both files
 ## Build and publish
 
 1. It is built once, in [`build-packages.yaml`](../../../../.github/workflows/build-packages.yaml)'s unprivileged `build` job next to `pwsh`, so it gets the same SBOMs and build provenance.
-2. The publish job checks that file's provenance and content and publishes it unchanged ([publish checks](signing.md#publish-checks)).
+2. The `verify` job checks that file's provenance and content and the `sign` job signs an index that lists it unchanged ([publish checks](signing.md#publish-checks)).
 3. `build-repo.sh` indexes it like any package and copies it to `/pwsh-termux-keyring.deb`, the fixed URL the install line downloads.
 4. `update.yaml` attaches it, with its SBOMs and the public key, to each new PowerShell release.
 

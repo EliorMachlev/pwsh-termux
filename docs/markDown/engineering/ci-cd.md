@@ -22,7 +22,7 @@ Workflows are in [`.github/workflows/`](../../../.github/workflows).
   - `issues: write` for the staleness, key-review, audit and security.txt-renewal issues;
   - `actions: write` only on the small keep-alive jobs;
   - `statuses: write` only on the job that pushes the [keep-alive commit](ci-cd/keepalive.md#keep-alive-commit).
-- **`step-security/harden-runner` first in every job**, in `audit` mode (it records the runner's network use). The two jobs that hold secrets, `publish` in `update.yaml` (`signing` environment) and the keep-alive commit job in `keepalive-commit.yaml` (`keepalive` environment), use `egress-policy: block` with an `allowed-endpoints` list limited to GitHub. If one of them fails on a blocked connection, add the endpoint named in the run's log to that job's `allowed-endpoints`, and nowhere else.
+- **`step-security/harden-runner` first in every job**, in `audit` mode (it records the runner's network use). The two jobs that hold secrets, `sign` in `update.yaml` (`signing` environment; it may reach only `github.com` and GitHub's Actions service) and the keep-alive commit job in `keepalive-commit.yaml` (`keepalive` environment), use `egress-policy: block` with an `allowed-endpoints` list limited to GitHub. `publish` (the write token, no key) is in `block` mode too; it alone needs the artifact storage wildcard, for the artifact download and the Pages upload. If one of them fails on a blocked connection, add the endpoint named in the run's log to that job's `allowed-endpoints`, and nowhere else.
 - **`persist-credentials: false`** on every checkout. The keep-alive commit pushes with a deploy key held in an `ssh-agent` for one script; `update.yaml`'s `publish` job pushes release tags with its token, which git gets from `gh auth git-credential` for that one command (never an argument, a file or `.git/config`).
 - **Concurrency.** A newer push to a pull request or topic branch cancels a run still going; runs on `main` always finish. Deploys share a `pages` group and are never cancelled.
 - **Timeouts** on every job.
@@ -33,7 +33,7 @@ Workflows are in [`.github/workflows/`](../../../.github/workflows).
 
 ## Secrets
 
-1. **`GPG_PRIVATE_KEY`** and **`GPG_PASSPHRASE`**: the signing key and its passphrase. Secrets of the environment `signing` (main only), never repository secrets, read only by `update.yaml`'s "Build the signed apt repository" step in the `publish` job ([how](release/setup.md#the-signing-environment)).
+1. **`GPG_PRIVATE_KEY`** and **`GPG_PASSPHRASE`**: the signing key and its passphrase. Secrets of the environment `signing` (main only), never repository secrets, read only by `update.yaml`'s "Sign the index and the tag payloads" step in the `sign` job ([how](release/setup.md#the-signing-environment)).
 2. **`KEEPALIVE_DEPLOY_KEY`**: a secret of the environment `keepalive` (main only), used only by `keepalive-commit.yaml`'s push step ([keep-alive deploy key](ci-cd/keepalive.md#the-keep-alive-deploy-key), [security](security.md#secrets)).
 
 `GITHUB_TOKEN` is the workflows' own, scoped per job.

@@ -96,71 +96,108 @@ jobs:
           sha=$(bash scripts/verify-attestation.sh "${debs[0]}" "$GITHUB_SHA")
           echo "sha256=$sha" >> "$GITHUB_OUTPUT"
 
-  # The only job with the apt signing key and a token that can write releases.
-  publish:
-    name: Sign and publish the repository
+  # Builds the unsigned apt index (Release and Packages) and the payloads of
+  # the release tags the signing job will sign. No signing key and no token
+  # that can write; the small files it hands on are a job output, so the
+  # signing job needs no artifact storage and never sees a .deb.
+  assemble:
+    name: Build the unsigned repository
     needs: verify                # which itself needs build
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
-    # GPG_PRIVATE_KEY and GPG_PASSPHRASE are secrets of this environment
-    # (deployment branches: main only), not of the repository, so no workflow
-    # on another branch can read them (docs/markDown/engineering/release/setup.md,
-    # "The signing environment"). A repository secret of the same name must never come
-    # back: a job reads it when its environment has no secret of that name.
-    environment: signing
+    timeout-minutes: 20
     permissions:
-      contents: write          # push the signed tags of new .deb files and create their releases
+      contents: read
+    outputs:
+      bundle: ${{ steps.bundle.outputs.bundle }}
     steps:
       - name: Harden the runner
         uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a # v2.22.4
         with:
-          # Secrets are in this job: nothing may leave the runner except to GitHub (checkout, tag push, releases, artifacts).
-          egress-policy: block
-          allowed-endpoints: >
-            github.com:443
-            api.github.com:443
-            uploads.github.com:443
-            *.actions.githubusercontent.com:443
-            *.blob.core.windows.net:443
+          egress-policy: audit
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
           fetch-depth: 0       # assemble-site.sh reads each document's last commit (git log); every tag, for release-tags.sh
 
-      - name: Check the website
-        run: python3 .github/scripts/site-check.py docs
-
       - name: Download the packages and provenance
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           path: artifacts
 
+      - name: Build the unsigned apt repository
+        run: |
+          unset SIGN_KEY KEYRING_FILE GPG_PASSPHRASE_FILE
+          bash scripts/build-repo.sh artifacts/packages repo
+
+      - name: Write the release tag payloads and bundle what is to be signed
+        id: bundle
+        run: |
+          unset SIGN_KEY KEYRING_FILE
+          mkdir bundle
+          bash scripts/release-tags.sh payloads artifacts/packages "$GITHUB_SHA" bundle/tags
+          cp repo/dists/stable/Release repo/dists/stable/main/binary-aarch64/Packages bundle/
+          echo "bundle=$(bash scripts/signing-bundle.sh pack bundle)" >> "$GITHUB_OUTPUT"
+
+  # The only job with the apt signing key. It never sees a .deb and has no
+  # artifact access: it gets Release, Packages and the tag payloads as a job
+  # output, checks them (sign-release.sh, release-tags.sh sign-payloads) and
+  # returns the signatures the same way. GPG_PRIVATE_KEY and GPG_PASSPHRASE
+  # are secrets of this environment (deployment branches: main only), not of
+  # the repository, so no workflow on another branch can read them
+  # (docs/markDown/engineering/release/setup.md, "The signing environment").
+  # A repository secret of the same name must never come back: a job reads it
+  # when its environment has no secret of that name. Its runner may reach
+  # github.com (the checkout) and GitHub's Actions service, nothing else.
+  sign:
+    name: Sign the index and the release tags
+    needs: [verify, assemble]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    environment: signing
+    permissions:
+      contents: read
+    outputs:
+      bundle: ${{ steps.sign.outputs.bundle }}
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a # v2.22.4
+        with:
+          # The key is in this job: nothing may leave the runner except to
+          # GitHub (the checkout, and the Actions service for logs and outputs).
+          egress-policy: block
+          allowed-endpoints: >
+            github.com:443
+            *.actions.githubusercontent.com:443
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
       # The key is imported and used in this one step: it never reaches
-      # GITHUB_ENV or a later step. build-repo.sh refuses to sign unless the
-      # key is the one key in keys/, the keyring package is the file the
-      # verify job checked (KEYRING_DEB_SHA256) and ships keys/ byte for byte,
-      # and the signed index verifies against keys/. KEYRING_FILE (tests only)
-      # is cleared so keys/ is always what is checked and published. The same
-      # key then signs an annotated tag on this commit for each new pwsh and
-      # pwsh-preview .deb (release-tags.sh sign, which checks each with gpgv
-      # against keys/); they are created here, in the clone, and pushed by the
-      # release step, which no longer holds the key.
+      # GITHUB_ENV or a later step. sign-release.sh refuses to sign unless the
+      # key is the one key in keys/ (and not the recovery key), the index is
+      # fresh, Release lists the Packages file it was given, and that file
+      # holds the keyring package the verify job checked (KEYRING_DEB_SHA256);
+      # it checks the signed index with gpgv against keys/. The same key then
+      # signs the payload of each tag release-tags.sh made.
       #
       # The key is passphrase-protected; its passphrase is the second secret
       # of the environment, GPG_PASSPHRASE. It is written (by printf, a shell
       # builtin, so never in a process's argv) to a mode-600 file in a mode-700
-      # folder under RUNNER_TEMP, handed to build-repo.sh as
-      # GPG_PASSPHRASE_FILE (gpg --pinentry-mode loopback --passphrase-file),
-      # and removed when the step ends (trap) and again by the cleanup step
-      # below. Both secrets are unset before build-repo.sh runs. Without
-      # GPG_PASSPHRASE, an unprotected key still signs, with a warning; a
-      # protected key then fails to sign, and so does the step.
-      - name: Build the signed apt repository and assemble the site
+      # folder under RUNNER_TEMP, handed on as GPG_PASSPHRASE_FILE (gpg
+      # --pinentry-mode loopback --passphrase-file), and removed when the step
+      # ends (trap) and again by the cleanup step below. Both secrets are
+      # unset before any script runs. Without GPG_PASSPHRASE, an unprotected
+      # key still signs, with a warning; a protected key then fails to sign,
+      # and so does the step.
+      - name: Sign the index and the tag payloads
+        id: sign
         env:
           GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
           GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
           KEYRING_DEB_SHA256: ${{ needs.verify.outputs.keyring-sha256 }}
+          BUNDLE: ${{ needs.assemble.outputs.bundle }}
         run: |
           unset KEYRING_FILE GPG_PASSPHRASE_FILE
           if [ -z "$GPG_PRIVATE_KEY" ]; then
@@ -180,16 +217,17 @@ jobs:
           unset GPG_PRIVATE_KEY
           SIGN_KEY=$(gpg --list-secret-keys --with-colons | awk -F: '/^fpr/ && !found {print $10; found = 1}')
           export SIGN_KEY
-          if ! bash scripts/build-repo.sh artifacts/packages repo; then
-            echo "::error::building or signing the repository failed (see build-repo.sh's error above); nothing is published"
+          mkdir "$RUNNER_TEMP/in"
+          printf '%s' "$BUNDLE" | bash scripts/signing-bundle.sh unpack "$RUNNER_TEMP/in"
+          if ! bash scripts/sign-release.sh sign "$RUNNER_TEMP/in" "$RUNNER_TEMP/out"; then
+            echo "::error::signing the index failed (see sign-release.sh's error above); nothing is published"
             exit 1
           fi
-          if ! bash scripts/release-tags.sh sign artifacts/packages "$GITHUB_SHA"; then
+          if ! bash scripts/release-tags.sh sign-payloads "$RUNNER_TEMP/in/tags" "$GITHUB_SHA" "$RUNNER_TEMP/out/tags"; then
             echo "::error::signing the release tags failed (see release-tags.sh's error above); nothing is published"
             exit 1
           fi
-          bash scripts/assemble-site.sh docs repo
-          python3 .github/scripts/site-check.py repo
+          echo "bundle=$(bash scripts/signing-bundle.sh pack "$RUNNER_TEMP/out")" >> "$GITHUB_OUTPUT"
 
       # Even if the step above was killed before its trap ran: no passphrase
       # file is left, and gpg-agent forgets the cached passphrase.
@@ -198,6 +236,59 @@ jobs:
         run: |
           rm -rf "$RUNNER_TEMP/gpg-passphrase"
           gpgconf --kill gpg-agent || true
+
+  # Has no signing key: it rebuilds the unsigned repository from the same
+  # packages (the same .deb files give byte-identical index files), installs
+  # the signed Release, InRelease and Release.gpg only if every index file is
+  # the one Release lists and both signatures verify against keys/, makes the
+  # signed tags and the releases, and uploads the site. Its token can write
+  # releases and tags, so its runner too may reach only GitHub.
+  publish:
+    name: Publish the signed repository
+    needs: [verify, sign]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: write          # push the signed tags of new .deb files and create their releases
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a # v2.22.4
+        with:
+          # Artifacts and logs live in Azure storage accounts GitHub names itself.
+          egress-policy: block
+          allowed-endpoints: >
+            github.com:443
+            api.github.com:443
+            uploads.github.com:443
+            *.actions.githubusercontent.com:443
+            *.blob.core.windows.net:443
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0       # assemble-site.sh reads each document's last commit (git log); every tag, for release-tags.sh
+
+      - name: Download the packages and provenance
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          path: artifacts
+
+      - name: Check the website
+        run: python3 .github/scripts/site-check.py docs
+
+      - name: Install the signed index and make the signed tags
+        env:
+          KEYRING_DEB_SHA256: ${{ needs.verify.outputs.keyring-sha256 }}
+          BUNDLE: ${{ needs.sign.outputs.bundle }}
+        run: |
+          unset SIGN_KEY KEYRING_FILE GPG_PASSPHRASE_FILE
+          bash scripts/build-repo.sh artifacts/packages repo
+          mkdir signed
+          printf '%s' "$BUNDLE" | bash scripts/signing-bundle.sh unpack signed
+          bash scripts/sign-release.sh install signed repo
+          bash scripts/release-tags.sh assemble signed/tags
+          bash scripts/assemble-site.sh docs repo
+          python3 .github/scripts/site-check.py repo
 
       - name: Archive each .deb, its SBOMs, provenance and the public key as a release
         env:
