@@ -97,7 +97,7 @@ The pipeline is [`update.yaml`](.github/workflows/update.yaml); [architecture](d
 ## Learn more
 
 - [Documentation index](docs/markDown/README.md): architecture, build, release, CI / CD, security.
-- [Contributing](CONTRIBUTING.md): bug fixes are welcome; for new features, open an issue first. Every pull request must pass 19 required checks ([CI / CD](docs/markDown/engineering/ci-cd.md)).
+- [Contributing](CONTRIBUTING.md): bug fixes are welcome; for new features, open an issue first. Every pull request must pass 21 required checks ([CI / CD](docs/markDown/engineering/ci-cd.md)).
 - [Security policy](SECURITY.md): report vulnerabilities privately.
 - Legal: [Privacy](docs/markDown/legal/privacy-policy.md) · [Terms](docs/markDown/legal/terms-of-service.md) · [Accessibility](docs/markDown/legal/accessibility-statement.md) · [Compliance](docs/markDown/legal/compliance-posture.md)
 

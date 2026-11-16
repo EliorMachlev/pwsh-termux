@@ -9,7 +9,7 @@ Part of the [CI / CD](../ci-cd.md) docs.
 A bypass actor bypasses *every* rule of its ruleset, and rulesets stack: a push must pass every ruleset for its ref, each bypassed only by its own actors. So the keep-alive deploy key bypasses only a ruleset for `main` alone, and deletion, force push and creation sit in a ruleset it cannot bypass. The Admin role is `RepositoryRole` 5.
 
 1. ***Main*** (id `27198868`), on `refs/heads/main`.
-   - Rules: `required_signatures`; `code_scanning` (CodeQL, zizmor); `pull_request` (no approval needed, squash merge only, stale approvals dismissed); `required_status_checks` (strict: the branch must be up to date; the [19 checks below](#required-status-checks)).
+   - Rules: `required_signatures`; `code_scanning` (CodeQL, zizmor); `pull_request` (no approval needed, squash merge only, stale approvals dismissed); `required_status_checks` (strict: the branch must be up to date; the [21 checks below](#required-status-checks)).
    - Bypass: **`DeployKey`** only (`actor_id: null`, `bypass_mode: always`). **Not** the Admin role.
 2. ***Protection, other branches*** (id `27198871`), on all branches except `refs/heads/main`.
    - Rules: `required_signatures`; `code_scanning` (CodeQL, Scorecard, zizmor).
@@ -21,7 +21,7 @@ A bypass actor bypasses *every* rule of its ruleset, and rulesets stack: a push 
    - Rules: `deletion`, `non_fast_forward`, `update`, `required_signatures`, and a `required_status_checks` rule that lists no check. No `creation` rule: `update.yaml` creates [release tags](../release/tags.md) with `GITHUB_TOKEN`, which cannot bypass a ruleset.
    - Bypass: Admin role only.
 
-**What *Main* means in practice.** Every change reaches `main` through a pull request whose 19 required checks passed on its head commit, merged with *Squash and merge*. GitHub makes that commit as `web-flow` and signs it, so it is *Verified*, passes `required_signatures`, and the [audit](audit.md) accepts it as a merged pull request's merge commit. The maintainer cannot push to `main` directly, nor merge a pull request whose checks have not passed (a check that fails for an outside reason, such as a download in *Package build*, is re-run). The only bypass is the keep-alive deploy key. As an admin, the maintainer can still edit the ruleset itself: that is the way out if a rule must be lifted, and it shows in the ruleset's history.
+**What *Main* means in practice.** Every change reaches `main` through a pull request whose 21 required checks passed on its head commit, merged with *Squash and merge*. GitHub makes that commit as `web-flow` and signs it, so it is *Verified*, passes `required_signatures`, and the [audit](audit.md) accepts it as a merged pull request's merge commit. The maintainer cannot push to `main` directly, nor merge a pull request whose checks have not passed (a check that fails for an outside reason, such as a download in *Package build*, is re-run). The only bypass is the keep-alive deploy key. As an admin, the maintainer can still edit the ruleset itself: that is the way out if a rule must be lifted, and it shows in the ruleset's history.
 
 ***Protection, other branches*** holds other branches to signed commits; without it the deploy key could push unsigned commits to any existing branch, whose workflows then run. The Admin bypass on *Protection* is what lets the maintainer create branches.
 
@@ -62,8 +62,8 @@ Each check is the job's `name:`, from the GitHub Actions app (`integration_id` *
 17. `Fuzz (Hypothesis)`: [`fuzz.yaml`](../../../../.github/workflows/fuzz.yaml), job `fuzz`
 18. `CodeRabbit`: the CodeRabbit GitHub App (`integration_id` 347564), its review
 19. `DCO`: [`dco.yaml`](../../../../.github/workflows/dco.yaml), job `dco`
-
-Two more jobs run on every pull request but are not required yet: `Accessibility (WCAG 2.2)` (`site.yaml`, job `accessibility`) and `Run the package (arm64)` (`ci.yaml`, job `device-smoke`). Add them to the list and to the command below once they have been green for a while.
+20. `Accessibility (WCAG 2.2)`: `site.yaml`, job `accessibility` (axe-core in Chrome, [website checks](../website-checks.md#accessibility))
+21. `Run the package (arm64)`: `ci.yaml`, job `device-smoke` (installs the built package and runs `pwsh` on an arm64 runner)
 
 **Why these names hold.** None of these jobs has a matrix or calls a reusable workflow (which would name the check `caller / callee` or add the matrix values), no two jobs that run on a pull request share a name, and none has a job-level `if:`.
 
@@ -126,7 +126,9 @@ gh api -X PUT repos/EliorMachlev/pwsh-termux/rulesets/27198868 --input - <<'JSON
         {"context": "Gitleaks (whole history)", "integration_id": 15368},
         {"context": "Fuzz (Hypothesis)", "integration_id": 15368},
         {"context": "CodeRabbit", "integration_id": 347564},
-        {"context": "DCO", "integration_id": 15368}
+        {"context": "DCO", "integration_id": 15368},
+        {"context": "Accessibility (WCAG 2.2)", "integration_id": 15368},
+        {"context": "Run the package (arm64)", "integration_id": 15368}
       ]
     }}
   ]
@@ -195,4 +197,4 @@ JSON
    - tags fall under *Tag Protection*: the deploy key could create a tag on an existing signed commit (not on an unsigned keep-alive commit), but not move or delete one. That would show as an unexpected tag or release, not on `main`.
 
    What the deploy key *can* push to `main` beyond `keep.alive` is limited by `keepalive-commit.sh`'s guard and by who can run it, not by GitHub: that residual risk is what the [audit](audit.md) is for. To watch the refusals happen, rebuild the three rulesets in a throwaway repository with its own deploy key; never add a second deploy key here.
-5. **Normal work:** a pull request merges with *Squash and merge* once its 19 required checks have passed and code scanning is clean; a direct push to `main` by the maintainer is refused; the maintainer can still create branches.
+5. **Normal work:** a pull request merges with *Squash and merge* once its 21 required checks have passed and code scanning is clean; a direct push to `main` by the maintainer is refused; the maintainer can still create branches.

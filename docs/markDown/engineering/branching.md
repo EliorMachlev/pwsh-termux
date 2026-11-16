@@ -4,7 +4,7 @@ There is one long-lived branch, **`main`**. The website and the repository are b
 
 - Changes arrive by **pull request** from a topic branch off `main`, titled `type(scope): description` ([contributing](contributing.md)).
 - **Releases are not branches and need no commit here.** The scheduled workflow picks up a new PowerShell release, publishes it and pushes its signed release tag ([release](release.md), [tags](release/tags.md)).
-- Nobody pushes straight to `main`, the maintainer included: the ruleset *Main* takes changes only through a pull request whose 19 required checks have passed, merged with *Squash and merge* ([rulesets](ci-cd/rulesets.md)). The one exception is the monthly keep-alive commit, pushed with the deploy key ([keep-alive commit](ci-cd/keepalive.md#keep-alive-commit)).
+- Nobody pushes straight to `main`, the maintainer included: the ruleset *Main* takes changes only through a pull request whose 21 required checks have passed, merged with *Squash and merge* ([rulesets](ci-cd/rulesets.md)). The one exception is the monthly keep-alive commit, pushed with the deploy key ([keep-alive commit](ci-cd/keepalive.md#keep-alive-commit)).
 
 ## Which checks run where
 
