@@ -51,7 +51,7 @@ jobs:
           - [ ] **Recovery key backup.** On the offline machine, check that both copies of the recovery secret still read, unlock with the recorded passphrase, and show the fingerprint in \`keys/RECOVERY\` (\`gpg --show-keys\` on the backup file). Do not connect the media to an online machine.
           - [ ] **Revocation certificates** for the recovery key and for the online key are where they should be, apart from the secrets.
           - [ ] **Online key backup**: the copy of \`GPG_PRIVATE_KEY\` held outside GitHub is still readable.
-          - [ ] **Fingerprints**: SECURITY.md, docs/install.html and the README match \`keys/\` (\`bash scripts/check-keys.sh\`).
+          - [ ] **Fingerprints**: SECURITY.md, docs/install.html and INSTALL.md match \`keys/\` (\`bash scripts/check-keys.sh\`).
           - [ ] **Rotation plan**: reread "Rotating the signing key" and "Recovery with the offline key" in $RELEASE_DOC and decide whether the online key is rotated this year. A recovery-signed index must be re-signed within every 14 days (Valid-Until).
           - [ ] **Schedules**: update.yaml (daily re-sign), staleness.yaml and keepalive.yaml are enabled and green, and no *A scheduled workflow is disabled* issue was opened this year (if one was, the API keep-alive did not hold: see "Schedule keep-alive" in docs/markDown/engineering/ci-cd/keepalive.md).
           EOF

@@ -41,7 +41,7 @@ readonly STATUS_PACKAGES=(pwsh pwsh-preview)
 # A Debian version as build-deb.sh writes it; anything else is not put in a page.
 readonly DEB_VERSION_REGEX='^[0-9][0-9A-Za-z.+~-]*$'
 # The Markdown documents the documents block lists, besides docs/markDown.
-readonly TOP_LEVEL_DOCUMENTS=(README.md SECURITY.md CONTRIBUTING.md NOTICE.md)
+readonly TOP_LEVEL_DOCUMENTS=(README.md INSTALL.md SECURITY.md CONTRIBUTING.md NOTICE.md)
 readonly LAST_UPDATED_BLOCK_PREFIX=last-updated:
 
 # Set by require_full_history: the Git checkout docs/ is in, and docs/'s

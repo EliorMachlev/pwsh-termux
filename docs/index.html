@@ -19,7 +19,7 @@
 <body>
 <a class="skip" href="#main">Skip to content</a>
 <header class="site"><div class="wrap">
-  <a class="brand" href="/"><img src="/favicon.svg" alt="" width="32" height="32"><span>pwsh-termux</span></a>
+  <a class="brand" href="/" aria-current="page"><img src="/favicon.svg" alt="" width="32" height="32"><span>pwsh-termux</span></a>
   <nav aria-label="Main"><ul>
     <li><a href="/install.html">Install</a></li>
     <li><a href="/privacy.html">Privacy</a></li>
@@ -30,48 +30,70 @@
 <main id="main"><div class="wrap">
   <section class="hero">
     <h1>PowerShell 7 for Termux, with <code>pkg</code>.</h1>
-    <p class="lead">An apt repository that follows Microsoft&rsquo;s PowerShell releases, checks each one against Microsoft&rsquo;s published hash, makes it run on Termux&rsquo;s glibc, signs it, and publishes it. You install and update it like any other package.</p>
+    <p class="lead">Termux does not ship PowerShell. This apt repository follows Microsoft&rsquo;s PowerShell releases, checks each one against Microsoft&rsquo;s published hash, makes it run on Termux&rsquo;s glibc, signs it and publishes it. You install and update it like any other package.</p>
     <div class="actions">
-      <a class="btn" href="/install.html">Install</a>
+      <a class="btn" href="/install.html">Install guide</a>
       <a class="btn ghost" href="https://github.com/EliorMachlev/pwsh-termux">Source on GitHub</a>
     </div>
   </section>
 
+  <h2>Quick start</h2>
+  <p>You need Termux on an arm64 (aarch64) phone. Copy and run:</p>
   <pre class="copy" role="figure" aria-label="Install command"><code>pkg install -y glibc-repo &amp;&amp; \
-curl -fsSL https://pwsh-termux.machlev.org/pwsh-termux-keyring.deb -o $TMPDIR/pwsh-termux-keyring.deb &amp;&amp; \
-dpkg -i $TMPDIR/pwsh-termux-keyring.deb &amp;&amp; \
-pkg update &amp;&amp; pkg install pwsh</code></pre>
+curl -fsSL https://pwsh-termux.machlev.org/pwsh-termux-keyring.deb -o "$TMPDIR/pwsh-termux-keyring.deb" &amp;&amp; \
+dpkg -i "$TMPDIR/pwsh-termux-keyring.deb" &amp;&amp; \
+pkg update &amp;&amp; \
+pkg install pwsh</code></pre>
   <p class="hint">Tap or click the command once to select all of it, then copy it.</p>
+  <p>Then start PowerShell:</p>
+  <pre class="copy" role="figure" aria-label="Start PowerShell"><code>pwsh</code></pre>
 <!-- generated:status -->
 <p class="status">The versions the repository serves now are in its <a href="https://github.com/EliorMachlev/pwsh-termux/releases">releases</a>.</p>
 <!-- /generated:status -->
-  <p>Needs Termux on an arm64 (aarch64) device. The line also enables the glibc repository and installs the repository&rsquo;s signing key and source as one package, trusted for this repository only. <a href="/install.html">The fingerprint check and a manual alternative &rarr;</a></p>
+  <p>The first command also enables the glibc repository and installs the repository&rsquo;s signing key and source as one package, trusted for this repository only. <a href="/install.html">Updating, uninstalling, the fingerprint check and a manual alternative &rarr;</a></p>
 
-  <h2>What you get</h2>
+  <h2>Stable or preview?</h2>
+  <ul>
+    <li><strong><code>pwsh</code></strong>: the highest stable PowerShell 7 release. Command: <code>pwsh</code>. This is what you want.</li>
+    <li><strong><code>pwsh-preview</code></strong>: the highest preview or release candidate, only while it is newer than stable. Command: <code>pwsh-preview</code>. It installs next to <code>pwsh</code>; <a href="/install.html#preview">how to install it</a>.</li>
+  </ul>
+
+  <h2>How it works</h2>
+  <p>A daily workflow follows Microsoft&rsquo;s releases, so <code>pkg upgrade</code> brings new ones in. The picture shows one run. The animation lights up each step in turn.</p>
+  <figure class="diagram">
+    <picture>
+      <source media="(prefers-reduced-motion: reduce)" srcset="/img/release-pipeline-still.png" width="640" height="820">
+      <img src="/img/release-pipeline.gif" alt="Seven steps: Microsoft publishes, choose releases, verify, patch and package, sign, publish, your phone." width="640" height="820">
+    </picture>
+    <figcaption>One run of the pipeline, from Microsoft&rsquo;s release to your phone.</figcaption>
+  </figure>
+  <details class="source">
+    <summary>Diagram source (Mermaid)</summary>
+<pre><code class="language-mermaid">flowchart TD
+    A["Microsoft publishes&lt;br/&gt;PowerShell 7 releases on GitHub"]
+    B["Choose releases&lt;br/&gt;highest stable, plus a newer preview"]
+    C["Verify&lt;br/&gt;SHA-256 must match hashes.sha256"]
+    D["Patch and package&lt;br/&gt;Termux glibc loader, build the .deb"]
+    E["Sign&lt;br/&gt;apt index signed with Ed25519"]
+    F["Publish&lt;br/&gt;GitHub Pages and release assets"]
+    G["Your phone&lt;br/&gt;pkg update, pkg upgrade"]
+    A --&gt; B --&gt; C --&gt; D --&gt; E --&gt; F --&gt; G</code></pre>
+  </details>
+
+  <h2>Why trust it</h2>
   <div class="grid">
-    <div class="card"><h3>Stable and preview</h3><p><code>pwsh</code> follows Microsoft&rsquo;s newest stable release; <code>pwsh-preview</code> follows the newest preview or release candidate, when one is newer than stable.</p></div>
-    <div class="card"><h3>Updated by itself</h3><p>A daily workflow looks for new releases, so <code>pkg upgrade</code> brings them in, usually within a day of Microsoft publishing.</p></div>
     <div class="card"><h3>Verified</h3><p>Every download is checked against the SHA-256 in Microsoft&rsquo;s own <code>hashes.sha256</code> before it is packaged.</p></div>
     <div class="card"><h3>Signed</h3><p>The repository index is signed with an Ed25519 key; apt checks it on every <code>pkg update</code>.</p></div>
-    <div class="card"><h3>Made for Termux</h3><p>The binary is patched to use Termux&rsquo;s glibc loader, so it runs directly: no proot, no extra launcher.</p></div>
+    <div class="card"><h3>Made for Termux</h3><p>The binary is patched at build time to use Termux&rsquo;s glibc loader, so it runs directly: no proot, no extra launcher.</p></div>
     <div class="card"><h3>Open and archived</h3><p>The scripts are public, and every built <code>.deb</code> is kept as a GitHub release asset.</p></div>
   </div>
 
-  <h2>Channels</h2>
-  <table>
-    <thead><tr><th>Package</th><th>Command</th><th>Follows</th></tr></thead>
-    <tbody>
-      <tr><td><code>pwsh</code></td><td><code>pwsh</code></td><td>The highest stable PowerShell 7 release</td></tr>
-      <tr><td><code>pwsh-preview</code></td><td><code>pwsh-preview</code></td><td>The highest preview or release candidate, only while it is newer than stable (they install side by side)</td></tr>
-    </tbody>
-  </table>
-
-  <div class="notice"><strong>Unofficial.</strong> This is a community repackaging, not a Microsoft product, and Microsoft does not support it. Report problems with the packaging <a href="https://github.com/EliorMachlev/pwsh-termux/issues">here</a>, and problems with PowerShell itself to <a href="https://github.com/PowerShell/PowerShell/issues">Microsoft</a>.</div>
+  <div class="notice"><strong>Unofficial.</strong> This is a community repackaging, not a Microsoft product, and Microsoft does not support it. Report problems with the packaging in <a href="https://github.com/EliorMachlev/pwsh-termux/issues">this project&rsquo;s issues</a>, and problems with PowerShell itself to <a href="https://github.com/PowerShell/PowerShell/issues">Microsoft</a>.</div>
 </div></main>
 <footer class="site"><div class="wrap">
   <p>pwsh-termux is an unofficial community project. It is not affiliated with or endorsed by Microsoft. &ldquo;PowerShell&rdquo; is a trademark of Microsoft.</p>
   <p>Packaging scripts: MIT. PowerShell itself: MIT, &copy; Microsoft Corporation.</p>
-  <ul>
+  <nav aria-label="Footer"><ul>
     <li><a href="/install.html">Install</a></li>
     <li><a href="/privacy.html">Privacy</a></li>
     <li><a href="https://github.com/EliorMachlev/pwsh-termux/blob/main/SECURITY.md">Security policy</a></li>
@@ -79,7 +101,7 @@ pkg update &amp;&amp; pkg install pwsh</code></pre>
     <li><a href="https://github.com/EliorMachlev/pwsh-termux/blob/main/docs/markDown/legal/accessibility-statement.md">Accessibility</a></li>
     <li><a href="https://github.com/EliorMachlev/pwsh-termux/releases">Releases</a></li>
     <li><a href="/documents.html">All documents</a></li>
-  </ul>
+  </ul></nav>
 </div></footer>
 </body>
 </html>

@@ -9,6 +9,10 @@
   --line: #cfdcd8;
   --code-bg: #0b1f2a;
   --code-ink: #d7f5ef;
+  --code-edge: transparent; /* a dark code block needs no edge on a light page */
+  --highlight: rgb(255 255 255 / 70%); /* light catching the top edge of a raised surface */
+  --shadow: rgb(17 32 30 / 8%);
+  --tap: 2.75rem; /* smallest touch target: 44px at the default text size */
   --max: 62rem;
 
   color-scheme: light;
@@ -25,6 +29,9 @@
     --line: #22393c;
     --code-bg: #061214;
     --code-ink: #d7f5ef;
+    --code-edge: var(--line); /* the code block is nearly the page's colour, so it needs one */
+    --highlight: rgb(255 255 255 / 4%);
+    --shadow: rgb(0 0 0 / 35%);
 
     color-scheme: dark;
   }
@@ -63,12 +70,12 @@ body {
 a {
   color: var(--accent);
   text-underline-offset: .18em;
+  border-radius: .25rem; /* rounds the focus ring */
 }
 
 :focus-visible {
   outline: 3px solid var(--accent);
   outline-offset: 3px;
-  border-radius: .25rem;
 }
 
 .wrap {
@@ -77,7 +84,9 @@ a {
   padding-inline: max(1rem, env(safe-area-inset-left)) max(1rem, env(safe-area-inset-right));
 }
 
+/* The bar scrolls away on small or short screens, where two rows of it would cost too much of the view. */
 header.site {
+  background: var(--paper);
   border-bottom: 1px solid var(--line);
 }
 
@@ -86,14 +95,15 @@ header.site .wrap {
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: .75rem 1.5rem;
-  padding-block: .9rem;
+  gap: .25rem 1.5rem;
+  padding-block: .5rem;
 }
 
 .brand {
   display: flex;
   align-items: center;
   gap: .65rem;
+  min-height: var(--tap);
   font-weight: 700;
   color: var(--ink);
   text-decoration: none;
@@ -105,58 +115,128 @@ header.site .wrap {
   height: 2rem;
 }
 
+/* Navigation, in the header and the footer: every link is at least a 44px target. */
 nav ul {
   display: flex;
   flex-wrap: wrap;
-  gap: .25rem 1.25rem;
   list-style: none;
   margin: 0;
   padding: 0;
 }
 
 nav a {
-  color: var(--ink-2);
-  text-decoration: none;
-  padding: .25rem 0;
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--tap);
 }
 
-a:hover {
+header.site nav ul {
+  gap: 0 .25rem;
+  margin-inline: -.5rem; /* the links' own padding lines their text up with the page edge */
+}
+
+footer.site nav ul {
+  gap: 0 1.25rem;
+  margin-top: .5rem;
+}
+
+header.site nav a {
+  justify-content: center;
+  min-width: var(--tap);
+  padding-inline: .5rem;
+  border-radius: .5rem;
+  color: var(--ink-2);
+  font-weight: 500; /* a touch heavier: it sits on a translucent bar */
+  text-decoration: none;
+}
+
+header.site nav a[aria-current="page"] {
+  color: var(--ink);
+  text-decoration: underline;
   text-decoration-thickness: 2px;
 }
 
-nav a:hover, nav a[aria-current="page"] {
+/* Feedback on the press itself, not on release. */
+header.site nav a:active {
   color: var(--ink);
-  text-decoration: underline;
+  background: color-mix(in srgb, var(--ink) 8%, transparent);
+}
+
+/* Hover only where there is a real pointer: on touch it would stick after a tap. */
+@media (hover: hover) and (pointer: fine) {
+  a:hover {
+    text-decoration-thickness: 2px;
+  }
+
+  header.site nav a:hover {
+    color: var(--ink);
+    text-decoration: underline;
+  }
+}
+
+/* Translucent chrome where there is room: the page scrolls underneath a blurred bar. */
+@media (width >= 40rem) and (height >= 30rem) {
+  html {
+    scroll-padding-top: 4.5rem; /* anchor jumps clear the bar (3.8rem) */
+  }
+
+  header.site {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+
+    /* 85% keeps the nav text above 4.5:1 even over a dark code block or diagram. */
+    background: color-mix(in srgb, var(--paper) 85%, transparent);
+    backdrop-filter: blur(20px) saturate(180%);
+    border-bottom-color: color-mix(in srgb, var(--line) 60%, transparent);
+  }
+}
+
+@supports not (backdrop-filter: blur(1px)) {
+  header.site {
+    background: var(--paper);
+  }
 }
 
 main {
   padding-block: 2.5rem 4rem;
 }
 
+/* Tracking and leading follow size: tighter as type grows, near zero for body text, slightly open for small text. */
 h1, h2, h3 {
-  line-height: 1.2;
-  letter-spacing: -.02em;
+  font-optical-sizing: auto;
 }
 
 h1 {
-  font-size: clamp(2rem, 5vw + .5rem, 3.4rem);
-  margin: 0 0 .75rem;
+  font-size: clamp(2.25rem, 6vw + .5rem, 3.75rem);
+  line-height: 1.05;
+  letter-spacing: -.03em;
+  margin: 0 0 1rem;
 }
 
 h2 {
-  font-size: clamp(1.4rem, 2vw + 1rem, 1.9rem);
-  margin: 3rem 0 .75rem;
+  font-size: clamp(1.5rem, 2.5vw + 1rem, 2.1rem);
+  line-height: 1.12;
+  letter-spacing: -.022em;
+  margin: 3.5rem 0 .75rem;
 }
 
 h3 {
   font-size: 1.15rem;
+  line-height: 1.3;
+  letter-spacing: -.01em;
   margin: 0 0 .35rem;
 }
 
 .lead {
   font-size: 1.2rem;
+  line-height: 1.5;
   color: var(--ink-2);
   max-width: 44rem;
+}
+
+.hint, .updated, .status, .diagram figcaption, footer.site {
+  letter-spacing: .01em;
 }
 
 .hero {
@@ -174,6 +254,7 @@ h3 {
 
 pre, code {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  letter-spacing: normal; /* monospace is never tracked, even inside a heading */
 }
 
 code {
@@ -188,6 +269,7 @@ code {
 pre {
   background: var(--code-bg);
   color: var(--code-ink);
+  border: 1px solid var(--code-edge);
   border-radius: .75rem;
   padding: 1rem 1.15rem;
   overflow-x: auto;
@@ -204,18 +286,36 @@ pre code {
   overflow-wrap: normal;
 }
 
+/* A command to copy wraps instead of scrolling, so all of it shows on a phone; the soft wraps are not copied.
+   One tap or click selects all of it for the browser's own copy (no script needed). */
+pre.copy {
+  white-space: pre-wrap;
+  cursor: text;
+}
+
+pre.copy code {
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+
+pre.copy code::selection {
+  background: var(--code-ink);
+  color: var(--code-bg);
+}
+
 .grid {
   display: grid;
   gap: 1rem;
-  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(15rem, 100%), 1fr));
   margin-top: 1rem;
 }
 
 .card {
   background: var(--paper-2);
   border: 1px solid var(--line);
-  border-radius: .9rem;
-  padding: 1.1rem 1.2rem;
+  border-radius: 1rem;
+  padding: 1.25rem 1.3rem;
+  box-shadow: 0 1px 0 var(--highlight) inset, 0 1px 2px var(--shadow);
 }
 
 .card p {
@@ -227,8 +327,6 @@ table {
   width: 100%;
   border-collapse: collapse;
   margin: 1rem 0;
-  display: block;
-  overflow-x: auto;
 }
 
 th, td {
@@ -236,6 +334,10 @@ th, td {
   padding: .6rem .8rem;
   border-bottom: 1px solid var(--line);
   vertical-align: top;
+}
+
+td {
+  overflow-wrap: anywhere; /* long paths break, so the table fits a phone and keeps its table semantics */
 }
 
 th {
@@ -253,23 +355,41 @@ ol.steps li {
 }
 
 .btn {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--tap);
   background: var(--accent);
   color: var(--accent-ink);
+  border: 1px solid transparent; /* same size as the ghost button; shows as an edge in forced colours */
   font-weight: 600;
-  padding: .65rem 1.2rem;
+  padding: .55rem 1.2rem;
   border-radius: .6rem;
   text-decoration: none;
-}
-
-.btn:hover {
-  filter: brightness(1.08);
+  transition: transform 160ms cubic-bezier(.23, 1, .32, 1), filter 160ms ease, background-color 160ms ease;
 }
 
 .btn.ghost {
   background: transparent;
   color: var(--accent);
-  border: 1px solid var(--accent);
+  border-color: var(--accent);
+}
+
+/* Feedback on the press itself, not on release. */
+.btn:active {
+  transform: scale(.97);
+  transition-duration: 100ms;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .btn:hover {
+    filter: brightness(1.08);
+  }
+
+  .btn.ghost:hover {
+    filter: none;
+    background: color-mix(in srgb, var(--accent) 8%, transparent);
+  }
 }
 
 .actions {
@@ -293,39 +413,6 @@ footer.site p {
   margin: .35rem 0;
 }
 
-footer.site ul {
-  display: flex;
-  flex-wrap: wrap;
-  gap: .25rem 1.25rem;
-  list-style: none;
-  margin: .75rem 0 0;
-  padding: 0;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  * {
-    scroll-behavior: auto !important;
-    transition: none !important;
-    animation: none !important;
-  }
-}
-
-/* The install command: one tap or click selects all of it, so it copies whole (no script needed). */
-
-pre.copy {
-  cursor: text;
-}
-
-pre.copy code {
-  user-select: all;
-}
-
-.hint {
-  font-size: .92rem;
-  color: var(--ink-2);
-  margin-top: -.5rem;
-}
-
 .status {
   background: var(--paper-2);
   border: 1px solid var(--line);
@@ -335,7 +422,103 @@ pre.copy code {
   font-size: .95rem;
 }
 
+.hint {
+  font-size: .92rem;
+  color: var(--ink-2);
+  margin-top: -.5rem;
+}
+
 .updated {
   font-size: .92rem;
   color: var(--ink-2);
+}
+
+/* Diagrams: an animated GIF (works where Mermaid does not render) and its Mermaid source in a fold-out. */
+
+.diagram {
+  margin: 1.25rem 0 .75rem;
+  text-align: center;
+}
+
+.diagram img {
+  display: block;
+  max-width: min(100%, 26rem);
+  height: auto;
+  margin-inline: auto;
+  border-radius: .75rem;
+  background: var(--code-bg); /* holds the dark picture's place while it loads */
+  outline: 1px solid var(--code-edge);
+  outline-offset: -1px;
+}
+
+.diagram figcaption {
+  margin-top: .5rem;
+  font-size: .92rem;
+  color: var(--ink-2);
+}
+
+.source {
+  margin: .25rem 0 1.25rem;
+}
+
+.source summary {
+  width: fit-content;
+  padding-block: .6rem; /* a 44px target */
+  border-radius: .25rem;
+  cursor: pointer;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.source summary:active {
+  color: var(--ink);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .source summary:hover {
+    text-decoration: underline;
+    text-underline-offset: .18em;
+  }
+}
+
+.source pre {
+  margin-top: .25rem;
+}
+
+/* Reduced motion: no movement and no transitions, but a press still shows, as a change of opacity. */
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    scroll-behavior: auto !important;
+    transition: none !important;
+    animation: none !important;
+  }
+
+  .btn:active {
+    transform: none;
+    opacity: .8;
+  }
+}
+
+/* Reduced transparency and more contrast: solid surfaces, defined borders, no grey text. */
+
+@media (prefers-reduced-transparency: reduce) {
+  header.site {
+    background: var(--paper);
+    backdrop-filter: none;
+  }
+}
+
+@media (prefers-contrast: more) {
+  :root, :root:not([data-theme="light"]) {
+    --ink-2: var(--ink);
+    --line: var(--ink);
+    --code-edge: var(--ink);
+  }
+
+  header.site {
+    background: var(--paper);
+    backdrop-filter: none;
+    border-bottom-color: var(--ink);
+  }
 }

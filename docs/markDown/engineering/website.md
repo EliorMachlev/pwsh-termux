@@ -4,22 +4,26 @@
 
 ## Pages
 
-1. [`index.html`](../../index.html): the home page.
-2. [`install.html`](../../install.html): the install line; *Verify it yourself* (the two fingerprints from `keys/`, `gh attestation verify` with the publish job's flags, `gpgv` on `InRelease` and its `Valid-Until`); *Update*; *Uninstall*; *Questions* (key rotation and recovery, the *expired* error); *If something goes wrong* (missing `glibc-repo`, `NO_PUBKEY`, a non-arm64 device, an expired or not-yet-valid Release file).
+1. [`index.html`](../../index.html): the home page: quick start, stable or preview, how it works (diagram), why trust it.
+2. [`install.html`](../../install.html): *Set up the repository* (once), *Stable*, *Preview*; *Update*; *Uninstall*; *Verify it yourself* (the two fingerprints from `keys/`, `gh attestation verify` with the publish job's flags, `gpgv` on `InRelease` and its `Valid-Until`); *Add the key by hand*; *What happens when the signing key changes?*; *If something goes wrong* (missing `glibc-repo`, `NO_PUBKEY`, a non-arm64 device, an expired or not-yet-valid Release file).
 3. [`privacy.html`](../../privacy.html): the short privacy policy.
 4. [`documents.html`](../../documents.html): every Markdown document with its last change.
 5. [`404.html`](../../404.html).
 
-Each page links to the Markdown handbook on GitHub; `docs/markDown/` is not served. Keep the install page's fingerprints in step with [SECURITY.md](../../../SECURITY.md#signing-key), the README and `llms.txt`.
+Each page links to the Markdown handbook on GitHub; `docs/markDown/` is not served. Keep the install page's fingerprints in step with [SECURITY.md](../../../SECURITY.md#signing-key), `INSTALL.md` and `llms.txt`.
 
-The install command sits in a `<pre class="copy">` whose code has `user-select: all`: one tap selects it all for the browser's own copy. A copy button would need JavaScript, which the CSP forbids.
+The install command sits in a `<pre class="copy">` whose code has `user-select: all`: one tap selects it all for the browser's own copy. It wraps instead of scrolling sideways, so the whole command shows on a phone; the soft wraps are not copied. A copy button would need JavaScript, which the CSP forbids.
+
+## Diagrams
+
+The home and install pages show each flow as an animated GIF in [`docs/img/`](../../img) (also used by the README and `INSTALL.md`), with the Mermaid source in a `<details>` fold-out next to it. The CSP forbids scripts, and GitHub's mobile browsers and app do not render Mermaid, so a picture is the only form every reader sees. The GIFs are drawn from the same steps as the Mermaid source: change both together. Each GIF has a `-still.png` copy of its last frame, which the site shows through `<picture>` to readers who ask for reduced motion, since a GIF cannot be paused without a script.
 
 ## Generated blocks
 
 A page can mark fallback HTML between `<!-- generated:<name> -->` and `<!-- /generated:<name> -->`, each on its own line; [`assemble-site.sh`](../../../scripts/assemble-site.sh) replaces it at deploy time:
 
 1. `status` (home and install pages): the versions the index serves, its last signing date and `Valid-Until`, from the deployed `Packages` and `Release`. The fallback points to the releases.
-2. `documents` (documents page): a table of the handbook in `docs/markDown/` plus the top-level `README.md`, `SECURITY.md`, `CONTRIBUTING.md` and `NOTICE.md`, each with *Last updated &lt;date&gt; · &lt;short SHA&gt;* linked to the commit.
+2. `documents` (documents page): a table of the handbook in `docs/markDown/` plus the top-level `README.md`, `INSTALL.md`, `SECURITY.md`, `CONTRIBUTING.md` and `NOTICE.md`, each with *Last updated &lt;date&gt; · &lt;short SHA&gt;* linked to the commit.
 3. `last-updated:<path>` (privacy page, for the full policy): that line for one file.
 
 No Markdown file holds its own date (a file cannot name the commit that changes it). The date (`%cs`) and SHA come from `git log -1 -- <file>` at deploy time, so the deploying checkouts use `fetch-depth: 0`; the script stops in a shallow clone, outside Git, or for an uncommitted document rather than print a wrong or empty date ([`test-assemble-site.sh`](../../../scripts/test-assemble-site.sh)). A change to a top-level Markdown file does not trigger a deploy; its date updates at the next daily run.
@@ -38,7 +42,7 @@ At deploy time the stylesheet and icon references get a `?v=<content hash>` ([ho
 
 1. Each page has Open Graph and Twitter card tags and a canonical link.
 2. [`robots.txt`](../../robots.txt) allows every crawler and points to [`sitemap.xml`](../../sitemap.xml), which lists every page except `404.html`; add new pages there.
-3. [`llms.txt`](../../llms.txt) is a short, curated summary for AI assistants; keep it in step with the README and the install page.
+3. [`llms.txt`](../../llms.txt) is a short, curated summary for AI assistants; keep it in step with the README, `INSTALL.md` and the install page.
 4. [`CITATION.cff`](../../../CITATION.cff) lets tools cite the project.
 
 The repository's description, homepage and topics are set in GitHub's settings.

@@ -72,7 +72,7 @@ printf 'body { color: black; }\n' > "$O/docs/style.css"
 printf '<svg xmlns="http://www.w3.org/2000/svg"/>\n' > "$O/docs/favicon.svg"
 printf '# Guide & <tips>\n\nText.\n' > "$O/docs/markDown/guide.md"
 printf 'No heading here.\n' > "$O/docs/markDown/untitled.md"
-for doc in README SECURITY CONTRIBUTING NOTICE; do printf '# The %s\n' "$doc" > "$O/$doc.md"; done
+for doc in README INSTALL SECURITY CONTRIBUTING NOTICE; do printf '# The %s\n' "$doc" > "$O/$doc.md"; done
 git -C "$O" init -q
 git -C "$O" add -A
 GIT_COMMITTER_DATE='2026-01-02T03:04:05Z' git -C "$O" commit -q -m first
@@ -123,7 +123,7 @@ has "documents: the handbook first, the title HTML-escaped, its last commit" "$R
 has "  a document without a heading is listed by its path" "$R/index.html" \
   "    <tr><td><a href=\"$BLOB/docs/markDown/untitled.md\">docs/markDown/untitled.md</a><br><code>docs/markDown/untitled.md</code></td><td>Last updated <time datetime=\"2026-01-02\">2026-01-02</time> &middot; <a href=\"$COMMIT/$FIRST\"><code>${FIRST:0:7}</code></a></td></tr>"
 same_order=$(grep -o '<code>[A-Za-z/]*\.md</code>' "$R/index.html" | tr '\n' ' ')
-if [ "$same_order" = "<code>docs/markDown/guide.md</code> <code>docs/markDown/untitled.md</code> <code>README.md</code> <code>SECURITY.md</code> <code>CONTRIBUTING.md</code> <code>NOTICE.md</code> " ]; then
+if [ "$same_order" = "<code>docs/markDown/guide.md</code> <code>docs/markDown/untitled.md</code> <code>README.md</code> <code>INSTALL.md</code> <code>SECURITY.md</code> <code>CONTRIBUTING.md</code> <code>NOTICE.md</code> " ]; then
   pass "  then the top-level documents, in order"
 else
   fail "  then the top-level documents, in order: $same_order"
