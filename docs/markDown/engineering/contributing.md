@@ -84,13 +84,18 @@ The [template](../../../.github/pull_request_template.md) is the checklist:
 
 1. Every commit is signed off ([DCO](#developer-certificate-of-origin)).
 2. `shellcheck --shell=bash --severity=style scripts/*.sh scripts/lib/*.sh` is clean.
-3. `python3 .github/scripts/site-check.py docs` passes.
+3. `python3 .github/scripts/site-check.py docs` passes, and so does `python3 -I -m py_compile .github/scripts/site-check.py`.
 4. A changed script was run locally, and the pull request says what you ran.
-5. Changed behaviour or a bug fix comes with a test, or the pull request says why not.
-6. Nothing is suppressed beyond [exceptions.md](exceptions.md).
-7. A new or changed action is pinned to a SHA with its version in a comment.
-8. A new site page is in `docs/sitemap.xml` and keeps the Content-Security-Policy.
-9. Docs are updated in the same pull request.
+5. A changed `build-deb.sh` was run on a device ([build](build.md#testing-on-a-device)).
+6. A change to packaging, releases, the repository, keys or the site assembly ran the matching offline tests: `test-build-deb.sh`, `test-find-releases.sh`, `test-make-sboms.sh`, `test-assemble-site.sh`, `test-keys.sh`, `test-release-tags.sh`, `test-keepalive.sh`, `test-dco.sh`; the keyring still builds byte-identical ([build](build.md#build-the-keyring-package)).
+7. Changed behaviour or a bug fix comes with a test, or the pull request says why not.
+8. Nothing is suppressed beyond [exceptions.md](exceptions.md).
+9. A new or changed action is pinned to a SHA with its version in a comment.
+10. A new site page is in `docs/sitemap.xml`; the Content-Security-Policy is kept (no scripts, inline `style`, forms or third-party loads).
+11. A site change passed the HTML and CSS validation: `validate-site.sh`, `test-validate-site.sh` and Stylelint with `--max-warnings 0` ([build](build.md#check-the-website)).
+12. A site change meets the [accessibility rules](website.md#accessibility-rules-for-changes) (WCAG 2.2 AA) and keeps the [accessibility statement](../legal/accessibility-statement.md) true.
+13. A changed diagram step updates `gen.mjs`, the GIFs, the Mermaid blocks and the `<ol>` lists together ([build](build.md#regenerate-the-diagrams)).
+14. Docs are updated in the same pull request.
 
 CI runs the rest ([CI / CD](ci-cd.md)); to validate the HTML and CSS locally, see [build](build.md#check-the-website).
 
