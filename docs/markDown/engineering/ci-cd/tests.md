@@ -25,6 +25,10 @@ Job **Key rules and key tests** (`keys`):
    - refused, leaving no tag: a stray or recovery key, a missing passphrase, no `SIGN_KEY`, no commit; and any tag that is lightweight, unsigned, misnamed, altered, doubly signed, recovery- or stray-signed, or points at a tree;
    - the push refused for an unsigned tag or a different remote tag of the same name, and deferred (exit 3) when the remote `main`'s workflows changed.
 
+## Run the package (arm64)
+
+Job **Run the package (arm64)** (`device-smoke`, `ubuntu-24.04-arm`) builds the current stable release, links Termux's glibc paths (`$TERMUX_PREFIX/glibc/lib`) to the runner's own glibc, installs the `.deb` into `/` and runs `pwsh` directly and through the `bin/pwsh` symlink, with ICU switched off. It proves the patched interpreter and rpath load and run; it does not replace [a run on a phone](../build.md#testing-on-a-device), which uses Termux's own glibc and libraries.
+
 ## Package build
 
 Job **Package build** (`package`) builds the current stable release twice and compares byte for byte (a daily rebuild must not change `Packages`), and checks the patched loader and the symlink. It builds the keyring package twice and compares it too, and checks it ships `keys/` and the `signed-by` source. Then the SBOMs of both, an unsigned repository and the site assembly, and finally a repository signed with a throwaway key through the test-only `KEYRING_FILE`.

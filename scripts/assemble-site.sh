@@ -168,7 +168,7 @@ write_documents() {
   local out=$1 path title updated
   {
     echo '<table>'
-    echo '  <thead><tr><th>Document</th><th>Last change</th></tr></thead>'
+    echo '  <thead><tr><th scope="col">Document</th><th scope="col">Last change</th></tr></thead>'
     echo '  <tbody>'
     while read -r path; do
       updated=$(last_updated_html "$path")

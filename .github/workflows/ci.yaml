@@ -22,6 +22,9 @@ name: CI
 #               lookup, the .deb build, the SBOMs and the site assembly, with
 #               stub downloads, fake tarballs and local git repositories,
 #               offline
+#   device-smoke  the real .deb built and run on an arm64 runner, with the
+#               Termux glibc paths faked, so the patched loader and rpath are
+#               exercised (build.md, "Testing on a device")
 #   coverage    every scripts/test-*.sh traced, and the Hypothesis tests under
 #               coverage.py: the share of scripts/ the tests run
 #               (.github/scripts/coverage.py), failing below a floor
@@ -303,6 +306,51 @@ jobs:
             --shfmt "$RUNNER_TEMP/shfmt" --python-json "$RUNNER_TEMP/python-coverage.json" \
             --fail-under-bash "$COVERAGE_MIN_BASH" --fail-under-python "$COVERAGE_MIN_PYTHON" \
             --fail-under-total "$COVERAGE_MIN_TOTAL"
+
+  # CI's x86 runners cannot run the arm64 binary; this arm64 one can. The
+  # package's patched interpreter and rpath point into Termux's prefix, so
+  # the runner gets those paths as symlinks to its own glibc. It does not
+  # replace a run on a phone (Termux's own glibc and libraries), but it fails
+  # when the patch or the package layout is wrong. ICU is switched off (the
+  # runner has no Termux libicu), so only startup and a command run.
+  device-smoke:
+    name: Run the package (arm64)
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 20
+    env:
+      TERMUX_PREFIX: /data/data/com.termux/files/usr
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a # v2.22.4
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install tools
+        run: sudo apt-get update && sudo apt-get install -y patchelf jq xz-utils
+      - name: Build the .deb
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          bash scripts/find-releases.sh | tee releases.txt
+          tag=$(awk '$1 == "stable" {print $2}' releases.txt)
+          mkdir -p debs
+          bash scripts/build-deb.sh pwsh "$tag" debs
+      - name: Fake Termux's glibc paths and install the package
+        run: |
+          lib="$TERMUX_PREFIX/glibc/lib"
+          sudo mkdir -p "$lib"
+          for f in /lib/aarch64-linux-gnu/*.so*; do sudo ln -sf "$(readlink -f "$f")" "$lib/$(basename "$f")"; done
+          sudo ln -sf "$(readlink -f /lib/ld-linux-aarch64.so.1)" "$lib/ld-linux-aarch64.so.1"
+          sudo dpkg-deb -x debs/pwsh_*_aarch64.deb /
+      - name: Run pwsh
+        env:
+          DOTNET_SYSTEM_GLOBALIZATION_INVARIANT: "1"
+        run: |
+          "$TERMUX_PREFIX/opt/pwsh/pwsh" -NoProfile -Command "\$PSVersionTable.PSVersion.ToString()"
+          test "$("$TERMUX_PREFIX/bin/pwsh" -NoProfile -Command '1 + 1')" = 2
 
   package:
     name: Package build

@@ -1,10 +1,10 @@
 // Draws the animated diagrams of the README, INSTALL.md and the site (docs/img/).
-// usage: node tools/diagrams/gen.mjs <outdir>, then copy the .gif and .png files to docs/img/.
+// usage: node tools/diagrams/gen.mjs <outdir>, then copy the 640-wide .gif files to docs/img/ (README, INSTALL.md); the site shows the steps as HTML.
 // needs: node, ffmpeg, rsvg-convert (librsvg) and the Roboto font known to fontconfig
 //   (on Termux: FONTCONFIG_FILE=<conf that adds /system/fonts>; see docs/markDown/engineering/build.md).
 // The steps below are the single source: copy the written <name>.mmd into the Mermaid
 // <details> blocks (README.md, INSTALL.md, docs/index.html, docs/install.html) when they change.
-// writes <name>.gif and <name>-still.png (640 wide, README and site 1x),
+// writes <name>.gif and <name>-still.png (640 wide),
 // <name>@2x.gif and <name>-still@2x.png (1280 wide, site 2x), and <name>.mmd.
 // Palette follows the site: the dark code tile (#1d1d1f), Apple's dark-mode grays and systemBlue.
 import { writeFileSync, mkdirSync, copyFileSync } from 'node:fs';

@@ -84,13 +84,19 @@ pkg install pwsh</code></pre>
     <div class="band-head">
       <p class="eyebrow">How it works</p>
       <h2 id="how">From Microsoft&rsquo;s release to your phone.</h2>
-      <p class="intro">A daily workflow follows Microsoft&rsquo;s releases, so <code>pkg upgrade</code> brings new ones in. The picture shows one run. The animation lights up each step in turn.</p>
+      <p class="intro">A daily workflow follows Microsoft&rsquo;s releases, so <code>pkg upgrade</code> brings new ones in. Each step lights up in turn.</p>
     </div>
-    <figure class="diagram">
-      <picture>
-        <source media="(prefers-reduced-motion: reduce)" srcset="/img/release-pipeline-still.png 1x, /img/release-pipeline-still@2x.png 2x" width="640" height="804">
-        <img src="/img/release-pipeline.gif" srcset="/img/release-pipeline.gif 1x, /img/release-pipeline@2x.gif 2x" alt="Seven steps: Microsoft publishes, choose releases, verify, patch and package, sign, publish, your phone." width="640" height="804" loading="lazy" decoding="async">
-      </picture>
+    <figure class="flow">
+      <p class="flow-pause"><input type="checkbox" id="pause-flow"> <label for="pause-flow">Pause the animation</label></p>
+      <ol>
+        <li><strong>Microsoft publishes</strong><span>PowerShell 7 releases on GitHub</span></li>
+        <li><strong>Choose releases</strong><span>highest stable, plus a newer preview</span></li>
+        <li><strong>Verify</strong><span>SHA-256 must match hashes.sha256</span></li>
+        <li><strong>Patch and package</strong><span>Termux glibc loader, build the .deb</span></li>
+        <li><strong>Sign</strong><span>apt index signed with Ed25519</span></li>
+        <li><strong>Publish</strong><span>GitHub Pages and release assets</span></li>
+        <li><strong>Your phone</strong><span>pkg update, pkg upgrade</span></li>
+      </ol>
       <figcaption>One run of the pipeline, from Microsoft&rsquo;s release to your phone.</figcaption>
     </figure>
     <details class="source">
