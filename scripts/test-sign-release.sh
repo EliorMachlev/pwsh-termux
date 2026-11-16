@@ -104,12 +104,27 @@ mkdir "$T/b-out4"
 expect refuse "bundle: unpack refuses a path outside the folder" bash -c "bash '$SB' unpack '$T/b-out4' < '$T/path.b64'"
 mkdir "$T/b-out5"
 expect refuse "bundle: unpack refuses what is not base64" bash -c "echo '!!!' | bash '$SB' unpack '$T/b-out5'"
+mkdir "$T/b-empty"
+expect refuse "bundle: pack refuses an empty folder" bash "$SB" pack "$T/b-empty"
+mkdir "$T/many"; for i in $(seq 1 41); do echo x > "$T/many/$i"; done
+tar -C "$T/many" -czf - . | base64 -w0 > "$T/many.b64"
+mkdir "$T/b-out6"
+expect refuse "bundle: unpack refuses more than 40 files" bash -c "bash '$SB' unpack '$T/b-out6' < '$T/many.b64'"
+mkdir "$T/big"; head -c 2100000 /dev/zero > "$T/big/Release"
+tar -C "$T/big" -czf - Release | base64 -w0 > "$T/big.b64"
+mkdir "$T/b-out7"
+expect refuse "bundle: unpack refuses more than 2000000 bytes" bash -c "bash '$SB' unpack '$T/b-out7' < '$T/big.b64'"
+expect refuse "bundle: no sub-command" bash "$SB"
+expect refuse "sign-release: no sub-command" bash "$SR"
 
 # --- sign-release.sh sign
 expect accept "sign: a fresh Release with the verified keyring package" as_a bash "$SR" sign "$T/in" "$T/signed"
 check "sign: InRelease and Release.gpg verify (gpgv)" bash -c "gpgv --keyring '$KEYRING_FILE' '$T/signed/InRelease' 2>/dev/null && gpgv --keyring '$KEYRING_FILE' '$T/signed/Release.gpg' '$T/signed/Release' 2>/dev/null"
 expect refuse "sign: a stray key" env SIGN_KEY="$C" bash "$SR" sign "$T/in" "$T/s2"
 expect refuse "sign: the recovery key (its secret in the gpg home)" env GNUPGHOME="$OFFLINE" SIGN_KEY="$R" bash "$SR" sign "$T/in" "$T/s3"
+cp -r "$ONLINE" "$T/both"; chmod 700 "$T/both"
+GNUPGHOME=$OFFLINE gpg --batch --export-secret-keys "$R" | GNUPGHOME="$T/both" gpg --batch --import 2>/dev/null
+expect refuse "sign: the online key, with the recovery secret in the same gpg home" env GNUPGHOME="$T/both" SIGN_KEY="$A" bash "$SR" sign "$T/in" "$T/s3b"
 expect refuse "sign: no SIGN_KEY" bash "$SR" sign "$T/in" "$T/s4"
 expect refuse "sign: another keyring digest" as_a env KEYRING_DEB_SHA256="$(printf 0%.0s {1..64})" bash "$SR" sign "$T/in" "$T/s5"
 expect refuse "sign: no keyring digest" as_a env -u KEYRING_DEB_SHA256 bash "$SR" sign "$T/in" "$T/s6"
@@ -131,6 +146,8 @@ expect refuse "install: another Release than the signed one" bash "$SR" install 
 cp -r "$T/signed" "$T/signed-s"
 printf 'junk\n' > "$T/signed-s/Release.gpg"
 expect refuse "install: an altered signature" bash "$SR" install "$T/signed-s" "$T/repo"
+cp -r "$T/signed" "$T/signed-m"; rm "$T/signed-m/InRelease"
+expect refuse "install: a signed folder without InRelease" bash "$SR" install "$T/signed-m" "$T/repo"
 expect refuse "install: another keyring digest" env KEYRING_DEB_SHA256="$(printf 1%.0s {1..64})" bash "$SR" install "$T/signed" "$T/repo"
 
 # --- release-tags.sh payloads, sign-payloads, assemble
