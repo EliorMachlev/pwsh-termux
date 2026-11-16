@@ -134,12 +134,12 @@ node tools/site-lint/node_modules/stylelint/bin/stylelint.mjs --config tools/sit
 
 ## Regenerate the diagrams
 
-The animated diagrams of the README, `INSTALL.md` and the site ([website.md](website.md#diagrams)) are drawn by `tools/diagrams/gen.mjs`. Needs `node`, `ffmpeg`, `rsvg-convert` (librsvg) and the Roboto font.
+The animated diagrams of the README and `INSTALL.md` ([website.md](website.md#diagrams); the site uses HTML lists) are drawn by `tools/diagrams/gen.mjs`. Needs `node`, `ffmpeg`, `rsvg-convert` (librsvg) and the Roboto font.
 
 1. Edit the steps at the top of `gen.mjs`.
 2. `node tools/diagrams/gen.mjs "$PWD/out"` (absolute folder).
-3. Copy the `.gif` and `-still*.png` files to `docs/img/`.
-4. Copy each `.mmd` into the Mermaid `<details>` blocks of `README.md`, `INSTALL.md`, `docs/index.html` and `docs/install.html`; fix the `alt` text and `width`/`height` if the size changed.
+3. Copy the 640-wide `<name>.gif` files to `docs/img/`; the `@2x` and `-still` files are not used.
+4. Copy each `.mmd` into the Mermaid `<details>` blocks of `README.md`, `INSTALL.md`, `docs/index.html` and `docs/install.html`; update the `<ol>` steps in the two pages and the `alt` text of the GIFs if the steps changed.
 
 On Termux: `pkg install librsvg fontconfig ffmpeg`, and pass `FONTCONFIG_FILE` pointing to a file with `<fontconfig><include ignore_missing="yes">$PREFIX/etc/fonts/fonts.conf</include><dir>/system/fonts</dir></fontconfig>`.
 

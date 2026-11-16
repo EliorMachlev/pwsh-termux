@@ -600,30 +600,112 @@ nav a {
   }
 }
 
-/* Diagrams: an animated GIF (works where Mermaid does not render) and its Mermaid source in a fold-out. */
+/* Diagrams: a numbered list of steps. Each step lights up in turn, once, then stays lit; the checkbox pauses
+   it (WCAG 2.2.2) and reduced motion shows the finished list with no checkbox. It is plain text, so it follows
+   the palette, forced colours, zoom and screen readers; the Mermaid source sits in a fold-out below it. */
 
-.diagram {
-  margin: 1.5rem 0 .75rem;
-  text-align: center;
+.flow {
+  margin: 1.5rem auto .75rem;
+  max-width: 26rem;
 }
 
-.diagram img {
+.flow ol {
+  display: grid;
+  gap: 1.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: decimal inside;
+}
+
+.flow ol li {
+  position: relative;
+  padding: 1rem 1.25rem;
+  border: 2px solid var(--accent);
+  border-radius: 1.125rem;
+  background: var(--surface);
+  box-shadow: var(--raised-low);
+  font-weight: 600;
+}
+
+.flow li + li::before {
+  content: "\2193" / ""; /* decorative arrow to the next step */
+  position: absolute;
+  top: -1.6rem;
+  left: 50%;
+  translate: -50% 0;
+  color: var(--accent);
+  font-size: 1.25rem;
+  line-height: 1;
+}
+
+.flow li span {
   display: block;
-  max-width: min(100%, 26rem);
-  height: auto;
-  margin-inline: auto;
-  border-radius: 1.5rem;
-  background: #1d1d1f; /* the pictures' own background, holding their place while they load */
-  outline: 1px solid var(--code-edge);
-  outline-offset: -1px;
-  box-shadow: 0 12px 32px -12px var(--shadow-deep);
+  color: var(--ink-2);
+  font-weight: 400;
+  font-size: .9375rem;
 }
 
-.diagram figcaption {
+.flow figcaption {
   margin-top: .75rem;
+  text-align: center;
   font-size: .875rem;
   letter-spacing: .005em;
   color: var(--ink-2);
+}
+
+.flow-pause {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  min-height: var(--tap);
+  margin: 0 0 .5rem;
+}
+
+.flow-pause input {
+  width: 1.5rem;
+  height: 1.5rem;
+  margin: 0;
+  accent-color: var(--accent);
+}
+
+@keyframes lit {
+  0% {
+    border-color: var(--line);
+    background: var(--surface);
+  }
+
+  1%, 99% {
+    border-color: var(--accent);
+    background: var(--chip);
+  }
+
+  100% {
+    border-color: var(--accent);
+    background: var(--surface);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .flow ol li {
+    animation: lit 1s linear both;
+  }
+
+  .flow li:nth-child(2) { animation-delay: 1s; }
+  .flow li:nth-child(3) { animation-delay: 2s; }
+  .flow li:nth-child(4) { animation-delay: 3s; }
+  .flow li:nth-child(5) { animation-delay: 4s; }
+  .flow li:nth-child(6) { animation-delay: 5s; }
+  .flow li:nth-child(7) { animation-delay: 6s; }
+
+  .flow:has(input:checked) li {
+    animation-play-state: paused;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .flow-pause {
+    display: none;
+  }
 }
 
 .source {
@@ -648,10 +730,6 @@ nav a {
     text-decoration: underline;
     text-underline-offset: .2em;
   }
-}
-
-.diagram .source summary {
-  margin-inline: auto;
 }
 
 .source pre {

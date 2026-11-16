@@ -11,7 +11,7 @@ The pwsh-termux website (`pwsh-termux.machlev.org`) is meant to be usable by eve
 - **Keyboard:** every link and control is reachable and operable by keyboard, with a visible focus ring.
 - **Colour and contrast:** light and dark palettes follow your system (`prefers-color-scheme`). Every text and background pair meets WCAG AA (4.5:1) in both; the lowest, links on a card in the light palette, is 4.9:1, and body text is above 15:1. Links inside a sentence are underlined, and information is never conveyed by colour alone.
 - **Zoom and layout:** responsive, in relative units; text can be enlarged without loss of content, and tables and code blocks wrap instead of scrolling sideways or breaking the page. Narrow-screen layout has not been tested on every device.
-- **Motion:** nothing moves by itself. The two diagrams show as still pictures; an animated version opens only when you choose *Play the animation*. `prefers-reduced-motion` is respected anyway.
+- **Motion:** the steps of the two diagrams light up in turn once, then stay lit. A checkbox pauses them, and with `prefers-reduced-motion` they show finished and the checkbox is hidden. Nothing else moves.
 - **Code samples** are plain text in `<pre>` blocks, read by screen readers as written.
 
 ## Conformance
