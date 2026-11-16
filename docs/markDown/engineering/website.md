@@ -1,6 +1,6 @@
 # Website
 
-`docs/*.html`, served by GitHub Pages at `pwsh-termux.machlev.org` next to the apt repository ([hosting](architecture/hosting.md)). Plain HTML and one stylesheet: system fonts, light and dark palettes that follow the system, no JavaScript, no forms. The mark ([`docs/favicon.svg`](../../favicon.svg), also in [`art/brand/`](../../../art/brand)) is a prompt chevron and cursor, not Microsoft's PowerShell logo.
+`docs/*.html`, served by GitHub Pages at `pwsh-termux.machlev.org` next to the apt repository ([hosting](architecture/hosting.md)). Plain HTML and one stylesheet: system fonts, light and dark palettes that follow the system, no JavaScript, no forms (the one checkbox pauses the diagram animation and submits nothing). The mark ([`docs/favicon.svg`](../../favicon.svg), also in [`art/brand/`](../../../art/brand)) is a prompt chevron and cursor, not Microsoft's PowerShell logo.
 
 ## Pages
 
@@ -25,6 +25,20 @@ The markup follows the same pattern on every page: a `hero` (small `eyebrow` lab
 The home and install pages show each flow as a numbered list of steps (`<figure class="flow">`, an `<ol>`): plain text, so it follows the palette, forced colours, zoom and screen readers, and needs no image or script. In `style.css` each step lights up in turn, once, then stays lit (a CSS animation with a delay per step, so a list longer than seven needs another `nth-child` rule). A checkbox before the list pauses it with `:has(input:checked)` and `animation-play-state` (WCAG 2.2.2, since the run lasts more than five seconds); with reduced motion the list is shown finished and the checkbox is hidden. The Mermaid source stays in a `<details>` fold-out below, for readers who want it.
 
 The README and `INSTALL.md` still use the animated GIFs in [`docs/img/`](../../img), because GitHub renders no Mermaid in its mobile browsers and app. The steps are drawn by [`tools/diagrams/gen.mjs`](../../../tools/diagrams/gen.mjs), which also writes the matching Mermaid source: change the steps there and update the `<ol>` lists, the Mermaid blocks and the GIFs together ([how to run it](build.md#regenerate-the-diagrams)). Only the 640-wide `<name>.gif` files are used.
+
+## Accessibility rules for changes
+
+The target is WCAG 2.2 level AA ([statement](../legal/accessibility-statement.md)). When you change a page or `style.css`:
+
+1. **Nothing moves by itself for more than five seconds** unless a control pauses it (2.2.2). Animate only inside `prefers-reduced-motion: no-preference`, and give the finished state to reduced motion.
+2. **A link inside a sentence is underlined**; colour alone is not enough (1.4.1). Navigation lists and buttons may drop the underline.
+3. **Text keeps 4.5:1** on whatever is behind it in both palettes. A linked `<code>` has no chip, because the link colour on the chip is 3.9:1 in the dark palette.
+4. **Decorative text from CSS** (`content`) gets empty alt text (`content: "\203a" / ""`), so a screen reader skips it.
+5. **Data tables** use `<th scope="col">`, including the generated one in `assemble-site.sh`.
+6. **Targets are 44px** (`--tap`) except links inside a sentence; focus uses `:focus-visible` and the sticky bar must not cover it (`scroll-padding-top`).
+7. **No inline `style` attributes** (the CSP forbids them): per-item values go in `nth-child` rules.
+
+Keep the accessibility statement in step with any change here.
 
 ## Generated blocks
 
