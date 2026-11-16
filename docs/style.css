@@ -218,7 +218,7 @@ pre {
   white-space: pre-wrap;
 }
 
-/* A linked name needs no chip: in the dark palette the link colour on the chip is only 3.9:1. */
+/* A linked name, or a name in the status line (already a chip), needs no chip: in the dark palette the link colour on the chip is only 3.9:1. */
 a code {
   background: none;
 }
