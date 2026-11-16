@@ -59,9 +59,9 @@ for (const page of pages) {
     if (m.width === 320 && await tab.evaluate(() => document.documentElement.scrollWidth > innerWidth)) {
       problems.push(`${label}: scrolls sideways (WCAG 1.4.10)`);
     }
-    const flows = await tab.evaluate(() => document.querySelectorAll('.flow').length);
-    const pauses = await tab.evaluate(() => document.querySelectorAll('.flow input[type=checkbox]').length);
-    if (flows !== pauses) problems.push(`${label}: a .flow list has no pause checkbox (WCAG 2.2.2)`);
+    const unpaused = await tab.evaluate(() => [...document.querySelectorAll('.flow')]
+      .filter(f => !f.querySelector('input[type=checkbox]')).length);
+    if (unpaused) problems.push(`${label}: ${unpaused} .flow list(s) with no pause checkbox (WCAG 2.2.2)`);
     await tab.close();
   }
 }
