@@ -21,7 +21,7 @@ Every release carries a CycloneDX and three SPDX SBOMs and signed build provenan
 
 - Every action is pinned to a commit SHA with its version in a comment.
 - Dependabot updates the actions, the pinned Python tools (zizmor, typos, Hypothesis, coverage.py) and the site's npm checkers; Dependency Review runs on pull requests.
-- harden-runner runs first in each job, in `audit` mode, so unexpected egress shows in the run's insights.
+- harden-runner runs first in each job, in `audit` mode, so unexpected egress shows in the run's insights. The jobs that hold secrets (`publish`, keep-alive commit) run it in `block` mode with a GitHub-only `allowed-endpoints` list.
 
 ## Network
 
