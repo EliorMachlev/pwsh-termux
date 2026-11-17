@@ -136,6 +136,12 @@ sha=$(sha256_of "$T/in/Packages"); size=$(file_size "$T/in/Packages")
 sed "s/^ $sha $size \(.*Packages\)$/ $(printf 0%.0s {1..64}) $size \1\r/" "$T/in/Release" > "$T/in-sec/Release"
 printf 'SHA512:\n %s %s %s/Packages\n' "$sha" "$size" "$(repo_index_subdir)" >> "$T/in-sec/Release"
 expect refuse "sign: Packages listed correctly only outside the SHA256 section" as_a bash "$SR" sign "$T/in-sec" "$T/s7b"
+# the same, written with a tab after the colons
+mkdir "$T/in-tab"
+{ cat "$T/in/Packages"; printf '\nPackage:\t%s\nVersion: 99\nSHA256:\t%s\n' "$KEYRING_PACKAGE" "$(printf 0%.0s {1..64})"; } > "$T/in-tab/Packages"
+tsha=$(sha256_of "$T/in-tab/Packages"); tsize=$(file_size "$T/in-tab/Packages")
+sed "s/^ $sha $size / $tsha $tsize /" "$T/in/Release" > "$T/in-tab/Release"
+expect refuse "sign: a second keyring stanza written with tabs" as_a bash "$SR" sign "$T/in-tab" "$T/s7d"
 # a second keyring stanza with no SHA256 field, listed correctly by Release
 mkdir "$T/in-nosum"
 { cat "$T/in/Packages"; printf '\nPackage: %s\nVersion: 99\nSHA512: 00\n' "$KEYRING_PACKAGE"; } > "$T/in-nosum/Packages"
@@ -188,7 +194,7 @@ mkdir "$T/pl-name"; cp "$T/pl/pwsh-7.7.1-1.payload" "$T/pl-name/evil-1.payload"
 expect refuse "sign-payloads: a tag name that is not pwsh or pwsh-preview" rt_a sign-payloads "$T/pl-name" "$HEAD1" "$T/x3"
 mkdir "$T/pl-old"; sed "s/ [0-9]\{10\} +0000$/ 1000000000 +0000/" "$T/pl/pwsh-7.7.1-1.payload" > "$T/pl-old/pwsh-7.7.1-1.payload"
 expect refuse "sign-payloads: an old payload" rt_a sign-payloads "$T/pl-old" "$HEAD1" "$T/x4"
-expect refuse "sign-payloads: a stray key" env SIGN_KEY="$C" bash -c "cd '$T/work' && bash '$RT' sign-payloads '$T/pl' '$HEAD1' '$T/x5' && bash '$RT' assemble '$T/x5'"
+expect refuse "sign-payloads: a stray key" env SIGN_KEY="$C" bash -c "cd '$T/work' && bash '$RT' sign-payloads '$T/pl' '$HEAD1' '$T/x5'"
 mkdir "$T/pl-nosig"; cp "$T/pl/pwsh-7.7.1-1.payload" "$T/pl-nosig/"
 expect refuse "assemble: a payload with no signature" rt assemble "$T/pl-nosig"
 

@@ -187,9 +187,14 @@ write_payloads() {
 # sign_payloads <in-dir> <commit> <out-dir>: only a payload that is exactly
 # what write_payloads writes for <commit> (with its own title and time) is signed.
 sign_payloads() {
-  local in=$1 commit=$2 out=$3 payload tag title epoch now signed=0
+  local in=$1 commit=$2 out=$3 payload tag title epoch now sign_fpr signed=0
   [ -n "${SIGN_KEY:-}" ] || die "SIGN_KEY is not set"
   [[ "$commit" =~ ^[0-9a-f]{40}$ ]] || die "$commit is not a commit id"
+  # Only an online key of the keyring signs (the recovery key never does).
+  sign_fpr=$(secret_key_fingerprint "$SIGN_KEY")
+  [ -n "$sign_fpr" ] || die "no secret key for SIGN_KEY"
+  check_keyring "$KEYRING_FILE" | online_fingerprints | grep -qxF -- "$sign_fpr" \
+    || die "the signing key $sign_fpr is not an online key of $KEYRING_FILE"
   mkdir -p "$out"
   shopt -s nullglob
   for payload in "$in"/*.payload; do

@@ -43,8 +43,8 @@ keyring_stanza_sha256() {
     BEGIN { RS = ""; FS = "\n" }
     { name = ""; sum = ""
       for (i = 1; i <= NF; i++) {
-        if ($i ~ /^Package: /) name = substr($i, 10)
-        if ($i ~ /^SHA256: /) sum = substr($i, 9)
+        if ($i ~ /^Package:[ \t]/) { name = $i; sub(/^Package:[ \t]*/, "", name) }
+        if ($i ~ /^SHA256:[ \t]/) { sum = $i; sub(/^SHA256:[ \t]*/, "", sum) }
       }
       if (name == pkg) print (sum == "" ? "missing" : sum) }' "$1")
   [ "$(grep -c . <<<"$sums")" -eq 1 ] || die "$1 does not hold exactly one $KEYRING_PACKAGE package"
