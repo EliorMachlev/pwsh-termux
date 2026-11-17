@@ -10,7 +10,7 @@
 #        release-tags.sh verify <tag>
 #        release-tags.sh push <tag> <remote>
 #        release-tags.sh payloads <debs-dir> <commit> <out-dir>
-#        release-tags.sh sign-payloads <in-dir> <commit> <out-dir>
+#        release-tags.sh sign-payloads <in-dir> <commit> <out-dir> <Packages>
 #        release-tags.sh assemble <dir>
 # Env:   SIGN_KEY      (sign) the online key's id or fingerprint
 #        GPG_PASSPHRASE_FILE  (sign) its passphrase file, as for build-repo.sh
@@ -35,7 +35,9 @@
 #           sees a .deb: payloads (no key) writes <tag>.payload for each
 #           package that has no tag yet; sign-payloads (the key; <commit>
 #           is the run's commit) checks that each payload is exactly what
-#           `payloads` writes for that commit and signs it as <tag>.sig;
+#           `payloads` writes for that commit, under the tag name its title
+#           gives and for a package and version <Packages> lists, and signs
+#           it as <tag>.sig;
 #           assemble (no key) turns each payload and signature into the tag
 #           object, verifies it as verify does and creates refs/tags/<tag>.
 #   verify  the tag is an annotated tag whose object names <tag>, points at
@@ -184,24 +186,42 @@ write_payloads() {
   done < <(unreleased_tags "$debs_dir")
 }
 
-# sign_payloads <in-dir> <commit> <out-dir>: only a payload that is exactly
-# what write_payloads writes for <commit> (with its own title and time) is signed.
+# packages_lists <Packages> <package> <version>: it has a stanza for exactly
+# that package and version.
+packages_lists() {
+  awk -v pkg="$2" -v ver="$3" '
+    BEGIN { RS = ""; FS = "\n" }
+    { name = ""; version = ""
+      for (i = 1; i <= NF; i++) {
+        if ($i ~ /^Package:[ \t]/) { name = $i; sub(/^Package:[ \t]*/, "", name) }
+        if ($i ~ /^Version:[ \t]/) { version = $i; sub(/^Version:[ \t]*/, "", version) }
+      }
+      if (name == pkg && version == ver) found = 1 }
+    END { exit !found }' "$1"
+}
+
+# sign_payloads <in-dir> <commit> <out-dir> <Packages>: only a payload that is
+# exactly what write_payloads writes for <commit> (with its own title and
+# time) is signed, and only for a package and version that <Packages> (the
+# index whose files were verified) lists, under the tag name release_tag_name
+# gives it.
 sign_payloads() {
-  local in=$1 commit=$2 out=$3 payload tag title epoch now sign_fpr signed=0
+  local in=$1 commit=$2 out=$3 packages=$4 payload tag title epoch now sign_fpr package version signed=0
   [ -n "${SIGN_KEY:-}" ] || die "SIGN_KEY is not set"
   [[ "$commit" =~ ^[0-9a-f]{40}$ ]] || die "$commit is not a commit id"
+  [ -f "$packages" ] || die "$packages is not a file"
   # Only an online key of the keyring signs (the recovery key never does).
-  sign_fpr=$(secret_key_fingerprint "$SIGN_KEY")
-  [ -n "$sign_fpr" ] || die "no secret key for SIGN_KEY"
-  check_keyring "$KEYRING_FILE" | online_fingerprints | grep -qxF -- "$sign_fpr" \
-    || die "the signing key $sign_fpr is not an online key of $KEYRING_FILE"
+  sign_fpr=$(check_online_signer "$KEYRING_FILE" "$SIGN_KEY")
   mkdir -p "$out"
   shopt -s nullglob
   for payload in "$in"/*.payload; do
     tag=$(basename "$payload" .payload)
     [[ "$tag" =~ $PAYLOAD_TAG_REGEX ]] || die "'$tag' is not a tag name a payload may carry"
     title=$(sed -n '6p' "$payload")
-    [[ "$title" =~ ^pwsh(-preview)?\ [A-Za-z0-9][A-Za-z0-9.+~:-]*$ ]] || die "$payload: unexpected title '$title'"
+    [[ "$title" =~ ^(pwsh(-preview)?)\ ([A-Za-z0-9][A-Za-z0-9.+~:-]*)$ ]] || die "$payload: unexpected title '$title'"
+    package=${BASH_REMATCH[1]} version=${BASH_REMATCH[3]}
+    [ "$package-${version//\~/-}" = "$tag" ] || die "$payload: the title '$title' does not name the tag $tag"
+    packages_lists "$packages" "$package" "$version" || die "$payload: $packages lists no $package $version"
     epoch=$(sed -n '4p' "$payload" | awk '{print $(NF - 1)}')
     [[ "$epoch" =~ ^[0-9]{9,11}$ ]] || die "$payload: unexpected tagger time '$epoch'"
     now=$(now_epoch)
@@ -209,12 +229,11 @@ sign_payloads() {
       || die "$payload: the tagger time is not within the last day"
     write_tag_payload "$commit" "$tag" "$title" "$epoch" "$W/expected-payload"
     cmp -s "$W/expected-payload" "$payload" || die "$payload is not the tag payload of $tag on $commit"
-    [ "${title%% *}" = "${tag%%-[0-9]*}" ] || die "$payload: the title '$title' does not match the tag $tag"
     sign_payload "$payload" "$out/$tag.sig"
     cp "$payload" "$out/$tag.payload"
     signed=$((signed + 1))
   done
-  log "signed $signed tag payload(s) for $commit"
+  log "signed $signed tag payload(s) for $commit with $sign_fpr"
 }
 
 assemble_tags() {
@@ -277,7 +296,7 @@ case "${1:-} $#" in
   "verify 2") verify_tag_object "refs/tags/$2" "$2" ;;
   "push 3") push_tag "$2" "$3" ;;
   "payloads 4") write_payloads "$2" "$3" "$4" ;;
-  "sign-payloads 4") sign_payloads "$2" "$3" "$4" ;;
+  "sign-payloads 5") sign_payloads "$2" "$3" "$4" "$5" ;;
   "assemble 2") assemble_tags "$2" ;;
-  *) die "usage: release-tags.sh name <deb> | sign <debs-dir> <commit> | verify <tag> | push <tag> <remote> | payloads <debs-dir> <commit> <out-dir> | sign-payloads <in-dir> <commit> <out-dir> | assemble <dir>" ;;
+  *) die "usage: release-tags.sh name <deb> | sign <debs-dir> <commit> | verify <tag> | push <tag> <remote> | payloads <debs-dir> <commit> <out-dir> | sign-payloads <in-dir> <commit> <out-dir> <Packages> | assemble <dir>" ;;
 esac

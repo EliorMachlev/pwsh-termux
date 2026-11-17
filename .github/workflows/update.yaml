@@ -92,19 +92,25 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          debs=(packages/pwsh-termux-keyring_*_all.deb)
-          [ "${#debs[@]}" -eq 1 ] && [ -f "${debs[0]}" ]
-          sha=$(bash scripts/verify-attestation.sh "${debs[0]}" "$GITHUB_SHA")
-          echo "sha256=$sha" >> "$GITHUB_OUTPUT"
+          keyring=(packages/pwsh-termux-keyring_*_all.deb)
+          [ "${#keyring[@]}" -eq 1 ] && [ -f "${keyring[0]}" ]
           # Every .deb, so the signing job signs an index of nothing else.
           all=(packages/*.deb)
           [ -f "${all[0]}" ]
-          echo "sha256s<<EOF_SHA256S" >> "$GITHUB_OUTPUT"
+          sums=
+          keyring_sum=
           for deb in "${all[@]}"; do
             sum=$(bash scripts/verify-attestation.sh "$deb" "$GITHUB_SHA")
-            echo "$sum" >> "$GITHUB_OUTPUT"
+            sums+=$sum$'\n'
+            if [ "$deb" = "${keyring[0]}" ]; then keyring_sum=$sum; fi
           done
-          echo "EOF_SHA256S" >> "$GITHUB_OUTPUT"
+          [ -n "$keyring_sum" ]
+          echo "sha256=$keyring_sum" >> "$GITHUB_OUTPUT"
+          {
+            echo "sha256s<<EOF_SHA256S"
+            printf '%s' "$sums"
+            echo "EOF_SHA256S"
+          } >> "$GITHUB_OUTPUT"
 
   # Builds the unsigned apt index (Release and Packages) and the payloads of
   # the release tags the signing job will sign. No signing key and no token
@@ -147,7 +153,8 @@ jobs:
           mkdir bundle
           bash scripts/release-tags.sh payloads artifacts/packages "$GITHUB_SHA" bundle/tags
           cp repo/dists/stable/Release repo/dists/stable/main/binary-aarch64/Packages bundle/
-          echo "bundle=$(bash scripts/signing-bundle.sh pack bundle)" >> "$GITHUB_OUTPUT"
+          bundle=$(bash scripts/signing-bundle.sh pack bundle)
+          echo "bundle=$bundle" >> "$GITHUB_OUTPUT"
 
   # The only job with the apt signing key. It never sees a .deb and has no
   # artifact access: it gets Release, Packages and the tag payloads as a job
@@ -234,11 +241,12 @@ jobs:
             echo "::error::signing the index failed (see sign-release.sh's error above); nothing is published"
             exit 1
           fi
-          if ! bash scripts/release-tags.sh sign-payloads "$RUNNER_TEMP/in/tags" "$GITHUB_SHA" "$RUNNER_TEMP/out/tags"; then
+          if ! bash scripts/release-tags.sh sign-payloads "$RUNNER_TEMP/in/tags" "$GITHUB_SHA" "$RUNNER_TEMP/out/tags" "$RUNNER_TEMP/in/Packages"; then
             echo "::error::signing the release tags failed (see release-tags.sh's error above); nothing is published"
             exit 1
           fi
-          echo "bundle=$(bash scripts/signing-bundle.sh pack "$RUNNER_TEMP/out")" >> "$GITHUB_OUTPUT"
+          bundle=$(bash scripts/signing-bundle.sh pack "$RUNNER_TEMP/out")
+          echo "bundle=$bundle" >> "$GITHUB_OUTPUT"
 
       # Even if the step above was killed before its trap ran: no passphrase
       # file is left, and gpg-agent forgets the cached passphrase.
@@ -301,6 +309,19 @@ jobs:
           bash scripts/release-tags.sh assemble signed/tags
           bash scripts/assemble-site.sh docs repo
           python3 .github/scripts/site-check.py repo
+
+      - name: Check SHA256SUMS against the verified digests
+        env:
+          VERIFIED_DEB_SHA256S: ${{ needs.verify.outputs.deb-sha256s }}
+        run: |
+          # SHA256SUMS goes into every release. It must list the .deb files
+          # whose provenance the verify job checked, no other, and every file
+          # it lists must be as it says, so an artifact replaced after that
+          # job cannot ride along with a release.
+          listed=$(awk '$2 ~ /\.deb$/ {print $1}' artifacts/packages/SHA256SUMS | LC_ALL=C sort)
+          verified=$(LC_ALL=C sort <<<"$VERIFIED_DEB_SHA256S")
+          [ "$listed" = "$verified" ]
+          (cd artifacts/packages && sha256sum --check --strict SHA256SUMS)
 
       - name: Archive each .deb, its SBOMs, provenance and the public key as a release
         env:

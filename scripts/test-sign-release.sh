@@ -5,18 +5,24 @@
 #
 #   signing-bundle.sh   pack and unpack round trip; refuses a path outside
 #                       the whitelist, a link, a non-empty folder, too many
-#                       files, and something that is not base64
-#   sign-release.sh     sign: signs a fresh Release that lists its Packages
-#                       and the verified keyring package; refuses a stray
-#                       key, the recovery key, a wrong keyring digest, a
-#                       Packages file that Release does not list, a stale
-#                       Release. install: accepts the signed index for the
-#                       repository it was built from; refuses another
-#                       Release, an altered index file, an altered signature
-#   release-tags.sh     payloads, sign-payloads, assemble: the same tag as
-#                       `sign` makes; refuses a payload for another commit,
-#                       an altered payload, an old one, a tag name that is
-#                       not pwsh or pwsh-preview
+#                       files, an empty or corrupt bundle, one too large for
+#                       a job output, and something that is not base64
+#   sign-release.sh     sign: signs a fresh Release that is exactly the one
+#                       write_release writes for its Packages (and the
+#                       verified keyring package); refuses a stray key, the
+#                       recovery key, a wrong keyring digest, a Packages
+#                       file that is not the verified one, a stale Release,
+#                       and a Release with a repeated, lower-case or extra
+#                       field, an extra section or another digest.
+#                       install: accepts the signed index for the repository
+#                       it was built from; refuses another Release, an
+#                       altered index file, an altered signature
+#   release-tags.sh     payloads, sign-payloads, assemble: a tag that
+#                       git tag -v verifies; refuses a payload for another
+#                       commit, an altered payload, an old one, a tag name
+#                       that is not pwsh or pwsh-preview, a title that does
+#                       not name the tag, and a package version Packages
+#                       does not list
 #
 # Usage: test-sign-release.sh
 set -euo pipefail
@@ -116,6 +122,12 @@ mkdir "$T/big"; head -c 2100000 /dev/zero > "$T/big/Release"
 tar -C "$T/big" -czf - Release | base64 -w0 > "$T/big.b64"
 mkdir "$T/b-out7"
 expect refuse "bundle: unpack refuses more than 2000000 bytes" bash -c "bash '$SB' unpack '$T/b-out7' < '$T/big.b64'"
+mkdir "$T/b-out8"
+expect refuse "bundle: unpack refuses an empty bundle" bash -c "bash '$SB' unpack '$T/b-out8' < /dev/null"
+mkdir "$T/b-out9"
+expect refuse "bundle: unpack refuses base64 that is no tar" bash -c "echo hello | base64 | bash '$SB' unpack '$T/b-out9'"
+mkdir "$T/huge"; head -c 700000 /dev/urandom > "$T/huge/Release"
+expect refuse "bundle: pack refuses more than a job output carries" bash "$SB" pack "$T/huge"
 expect refuse "bundle: no sub-command" bash "$SB"
 expect refuse "sign-release: no sub-command" bash "$SR"
 
@@ -139,7 +151,7 @@ expect refuse "sign: a Packages file Release does not list" as_a bash "$SR" sign
 # Release listing a different Packages digest under SHA256: and the right one only under SHA512:
 mkdir "$T/in-sec"; cp "$T/in/Packages" "$T/in-sec/"
 sha=$(sha256_of "$T/in/Packages"); size=$(file_size "$T/in/Packages")
-sed "s/^ $sha $size \(.*Packages\)$/ $(printf 0%.0s {1..64}) $size \1\r/" "$T/in/Release" > "$T/in-sec/Release"
+sed "s/^ $sha $size \(.*Packages\)$/ $(printf 0%.0s {1..64}) $size \1/" "$T/in/Release" > "$T/in-sec/Release"
 printf 'SHA512:\n %s %s %s/Packages\n' "$sha" "$size" "$(repo_index_subdir)" >> "$T/in-sec/Release"
 expect refuse "sign: Packages listed correctly only outside the SHA256 section" as_a bash "$SR" sign "$T/in-sec" "$T/s7b"
 # the same, written with a tab after the colons
@@ -158,6 +170,31 @@ mkdir "$T/in-old"; cp "$T/in/Packages" "$T/in-old/"
 now=$(now_epoch); old=$((now - 3 * SECONDS_PER_DAY))
 sed -e "s/^Date: .*/Date: $(release_date "$old")/" -e "s/^Valid-Until: .*/Valid-Until: $(release_date $((old + 14 * SECONDS_PER_DAY)))/" "$T/in/Release" > "$T/in-old/Release"
 expect refuse "sign: a Release written days ago" as_a bash "$SR" sign "$T/in-old" "$T/s8"
+
+# A Release that is not the one write_release writes for these files is refused,
+# however well formed: apt reads the last of a repeated field and any extra field.
+bad_release() { # <name> <command...>: a copy of in/ whose Release is the command's output
+  local dir=$T/in-$1; shift
+  mkdir "$dir"; cp "$T/in/Packages" "$dir/"
+  "$@" > "$dir/Release"
+}
+bad_release dup cat "$T/in/Release"; printf 'Valid-Until: %s\n' "$(release_date $(( $(now_epoch) + 100 * SECONDS_PER_DAY )))" >> "$T/in-dup/Release"
+expect refuse "sign: a second Valid-Until (apt reads the last)" as_a bash "$SR" sign "$T/in-dup" "$T/s9a"
+bad_release lower cat "$T/in/Release"; echo 'valid-until: Fri, 01 Jan 2100 00:00:00 UTC' >> "$T/in-lower/Release"
+expect refuse "sign: a lower-case field" as_a bash "$SR" sign "$T/in-lower" "$T/s9b"
+bad_release signedby cat "$T/in/Release"; echo 'Signed-By: 0000' >> "$T/in-signedby/Release"
+expect refuse "sign: a Signed-By field" as_a bash "$SR" sign "$T/in-signedby" "$T/s9c"
+bad_release sha512 cat "$T/in/Release"; printf 'SHA512:\n %s 1 x\n' "$(printf 0%.0s {1..128})" >> "$T/in-sha512/Release"
+expect refuse "sign: an extra SHA512 section" as_a bash "$SR" sign "$T/in-sha512" "$T/s9d"
+xzline=$(grep 'Packages.xz$' "$T/in/Release" || true)
+if [ -n "$xzline" ]; then
+  bad_release xz sed "s/^ [0-9a-f]\{64\} \(.*Packages.xz\)$/ $(printf 0%.0s {1..64}) \1/" "$T/in/Release"
+  expect refuse "sign: another digest on the Packages.xz line" as_a bash "$SR" sign "$T/in-xz" "$T/s9e"
+fi
+bad_release gz sed "s/^ [0-9a-f]\{64\} \(.*Packages.gz\)$/ $(printf 0%.0s {1..64}) \1/" "$T/in/Release"
+expect refuse "sign: another digest on the Packages.gz line" as_a bash "$SR" sign "$T/in-gz" "$T/s9f"
+bad_release origin sed 's/^Origin: .*/Origin: evil/' "$T/in/Release"
+expect refuse "sign: another Origin" as_a bash "$SR" sign "$T/in-origin" "$T/s9g"
 
 # --- sign-release.sh install (into the repository the index was built from)
 cp -r "$T/repo" "$T/repo-i"
@@ -187,21 +224,25 @@ rt() { (cd "$T/work" && bash "$RT" "$@"); }
 rt_a() { (cd "$T/work" && SIGN_KEY=$A bash "$RT" "$@"); }
 expect accept "payloads: one per released package" rt payloads "$T/debs" "$HEAD1" "$T/pl"
 check "payloads: pwsh and pwsh-preview, not the keyring package" test "$(find "$T/pl" -type f | wc -l)" -eq 2
-expect accept "sign-payloads: its own payloads" rt_a sign-payloads "$T/pl" "$HEAD1" "$T/pl-signed"
+expect accept "sign-payloads: its own payloads" rt_a sign-payloads "$T/pl" "$HEAD1" "$T/pl-signed" "$T/in/Packages"
 expect accept "assemble: the signed tags" rt assemble "$T/pl-signed"
 check "assemble: pwsh-7.7.1-1 is verified by git tag -v" git -C "$T/work" tag -v pwsh-7.7.1-1 2>/dev/null >/dev/null
 check "assemble: pwsh-preview-7.8.0-preview.1-1 is verified by git tag -v" git -C "$T/work" tag -v pwsh-preview-7.8.0-preview.1-1 2>/dev/null >/dev/null
 expect accept "payloads: nothing for tags that exist" rt payloads "$T/debs" "$HEAD1" "$T/pl-none"
 check "payloads: ... and no file" test -z "$(ls -A "$T/pl-none")"
 git -C "$T/work" tag -d pwsh-7.7.1-1 pwsh-preview-7.8.0-preview.1-1 >/dev/null
-expect refuse "sign-payloads: a payload for another commit" rt_a sign-payloads "$T/pl" "$HEAD2" "$T/x1"
+expect refuse "sign-payloads: a payload for another commit" rt_a sign-payloads "$T/pl" "$HEAD2" "$T/x1" "$T/in/Packages"
 mkdir "$T/pl-alt"; sed 's/^tag pwsh-7.7.1-1$/tag pwsh-9.9.9-1/' "$T/pl/pwsh-7.7.1-1.payload" > "$T/pl-alt/pwsh-7.7.1-1.payload"
-expect refuse "sign-payloads: an altered payload" rt_a sign-payloads "$T/pl-alt" "$HEAD1" "$T/x2"
+expect refuse "sign-payloads: an altered payload" rt_a sign-payloads "$T/pl-alt" "$HEAD1" "$T/x2" "$T/in/Packages"
 mkdir "$T/pl-name"; cp "$T/pl/pwsh-7.7.1-1.payload" "$T/pl-name/evil-1.payload"
-expect refuse "sign-payloads: a tag name that is not pwsh or pwsh-preview" rt_a sign-payloads "$T/pl-name" "$HEAD1" "$T/x3"
+expect refuse "sign-payloads: a tag name that is not pwsh or pwsh-preview" rt_a sign-payloads "$T/pl-name" "$HEAD1" "$T/x3" "$T/in/Packages"
 mkdir "$T/pl-old"; sed "s/ [0-9]\{10\} +0000$/ 1000000000 +0000/" "$T/pl/pwsh-7.7.1-1.payload" > "$T/pl-old/pwsh-7.7.1-1.payload"
-expect refuse "sign-payloads: an old payload" rt_a sign-payloads "$T/pl-old" "$HEAD1" "$T/x4"
-expect refuse "sign-payloads: a stray key" env SIGN_KEY="$C" bash -c "cd '$T/work' && bash '$RT' sign-payloads '$T/pl' '$HEAD1' '$T/x5'"
+expect refuse "sign-payloads: an old payload" rt_a sign-payloads "$T/pl-old" "$HEAD1" "$T/x4" "$T/in/Packages"
+expect refuse "sign-payloads: a stray key" env SIGN_KEY="$C" bash -c "cd '$T/work' && bash '$RT' sign-payloads '$T/pl' '$HEAD1' '$T/x5' '$T/in/Packages'"
+mkdir "$T/pl-title"; sed '6s/.*/pwsh 9.9.9-1/' "$T/pl/pwsh-7.7.1-1.payload" > "$T/pl-title/pwsh-7.7.1-1.payload"
+expect refuse "sign-payloads: a title that does not name the tag" rt_a sign-payloads "$T/pl-title" "$HEAD1" "$T/x6" "$T/in/Packages"
+mkdir "$T/pl-made"; sed -e 's/^tag .*/tag pwsh-8.0.0-1/' -e '6s/.*/pwsh 8.0.0-1/' "$T/pl/pwsh-7.7.1-1.payload" > "$T/pl-made/pwsh-8.0.0-1.payload"
+expect refuse "sign-payloads: a tag for a package version the index does not list" rt_a sign-payloads "$T/pl-made" "$HEAD1" "$T/x7" "$T/in/Packages"
 mkdir "$T/pl-nosig"; cp "$T/pl/pwsh-7.7.1-1.payload" "$T/pl-nosig/"
 expect refuse "assemble: a payload with no signature" rt assemble "$T/pl-nosig"
 

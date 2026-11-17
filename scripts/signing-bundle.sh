@@ -14,36 +14,42 @@ source "$(dirname "$0")/lib/common.sh"
 
 readonly MAX_FILES=40
 readonly MAX_BYTES=2000000
+# GitHub limits the job outputs of a job to 1 MB.
+readonly MAX_ENCODED_CHARS=900000
 readonly NAME_REGEX='^(Release|Packages|InRelease|Release\.gpg|tags/[A-Za-z0-9][A-Za-z0-9._+-]*\.(payload|sig))$'
 
 pack() {
-  local dir=$1 name
+  local dir=$1 name encoded
   local -a names=()
   while IFS= read -r name; do
     [[ "$name" =~ $NAME_REGEX ]] || die "$name may not go in a bundle"
     names+=("$name")
   done < <(cd "$dir" && find . -type f -printf '%P\n' | LC_ALL=C sort)
   [ "${#names[@]}" -gt 0 ] || die "nothing to pack in $dir"
-  tar -C "$dir" -czf - "${names[@]}" | base64 -w0
-  echo
+  encoded=$(tar -C "$dir" -czf - "${names[@]}" | base64 -w0)
+  [ "${#encoded}" -le "$MAX_ENCODED_CHARS" ] || die "the bundle is ${#encoded} characters: more than a job output may carry ($MAX_ENCODED_CHARS)"
+  printf '%s\n' "$encoded"
 }
 
 unpack() {
-  local dir=$1 bundle line total name
-  bundle="$dir.bundle.tgz"
+  local dir=$1 bundle=$1.bundle.tgz listing=$1.bundle.list line name count total
   [ -d "$dir" ] && [ -z "$(ls -A "$dir")" ] || die "$dir must be an empty directory"
   base64 -d > "$bundle" || die "the bundle is not base64"
-  [ "$(tar -tzf "$bundle" | wc -l)" -le "$MAX_FILES" ] || die "the bundle holds more than $MAX_FILES files"
+  tar -tvzf "$bundle" > "$listing" || die "the bundle is not a gzip tar"
+  count=$(wc -l < "$listing")
+  [ "$count" -gt 0 ] || die "the bundle holds no file"
+  [ "$count" -le "$MAX_FILES" ] || die "the bundle holds more than $MAX_FILES files"
   while IFS= read -r line; do
     [ "${line:0:1}" = - ] || die "the bundle holds something that is not a regular file: $line"
-  done < <(tar -tvzf "$bundle")
+  done < "$listing"
+  tar -tzf "$bundle" > "$listing" || die "the bundle is not a gzip tar"
   while IFS= read -r name; do
     [[ "$name" =~ $NAME_REGEX ]] || die "the bundle holds '$name'"
-  done < <(tar -tzf "$bundle")
+  done < "$listing"
   total=$(tar -xzOf "$bundle" | wc -c)
   [ "$total" -le "$MAX_BYTES" ] || die "the bundle unpacks to more than $MAX_BYTES bytes"
   tar -C "$dir" --no-same-owner --no-same-permissions -xzf "$bundle"
-  rm -f "$bundle"
+  rm -f "$bundle" "$listing"
 }
 
 case "${1:-} $#" in

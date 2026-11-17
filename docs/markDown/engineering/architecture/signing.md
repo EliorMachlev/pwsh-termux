@@ -20,14 +20,15 @@ The signer must be the current key, or the next one while `ROTATION` exists. `bu
 
 1. **`verify`** (read-only token, no signing key) runs [`verify-attestation.sh`](../../../../scripts/verify-attestation.sh) on every `.deb` the build uploaded (the keyring package first): `gh attestation verify --repo EliorMachlev/pwsh-termux --signer-workflow …/build-packages.yaml --source-digest <this commit> --deny-self-hosted-runners`. It outputs the keyring package's SHA-256 and the SHA-256 of every `.deb`.
 2. **`assemble`** (no key) runs `build-repo.sh` unsigned and writes the release tag payloads; `Release`, `Packages` and the payloads go to `sign` as a job output ([`signing-bundle.sh`](../../../../scripts/signing-bundle.sh)).
-3. **`sign`** (the only job with the key, no `.deb`, no artifact access) runs [`sign-release.sh`](../../../../scripts/sign-release.sh) with the signing key and `KEYRING_DEB_SHA256` set to that digest, and `release-tags.sh sign-payloads`. `publish` (no key) installs the signatures only if they verify (`sign-release.sh install`, `release-tags.sh assemble`).
+3. **`sign`** (the only job with the key, no `.deb`, no artifact access) runs [`sign-release.sh`](../../../../scripts/sign-release.sh) with the signing key and `KEYRING_DEB_SHA256` set to that digest, and `release-tags.sh sign-payloads` (which signs a tag payload only for a package and version that `Packages` lists, under the tag name its title gives). `publish` (no key) installs the signatures only if they verify (`sign-release.sh install`, `release-tags.sh assemble`).
 
 `sign-release.sh` (given the `Release` and `Packages` files `build-repo.sh` wrote in `assemble`, never a `.deb`) refuses to sign unless:
 
 1. `keys/` passes the key rules and the signing key is an allowed signer;
 2. `Packages` holds exactly one `pwsh-termux-keyring` stanza, with a `SHA256` field equal to `KEYRING_DEB_SHA256` (the digest of the file `verify` attested);
-3. `Packages` lists exactly the `.deb` files `verify` attested (`VERIFIED_DEB_SHA256S`): no other package and none missing, so the key never signs an index of a file with no verified provenance; and `Release` lists that `Packages` file under `SHA256:`;
-4. `InRelease` and `Release.gpg` verify with `gpgv` against `keys/` alone, as apt will.
+3. `Packages` lists exactly the `.deb` files `verify` attested (`VERIFIED_DEB_SHA256S`): no other package and none missing, so the key never signs an index of a file with no verified provenance; and
+4. `Release` is byte for byte what `write_release` (`scripts/lib/common.sh`) writes for that `Packages` (the signer rebuilds `Packages.gz` and `Packages.xz` from it) and `Release`'s own `Date`, which must be under a day old. So it has no repeated or extra field or section (apt reads the last `Valid-Until`, and any extra `SHA512:` section), and every digest in it is the index's own. `publish` makes the same comparison against the index it rebuilds (`sign-release.sh install`);
+5. `InRelease` and `Release.gpg` verify with `gpgv` against `keys/` alone, as apt will.
 
 It then publishes that file unchanged. A secret replaced without changing `keys/`, or the reverse, publishes nothing.
 
