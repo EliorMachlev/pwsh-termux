@@ -22,7 +22,8 @@
 #            window is well formed and fresh (written within the last day);
 #            Packages holds exactly one keyring package, with
 #            KEYRING_DEB_SHA256, and lists exactly the files of
-#            VERIFIED_DEB_SHA256S; and Release is byte for byte the one
+#            VERIFIED_DEB_SHA256S; every stanza has only the fields the build
+#            writes (PACKAGES_FIELDS, common.sh), each once; and Release is byte for byte the one
 #            write_release (common.sh) writes for this Packages (and its .gz
 #            and .xz, which it rebuilds) and Release's Date, so it has no
 #            field or section of its own. It writes InRelease and Release.gpg to <out-dir> and checks them
@@ -77,6 +78,7 @@ check_index_is_verified() {
   [ "$(grep -c . <<<"$keyring_sums")" -eq 1 ] || die "$1 does not hold exactly one $KEYRING_PACKAGE package"
   [ "$keyring_sums" = "$KEYRING_DEB_SHA256" ] \
     || die "the $KEYRING_PACKAGE in $1 is not the file whose provenance was verified (KEYRING_DEB_SHA256)"
+  check_packages_fields "$1"
 }
 
 # check_release_is_rebuilt <Release> <index-dir>: Release is byte for byte

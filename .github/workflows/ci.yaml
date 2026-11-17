@@ -440,7 +440,8 @@ jobs:
           cmp repo/pwsh-termux.gpg keys/pwsh-termux-archive-keyring.gpg
           test -f repo/index.html
           test ! -e repo/markDown
-      # A real signed repository with the real package, through the test-only
+      # A real signed repository with the real package (build-repo.sh, then
+      # sign-release.sh sign and install), through the test-only
       # KEYRING_FILE (the refusals are in the keys job's test-keys.sh).
       - name: Sign with a throwaway key
         run: |
@@ -457,7 +458,14 @@ jobs:
           bash scripts/build-keyring.sh test-debs
           KEYRING_DEB_SHA256=$(sha256sum < test-debs/pwsh-termux-keyring_*_all.deb | cut -d' ' -f1)
           export KEYRING_DEB_SHA256
+          VERIFIED_DEB_SHA256S=$(sha256sum test-debs/*.deb | cut -d' ' -f1)
+          export VERIFIED_DEB_SHA256S
           bash scripts/build-repo.sh test-debs repo-signed
+          dist=repo-signed/dists/stable
+          mkdir signing-in
+          cp "$dist/Release" "$dist/main/binary-aarch64/Packages" signing-in/
+          bash scripts/sign-release.sh sign signing-in signing-out
+          bash scripts/sign-release.sh install signing-out repo-signed
           cmp repo-signed/pwsh-termux-keyring.deb test-debs/pwsh-termux-keyring_*_all.deb
           gpgv --keyring "$KEYRING_FILE" repo-signed/dists/stable/InRelease
           grep -q '^Package: pwsh-termux-keyring$' repo-signed/dists/stable/main/binary-aarch64/Packages

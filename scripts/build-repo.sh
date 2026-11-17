@@ -1,33 +1,17 @@
 #!/usr/bin/env bash
-# Assemble a signed apt repository from .deb files.
+# Assemble an UNSIGNED apt repository from .deb files. Signing is a separate
+# step (sign-release.sh sign, in a job that never sees a .deb; then
+# sign-release.sh install, which checks the signed Release against this
+# repository's index files).
 #
 # Usage: build-repo.sh <debs-dir> <repo-dir>
-# Env:   SIGN_KEY   gpg key id/fingerprint to sign with. If unset the repo is
-#                   left UNSIGNED (fine for local tests, not for publishing).
-#        GPG_PASSPHRASE_FILE  the signing key's passphrase file (first line);
-#                   required for a passphrase-protected key, which otherwise
-#                   fails to sign (gpg never prompts here)
-#        KEYRING_FILE  TEST ONLY: the public keyring to check against and
+# Env:   KEYRING_FILE  TEST ONLY: the public keyring to check against and
 #                   publish instead of keys/pwsh-termux-archive-keyring.gpg
 #                   (for a throwaway key; see docs/markDown/engineering/build.md).
 #
-#        KEYRING_DEB_SHA256  the SHA-256 of the pwsh-termux-keyring .deb in the
-#                   debs folder, as its build provenance was verified by the
-#                   caller (update.yaml: scripts/verify-attestation.sh, in a
-#                   job without the signing key). Required when signing.
-#
-# When signing, it fails closed unless all of these hold:
-#   - the keyring file (keys/) passes check-keys.sh, and the signing key is
-#     its current online key, or, while keys/ROTATION marks a planned
-#     rotation, the next one; a secret replaced without keys/, or the
-#     reverse, stops here;
-#   - the signing key is not the recovery key (keys/RECOVERY), and no secret
-#     for the recovery key is in this gpg home at all (it never belongs in CI);
-#   - the debs folder holds one pwsh-termux-keyring package, and its SHA-256
-#     is KEYRING_DEB_SHA256 (the file whose attestation was verified);
-#   - that package ships exactly the keyring file, byte for byte;
-#   - the signed index verifies against the keyring file with gpgv, as apt will.
-# The package from the debs folder is published as it is.
+# It fails closed unless the keyring file (keys/) passes check-keys.sh, and the
+# keyring package in the debs folder (if any) ships exactly that file, byte
+# for byte. The package is published as it is.
 #
 # Release carries Date and Valid-Until = Date + VALID_UNTIL_DAYS (14) days
 # (scripts/lib/common.sh): apt refuses the index after that, so an old index
@@ -39,7 +23,7 @@
 #
 # Layout (suite "stable", component "main", arch "aarch64"):
 #   repo/pool/main/<pkg>/*.deb
-#   repo/dists/stable/{Release,InRelease,Release.gpg}
+#   repo/dists/stable/Release   (InRelease and Release.gpg come from sign-release.sh)
 #   repo/dists/stable/main/binary-aarch64/Packages{,.gz,.xz}
 #   repo/pwsh-termux.gpg  pwsh-termux.asc   (the keyring file, binary and armored)
 #   repo/pwsh-termux-keyring.deb            (the keyring package under a fixed name)
@@ -59,8 +43,6 @@ readonly DIST_DIR INDEX_DIR RELEASE_FILE
 # Set by find_debs: every .deb, and the keyring package among them (0 or 1).
 debs=()
 keyring_debs=()
-# Set by check_before_signing: the signing key's fingerprint.
-sign_fpr=
 
 find_debs() {
   shopt -s nullglob
@@ -76,21 +58,6 @@ check_keyring_package_contents() {
     deb_ships_keyring "${keyring_debs[0]}" "$KEYRING_FILE" \
       || die "${keyring_debs[0]} does not ship $KEYRING_FILE"
   fi
-}
-
-# The keyring package is the file whose attestation the caller verified.
-check_keyring_package_is_verified() {
-  [ -n "${KEYRING_DEB_SHA256:-}" ] \
-    || die "signing, but KEYRING_DEB_SHA256 (the attestation-verified digest of the keyring package) is not set"
-  [ "$(sha256_of "${keyring_debs[0]}")" = "$KEYRING_DEB_SHA256" ] \
-    || die "${keyring_debs[0]} is not the file whose provenance was verified (KEYRING_DEB_SHA256)"
-}
-
-check_before_signing() {
-  [ "${#keyring_debs[@]}" -eq 1 ] || die "signing, but $DEBS_DIR has no $KEYRING_PACKAGE package (build-keyring.sh)"
-  sign_fpr=$(check_online_signer "$KEYRING_FILE" "$SIGN_KEY")
-  check_keyring_package_is_verified
-  log "keyring package is the verified file; signing key $sign_fpr is the key in $KEYRING_FILE"
 }
 
 # The published key files are the keyring file itself, so the manual install
@@ -142,25 +109,10 @@ write_signable_release() {
   log "Release valid until $(release_field "$RELEASE_FILE" Valid-Until)"
 }
 
-# gpg never prompts (online_gpg_options). A protected key signs only with
-# GPG_PASSPHRASE_FILE (update.yaml writes it from the GPG_PASSPHRASE secret);
-# without it sign_release dies. The passphrase is only ever read from that
-# file, never passed as an argument.
-sign_and_verify_release() {
-  local -a gpg_options
-  online_gpg_options gpg_options
-  sign_release "$DIST_DIR" "${gpg_options[@]}"
-  verify_release_signatures "$DIST_DIR" "$KEYRING_FILE"
-  log "signed with $sign_fpr and verified against $KEYRING_FILE"
-}
-
 main() {
   find_debs
   check_keyring "" >/dev/null
   check_keyring_package_contents
-  if [ -n "${SIGN_KEY:-}" ]; then
-    check_before_signing
-  fi
 
   rm -rf "$REPO_DIR"
   mkdir -p "$REPO_DIR"
@@ -168,11 +120,7 @@ main() {
   write_pool_and_packages
   write_signable_release
 
-  if [ -n "${SIGN_KEY:-}" ]; then
-    sign_and_verify_release
-  else
-    log "WARNING: SIGN_KEY not set, repository is UNSIGNED"
-  fi
+  log "repository is UNSIGNED (sign-release.sh signs it)"
 
   touch "$REPO_DIR/.nojekyll"
   log "repository written to $REPO_DIR"

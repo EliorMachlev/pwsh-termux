@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Tests of the key rules and the publish and recovery checks (check-keys.sh,
-# build-repo.sh, verify-attestation.sh, recovery-sign.sh,
+# build-repo.sh and sign-release.sh, verify-attestation.sh, recovery-sign.sh,
 # verify-recovery-repo.sh, check-index-freshness.sh), and of the index's Valid-Until window (a daily
 # re-sign changes InRelease only), and of signing with a passphrase-protected
 # online key (GPG_PASSPHRASE_FILE), with throwaway Ed25519 keys and a stub
@@ -14,7 +14,7 @@ source "$(dirname "$0")/lib/common.sh"
 
 T=$(mktemp -d)
 trap 'rm -rf "$T"' EXIT
-unset KEYRING_FILE KEYRING_DEB_SHA256 SIGN_KEY SOURCE_DATE_EPOCH GPG_PASSPHRASE_FILE
+unset KEYRING_FILE KEYRING_DEB_SHA256 VERIFIED_DEB_SHA256S SIGN_KEY SOURCE_DATE_EPOCH GPG_PASSPHRASE_FILE
 # Two gpg homes, as in reality: the online keys (CI) and the offline
 # recovery key (the maintainer's machine).
 ONLINE=$T/online OFFLINE=$T/offline
@@ -83,14 +83,29 @@ debs() {
   KEYRING_FILE=$1 bash "$SCRIPTS_DIR/build-keyring.sh" "$d" >/dev/null 2>&1
   printf '%s\n' "$d"
 }
-# publish <keyring-file> <signer> [debs-dir]: build-repo.sh as the publish job
-# runs it, with the keyring package's digest as the verify job would pass it.
+# publish_to <keyring-file> <signer> <debs-dir> <repo-dir>: the publish
+# pipeline in order, to a known folder: build-repo.sh (unsigned, the assemble
+# job), sign-release.sh sign (the signing job, given the digests the verify job
+# would pass), sign-release.sh install (the publish job).
+publish_to() {
+  local keyring_file=$1 signer=$2 d=$3 repo=$4 w dist f
+  local deb=("$d"/"$KEYRING_PACKAGE"_*_all.deb) verified
+  verified=$(for f in "$d"/*.deb; do sha256_of "$f"; done)
+  w=$(mktemp -d -p "$T")
+  dist=$(repo_dist_dir "$repo")
+  KEYRING_FILE=$keyring_file bash "$SCRIPTS_DIR/build-repo.sh" "$d" "$repo" || return
+  mkdir "$w/in"
+  cp "$dist/Release" "$dist/$(repo_index_subdir)/Packages" "$w/in/"
+  KEYRING_FILE=$keyring_file SIGN_KEY=$signer KEYRING_DEB_SHA256=$(sha256_of "${deb[0]}") VERIFIED_DEB_SHA256S=$verified \
+    bash "$SCRIPTS_DIR/sign-release.sh" sign "$w/in" "$w/signed" || return
+  KEYRING_FILE=$keyring_file KEYRING_DEB_SHA256=$(sha256_of "${deb[0]}") VERIFIED_DEB_SHA256S=$verified \
+    bash "$SCRIPTS_DIR/sign-release.sh" install "$w/signed" "$repo"
+}
+# publish <keyring-file> <signer> [debs-dir]: the same, to a new folder.
 publish() {
   local keyring_file=$1 signer=$2 d=${3:-}
   [ -n "$d" ] || d=$(debs "$keyring_file")
-  local deb=("$d"/"$KEYRING_PACKAGE"_*_all.deb)
-  KEYRING_FILE=$keyring_file SIGN_KEY=$signer KEYRING_DEB_SHA256=$(sha256_of "${deb[0]}") \
-    bash "$SCRIPTS_DIR/build-repo.sh" "$d" "$(mktemp -d -p "$T")/repo"
+  publish_to "$keyring_file" "$signer" "$d" "$(mktemp -d -p "$T")/repo"
 }
 
 # publish_in <gpg-home> <keyring-file> <signer> [debs-dir]: publish from another gpg home.
@@ -120,7 +135,7 @@ expect refuse "secret key material"                       ck "$T/secret.gpg"
 gpg --batch --armor --export "$A" > "$T/armored.gpg"
 expect refuse "an armored key"                            ck "$T/armored.gpg"
 
-echo "== build-repo.sh: who may sign"
+echo "== sign-release.sh: who may sign"
 expect accept "{online}: the online key signs"            publish "$(kr s1)" "$A"
 expect refuse "{online}: another key signs"               publish "$(kr s1)" "$B"
 expect accept "{online, recovery}: the online key signs"  publish "$(kr s2)" "$A"
@@ -139,10 +154,10 @@ expect refuse "a stale ROTATION"                          publish "$(kr s10)" "$
 expect refuse "a ROTATION naming a missing key"           publish "$(kr s9)" "$A"
 expect refuse "the production keys/ with a test signer"   publish "$DEFAULT_KEYRING_FILE" "$A"
 
-echo "== build-repo.sh: a passphrase-protected online key"
+echo "== sign-release.sh: a passphrase-protected online key"
 # Its own gpg home and agent, as the publish job has: a key with a passphrase,
 # imported with gpg --batch --import (no passphrase needed for that), then
-# signed with through build-repo.sh -> sign_release, as update.yaml does. The
+# signed with through sign-release.sh sign, as update.yaml does. The
 # agent is restarted before each run, so a cached passphrase cannot help.
 PROT=$T/protected
 mkdir -m 700 "$PROT" "$T/pass"
@@ -190,16 +205,25 @@ expect accept "an unprotected key ignores a passphrase file" \
   with_passphrase "$T/pass/right" publish "$(kr s1)" "$A"
 forget
 
-echo "== build-repo.sh: which keyring package"
+echo "== build-repo.sh and sign-release.sh: which keyring package"
 other=$(debs "$(keyring s15 "$B")")
 expect refuse "a package that ships another key"          publish "$(kr s1)" "$A" "$other"
 good=$(debs "$(kr s1)")
-expect refuse "a package that is not the verified file" \
-  env KEYRING_FILE="$(kr s1)" SIGN_KEY="$A" KEYRING_DEB_SHA256=0000 \
-  bash "$SCRIPTS_DIR/build-repo.sh" "$good" "$T/repo-x"
-expect refuse "a package without a verified digest" \
-  env KEYRING_FILE="$(kr s1)" SIGN_KEY="$A" \
-  bash "$SCRIPTS_DIR/build-repo.sh" "$good" "$T/repo-y"
+# sign_digest <keyring-file> <debs-dir> <KEYRING_DEB_SHA256|->: sign-release.sh
+# sign over that folder's index, with that keyring digest (- leaves it unset).
+sign_digest() (
+  local f=$1 d=$2 sum=$3 w verified x dist
+  w=$(mktemp -d -p "$T")
+  KEYRING_FILE=$f bash "$SCRIPTS_DIR/build-repo.sh" "$d" "$w/repo" || return
+  dist=$(repo_dist_dir "$w/repo")
+  mkdir "$w/in"
+  cp "$dist/Release" "$dist/$(repo_index_subdir)/Packages" "$w/in/"
+  verified=$(for x in "$d"/*.deb; do sha256_of "$x"; done)
+  if [ "$sum" = - ]; then unset KEYRING_DEB_SHA256; else export KEYRING_DEB_SHA256=$sum; fi
+  KEYRING_FILE=$f SIGN_KEY=$A VERIFIED_DEB_SHA256S=$verified bash "$SCRIPTS_DIR/sign-release.sh" sign "$w/in" "$w/signed"
+)
+expect refuse "a package that is not the verified file"   sign_digest "$(kr s1)" "$good" 0000000000000000000000000000000000000000000000000000000000000000
+expect refuse "a package without a verified digest"       sign_digest "$(kr s1)" "$good" -
 expect accept "the verified package"                      publish "$(kr s1)" "$A" "$good"
 
 echo "== verify-attestation.sh (stub gh)"
@@ -251,12 +275,6 @@ cp "$(kr s1)" "$(repo_key_file "$T/oldkey")"
 expect refuse "a published key file that is not keys/"    verify_recovery "$new" "$T/oldkey"
 
 echo "== Valid-Until: a bounded window, and a re-sign changes InRelease only"
-# publish_to <keyring-file> <signer> <debs-dir> <repo-dir>: publish, to a known folder.
-publish_to() {
-  local deb=("$3"/"$KEYRING_PACKAGE"_*_all.deb)
-  KEYRING_FILE=$1 SIGN_KEY=$2 KEYRING_DEB_SHA256=$(sha256_of "${deb[0]}") \
-    bash "$SCRIPTS_DIR/build-repo.sh" "$3" "$4"
-}
 # same_bytes <file> <file>, differ <file> <file>
 same_bytes() { cmp -s "$1" "$2"; }
 differ() { ! cmp -s "$1" "$2"; }

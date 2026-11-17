@@ -12,7 +12,7 @@ Which keys may sign the [apt index](repository.md#signing), what is checked befo
 
 Allowed shapes: `{current}`, `{current, recovery}`, `{current, next}`, `{current, next, recovery}`. A stray key, a marker naming a missing key, or a `ROTATION` marker whose key is the only online key left (stale) fails.
 
-The signer must be the current key, or the next one while `ROTATION` exists. `build-repo.sh` refuses the recovery key, and refuses to sign at all if its secret is in the same gpg home. The key is Ed25519 (OpenPGP v4); fingerprint in [SECURITY.md](../../../../SECURITY.md#signing-key).
+The signer must be the current key, or the next one while `ROTATION` exists. `sign-release.sh` and `release-tags.sh` refuse the recovery key, and refuse to sign at all if its secret is in the same gpg home. The key is Ed25519 (OpenPGP v4); fingerprint in [SECURITY.md](../../../../SECURITY.md#signing-key).
 
 ## Publish checks
 
@@ -26,7 +26,7 @@ The signer must be the current key, or the next one while `ROTATION` exists. `bu
 
 1. `keys/` passes the key rules and the signing key is an allowed signer;
 2. `Packages` holds exactly one `pwsh-termux-keyring` stanza, with a `SHA256` field equal to `KEYRING_DEB_SHA256` (the digest of the file `verify` attested);
-3. `Packages` lists exactly the `.deb` files `verify` attested (`VERIFIED_DEB_SHA256S`): no other package and none missing, so the key never signs an index of a file with no verified provenance; and
+3. `Packages` lists exactly the `.deb` files `verify` attested (`VERIFIED_DEB_SHA256S`): no other package and none missing, so the key never signs an index of a file with no verified provenance, and each stanza has only the fields the build writes (`PACKAGES_FIELDS`), each once, with a `Filename` inside `pool/`, so a `.deb`'s own control file cannot put a field of its own into the signed index; and
 4. `Release` is byte for byte what `write_release` (`scripts/lib/common.sh`) writes for that `Packages` (the signer rebuilds `Packages.gz` and `Packages.xz` from it) and `Release`'s own `Date`, which must be under a day old. So it has no repeated or extra field or section (apt reads the last `Valid-Until`, and any extra `SHA512:` section), and every digest in it is the index's own. `publish` makes the same comparison against the index it rebuilds (`sign-release.sh install`);
 5. `InRelease` and `Release.gpg` verify with `gpgv` against `keys/` alone, as apt will.
 

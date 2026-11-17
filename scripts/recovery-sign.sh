@@ -7,7 +7,7 @@
 # ("Recovery with the offline key").
 #
 # Usage: recovery-sign.sh <repo-dir>
-#   <repo-dir> is the output of build-repo.sh run WITHOUT SIGN_KEY, from the
+#   <repo-dir> is the output of build-repo.sh (it never signs), from the
 #   current packages and a pwsh-termux-keyring built from the new keys/.
 # Env:   KEYRING_FILE  TEST ONLY: instead of keys/pwsh-termux-archive-keyring.gpg
 #        GPG_PASSPHRASE_FILE  optional; otherwise gpg asks for the passphrase

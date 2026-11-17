@@ -6,14 +6,13 @@
 # `gh release create --verify-tag`, so gh never creates a lightweight one.
 #
 # Usage: release-tags.sh name <deb>
-#        release-tags.sh sign <debs-dir> <commit>
 #        release-tags.sh verify <tag>
 #        release-tags.sh push <tag> <remote>
 #        release-tags.sh payloads <debs-dir> <commit> <out-dir>
 #        release-tags.sh sign-payloads <in-dir> <commit> <out-dir> <Packages>
 #        release-tags.sh assemble <dir>
-# Env:   SIGN_KEY      (sign) the online key's id or fingerprint
-#        GPG_PASSPHRASE_FILE  (sign) its passphrase file, as for build-repo.sh
+# Env:   SIGN_KEY      (sign-payloads) the online key's id or fingerprint
+#        GPG_PASSPHRASE_FILE  (sign-payloads) its passphrase file, as for build-repo.sh
 #        GH_TOKEN      (push) the job's GITHUB_TOKEN (contents: write); git
 #                      gets it from `gh auth git-credential`, so it is never
 #                      in an argument, a file or .git/config
@@ -23,15 +22,8 @@
 #   name    the release tag of a pwsh or pwsh-preview .deb:
 #           <package>-<version>, '~' written as '-' (a git tag cannot hold
 #           '~'): pwsh-7.7.0-1, pwsh-preview-7.8.0-preview.1-1
-#   sign    for each pwsh or pwsh-preview .deb in the folder whose tag this
-#           clone does not have yet (update.yaml's checkout has every tag),
-#           writes the tag object with git mktag, signed as `git tag -s`
-#           signs (an armored detached signature by SIGN_KEY appended to the
-#           payload), tagger github-actions[bot]; checks it as verify does;
-#           only then creates refs/tags/<tag>. An existing tag is left alone
-#           (the Tag Protection ruleset forbids moving one).
 #   payloads, sign-payloads, assemble
-#           `sign` in three steps, so the key can live in a job that never
+#           Signing in three steps, so the key can live in a job that never
 #           sees a .deb: payloads (no key) writes <tag>.payload for each
 #           package that has no tag yet; sign-payloads (the key; <commit>
 #           is the run's commit) checks that each payload is exactly what
@@ -149,13 +141,6 @@ attach_signature() {
   log "signed $tag on $commit with $fingerprint"
 }
 
-# sign_tag <commit> <tag> <title>: create refs/tags/<tag>, signed, on the commit.
-sign_tag() {
-  write_tag_payload "$1" "$2" "$3" "$(now_epoch)" "$W/sign-payload"
-  sign_payload "$W/sign-payload" "$W/sign-signature"
-  attach_signature "$W/sign-payload" "$W/sign-signature" "$2" "$1"
-}
-
 # For each released package in the folder whose tag this clone lacks:
 # "<tag><TAB><title>" lines.
 unreleased_tags() {
@@ -252,15 +237,6 @@ assemble_tags() {
   done
 }
 
-sign_tags() {
-  local debs_dir=$1 commit tag title
-  [ -n "${SIGN_KEY:-}" ] || die "SIGN_KEY is not set"
-  commit=$(git rev-parse --verify --quiet --end-of-options "$2^{commit}") || die "$2 is not a commit here"
-  while IFS=$'\t' read -r tag title; do
-    sign_tag "$commit" "$tag" "$title"
-  done < <(unreleased_tags "$debs_dir")
-}
-
 # git_auth <git-argument...>: git with gh as the credential helper for https
 # remotes (gh reads GH_TOKEN from the environment). A file:// remote needs none.
 git_auth() {
@@ -292,11 +268,10 @@ push_tag() {
 
 case "${1:-} $#" in
   "name 2") release_tag_name "$2" ;;
-  "sign 3") sign_tags "$2" "$3" ;;
   "verify 2") verify_tag_object "refs/tags/$2" "$2" ;;
   "push 3") push_tag "$2" "$3" ;;
   "payloads 4") write_payloads "$2" "$3" "$4" ;;
   "sign-payloads 5") sign_payloads "$2" "$3" "$4" "$5" ;;
   "assemble 2") assemble_tags "$2" ;;
-  *) die "usage: release-tags.sh name <deb> | sign <debs-dir> <commit> | verify <tag> | push <tag> <remote> | payloads <debs-dir> <commit> <out-dir> | sign-payloads <in-dir> <commit> <out-dir> <Packages> | assemble <dir>" ;;
+  *) die "usage: release-tags.sh name <deb> | verify <tag> | push <tag> <remote> | payloads <debs-dir> <commit> <out-dir> | sign-payloads <in-dir> <commit> <out-dir> <Packages> | assemble <dir>" ;;
 esac

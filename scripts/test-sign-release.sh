@@ -166,6 +166,23 @@ mkdir "$T/in-nosum"
 nsha=$(sha256_of "$T/in-nosum/Packages"); nsize=$(file_size "$T/in-nosum/Packages")
 sed "s/^ $sha $size / $nsha $nsize /" "$T/in/Release" > "$T/in-nosum/Release"
 expect refuse "sign: a second keyring stanza with no SHA256 field" as_a bash "$SR" sign "$T/in-nosum" "$T/s7c"
+# A field the build does not write, one written twice, or a Filename outside
+# pool/: the .deb's own control file is copied into Packages, so it could carry them.
+packages_variant() { # <name> <sed-script>: a copy of in/ whose Packages went through sed
+  local dir=$T/in-pk-$1
+  mkdir "$dir"; cp "$T/in/Release" "$dir/"
+  sed "$2" "$T/in/Packages" > "$dir/Packages"
+}
+packages_variant field '0,/^Description:/s//Replaces: bash\n&/'
+expect refuse "sign: a field the build does not write (Replaces)" as_a bash "$SR" sign "$T/in-pk-field" "$T/s7e"
+packages_variant twice '0,/^Size:.*/s//&\n&/'
+expect refuse "sign: a field written twice (Size)" as_a bash "$SR" sign "$T/in-pk-twice" "$T/s7f"
+packages_variant dots 's#^Filename: pool/#Filename: pool/../#'
+expect refuse "sign: a Filename that climbs out of pool/" as_a bash "$SR" sign "$T/in-pk-dots" "$T/s7g"
+packages_variant outside 's#^Filename: pool/#Filename: dists/#'
+expect refuse "sign: a Filename outside pool/" as_a bash "$SR" sign "$T/in-pk-outside" "$T/s7h"
+packages_variant lower 's/^Priority:/priority:/'
+expect refuse "sign: a field name in lower case" as_a bash "$SR" sign "$T/in-pk-lower" "$T/s7i"
 mkdir "$T/in-old"; cp "$T/in/Packages" "$T/in-old/"
 now=$(now_epoch); old=$((now - 3 * SECONDS_PER_DAY))
 sed -e "s/^Date: .*/Date: $(release_date "$old")/" -e "s/^Valid-Until: .*/Valid-Until: $(release_date $((old + 14 * SECONDS_PER_DAY)))/" "$T/in/Release" > "$T/in-old/Release"

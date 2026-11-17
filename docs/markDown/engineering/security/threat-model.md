@@ -43,7 +43,7 @@ GitHub disables a public repository's schedules after 60 days without activity, 
 
 ## Forged or moved release tag
 
-- **Mitigation.** Each release sits on an annotated tag signed with the online key, on the commit that built it. [`release-tags.sh`](../../../../scripts/release-tags.sh) makes it in the signing step and checks it with `gpgv` against `keys/` before the push; `gh release create --verify-tag` refuses a missing tag. *Tag Protection* forbids moving or deleting tags, and releases are immutable. Users check with `git tag -v` ([SECURITY.md](../../../../SECURITY.md#verifying-a-release-tag), [signed release tags](../release/tags.md)).
+- **Mitigation.** Each release sits on an annotated tag signed with the online key, on the commit that built it. [`release-tags.sh`](../../../../scripts/release-tags.sh) signs its payload in the signing step, makes it in `publish` and checks it with `gpgv` against `keys/` before the push; `gh release create --verify-tag` refuses a missing tag. *Tag Protection* forbids moving or deleting tags, and releases are immutable. Users check with `git tag -v` ([SECURITY.md](../../../../SECURITY.md#verifying-a-release-tag), [signed release tags](../release/tags.md)).
 - **Left over.** GitHub does not verify tag signatures on push. Anyone with the signing key or tag write access can create a new tag name.
 
 ## Wrong key in the keyring package

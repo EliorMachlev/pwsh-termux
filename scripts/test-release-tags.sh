@@ -5,7 +5,8 @@
 #
 #   name    the tag of a pwsh and a pwsh-preview package ('~' as '-'); the
 #           keyring package refused
-#   sign    an annotated tag per package, on the given commit, tagger
+#   sign    (payloads, then sign-payloads, then assemble: the three steps of
+#           update.yaml) an annotated tag per package, on the given commit, tagger
 #           github-actions[bot], verified by gpgv and by `git tag -v` (the
 #           user's check), none for the keyring package; an existing tag
 #           left as it is; the next key during a rotation accepted; a
@@ -134,13 +135,29 @@ git clone -q "file://$REMOTE" "$OTHER"
 
 # rt <command> <argument...>: release-tags.sh in the work repository.
 rt() { (cd "$WORK" && bash "$RT" "$@"); }
-# rt_env <NAME=value...> -- <command> <argument...>: the same, with those
-# variables set.
-rt_env() {
-  local -a vars=()
-  while [ "$1" != -- ]; do vars+=("$1"); shift; done
+# with <NAME=value...> -- <command> <argument...>: the command (a function
+# too) with those variables set, in a subshell.
+with() (
+  while [ "$1" != -- ]; do export "${1?}"; shift; done
   shift
-  (cd "$WORK" && env "${vars[@]}" bash "$RT" "$@")
+  "$@"
+)
+# packages_of <debs-dir>: a Packages file listing each .deb's package and version.
+packages_of() {
+  local f
+  for f in "$1"/*.deb; do dpkg-deb -f "$f" Package Version; echo; done
+}
+# rt_sign <debs-dir> <commit>: tags for the packages that have none, as
+# update.yaml makes them: payloads (no key), sign-payloads (the key, given the
+# index), assemble (no key).
+rt_sign() {
+  local w id
+  w=$(mktemp -d -p "$T")
+  id=$(in_work rev-parse --verify --quiet "$2^{commit}") || { echo "ERROR: $2 is not a commit" >&2; return 1; }
+  rt payloads "$1" "$2" "$w/payloads" || return
+  packages_of "$1" > "$w/Packages"
+  rt sign-payloads "$w/payloads" "$id" "$w/signed" "$w/Packages" || return
+  rt assemble "$w/signed"
 }
 # as <keyring> <signer> <command...>: with KEYRING_FILE and SIGN_KEY.
 as() { KEYRING_FILE=$1 SIGN_KEY=$2 "${@:3}"; }
@@ -175,7 +192,7 @@ check  "  ... has '~' as '-'"                   same "$(cat "$T/out.log")" pwsh-
 expect refuse "the keyring package"             rt name "$T/debs/${KEYRING_PACKAGE}_1_all.deb"
 
 echo "== sign"
-expect accept "sign the packages on a commit"   as "$KR" "$A" rt sign "$T/debs" HEAD
+expect accept "sign the packages on a commit"   as "$KR" "$A" rt_sign "$T/debs" HEAD
 for tag in pwsh-7.7.1-1 pwsh-preview-7.8.0-preview.1-1; do
   check "  $tag is an annotated tag"            same "$(in_work cat-file -t "refs/tags/$tag")" tag
   check "  ... on the commit"                   same "$(in_work rev-parse "refs/tags/$tag^{commit}")" "$HEAD1"
@@ -193,22 +210,22 @@ expect accept "git tag -v with the published key (the user's check)" \
   env GNUPGHOME="$USER_HOME" git -C "$WORK" tag -v pwsh-7.7.1-1
 check  "  ... reports a good signature by it"   grep -q "Good signature from \"a <a@example.invalid>\"" "$T/err.log"
 before=$(tag_object pwsh-7.7.1-1)
-expect accept "sign again"                      as "$KR" "$A" rt sign "$T/debs" HEAD
+expect accept "sign again"                      as "$KR" "$A" rt_sign "$T/debs" HEAD
 check  "  ... leaves the existing tag as it is" same "$(tag_object pwsh-7.7.1-1)" "$before"
-expect accept "the next key, during a rotation" as "$KR_ROT" "$B" rt sign "$T/debs1" HEAD
-expect refuse "a stray key"                     as "$KR" "$C" rt sign "$T/debs2" HEAD
+expect accept "the next key, during a rotation" as "$KR_ROT" "$B" rt_sign "$T/debs1" HEAD
+expect refuse "a stray key"                     as "$KR" "$C" rt_sign "$T/debs2" HEAD
 check  "  ... leaves no tag"                    not has_tag pwsh-7.7.3-1
-expect refuse "the recovery key"                rt_env GNUPGHOME="$OFFLINE" KEYRING_FILE="$KR" SIGN_KEY="$R" -- sign "$T/debs2" HEAD
+expect refuse "the recovery key"                with GNUPGHOME="$OFFLINE" KEYRING_FILE="$KR" SIGN_KEY="$R" -- rt_sign "$T/debs2" HEAD
 check  "  ... leaves no tag"                    not has_tag pwsh-7.7.3-1
-expect refuse "a protected key without GPG_PASSPHRASE_FILE" as "$KR_P" "$P" rt sign "$T/debs2" HEAD
+expect refuse "a protected key without GPG_PASSPHRASE_FILE" as "$KR_P" "$P" rt_sign "$T/debs2" HEAD
 expect refuse "a protected key with an empty GPG_PASSPHRASE_FILE" \
-  rt_env GPG_PASSPHRASE_FILE="$T/empty-passphrase" KEYRING_FILE="$KR_P" SIGN_KEY="$P" -- sign "$T/debs2" HEAD
+  with GPG_PASSPHRASE_FILE="$T/empty-passphrase" KEYRING_FILE="$KR_P" SIGN_KEY="$P" -- rt_sign "$T/debs2" HEAD
 check  "  ... leaves no tag"                    not has_tag pwsh-7.7.3-1
 gpgconf --kill gpg-agent   # forget a cached passphrase
 expect accept "a protected key with GPG_PASSPHRASE_FILE" \
-  rt_env GPG_PASSPHRASE_FILE="$T/passphrase" KEYRING_FILE="$KR_P" SIGN_KEY="$P" -- sign "$T/debs2" HEAD
-expect refuse "no SIGN_KEY"                     rt_env KEYRING_FILE="$KR" -- sign "$T/debs3" HEAD
-expect refuse "not a commit"                    as "$KR" "$A" rt sign "$T/debs3" no-such-commit
+  with GPG_PASSPHRASE_FILE="$T/passphrase" KEYRING_FILE="$KR_P" SIGN_KEY="$P" -- rt_sign "$T/debs2" HEAD
+expect refuse "no SIGN_KEY"                     with KEYRING_FILE="$KR" -- rt_sign "$T/debs3" HEAD
+expect refuse "not a commit"                    as "$KR" "$A" rt_sign "$T/debs3" no-such-commit
 check  "  ... leaves no tag"                    not has_tag pwsh-7.7.4-1
 
 echo "== verify"
@@ -240,19 +257,19 @@ check  "  ... says so"                          grep -q 'has pwsh-7.7.1-1 alread
 expect refuse "an unsigned tag"                 as "$KR" "$A" rt push unsigned-1 origin
 check  "  ... is not pushed"                    not has_remote_tag unsigned-1
 # The remote holds another object under the name of a local tag.
-as "$KR" "$A" rt sign "$T/debs4" HEAD 2>/dev/null
+as "$KR" "$A" rt_sign "$T/debs4" HEAD 2>/dev/null
 in_work push -q origin good-1
 git --git-dir="$REMOTE" update-ref refs/tags/pwsh-7.7.5-1 "$(remote_tag good-1)"
 expect refuse "the remote has another tag of that name" as "$KR" "$A" rt push pwsh-7.7.5-1 origin
 # main moves on without a workflow change: still pushed.
-as "$KR" "$A" rt sign "$T/debs5" HEAD 2>/dev/null
+as "$KR" "$A" rt_sign "$T/debs5" HEAD 2>/dev/null
 echo two > "$OTHER/file"
 git -C "$OTHER" commit -q -am two
 git -C "$OTHER" push -q origin main
 expect accept "main moved, the same workflows"  as "$KR" "$A" rt push pwsh-7.7.6-1 origin
 check  "  ... pushed"                           has_remote_tag pwsh-7.7.6-1
 # main moves on with a workflow change: GitHub would refuse the token's push.
-as "$KR" "$A" rt sign "$T/debs6" HEAD 2>/dev/null
+as "$KR" "$A" rt_sign "$T/debs6" HEAD 2>/dev/null
 echo 'name: w2' > "$OTHER/.github/workflows/w.yaml"
 git -C "$OTHER" commit -q -am three
 git -C "$OTHER" push -q origin main

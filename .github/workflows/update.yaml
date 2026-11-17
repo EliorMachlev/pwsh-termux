@@ -274,6 +274,10 @@ jobs:
         uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a # v2.22.4
         with:
           # Artifacts and logs live in Azure storage accounts GitHub names itself.
+          # Two steps need them: download-artifact (the .debs) and
+          # upload-pages-artifact (the site). harden-runner's policy is per
+          # job, not per step, and the .debs reach any job only as an artifact,
+          # so this job needs the wildcard; deploy-pages (below) is its own job.
           egress-policy: block
           allowed-endpoints: >
             github.com:443

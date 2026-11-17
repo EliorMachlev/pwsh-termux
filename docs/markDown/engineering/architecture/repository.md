@@ -1,9 +1,9 @@
 # The apt repository
 
-[`scripts/build-repo.sh`](../../../../scripts/build-repo.sh) builds a repository from a folder of `.deb` files:
+[`scripts/build-repo.sh`](../../../../scripts/build-repo.sh) builds an unsigned repository from a folder of `.deb` files; [`sign-release.sh`](../../../../scripts/sign-release.sh) signs its `Release` ([signing](signing.md)):
 
 ```bash
-SIGN_KEY=<fingerprint> bash scripts/build-repo.sh debs repo
+bash scripts/build-repo.sh debs repo
 ```
 
 ## Layout
@@ -41,7 +41,7 @@ Termux has neither `dpkg-scanpackages` nor `apt-ftparchive`, so the index is wri
 
 ## Signing
 
-With `SIGN_KEY` set, the script writes `InRelease` (`gpg --clearsign`, preferred by apt) and `Release.gpg` (`gpg -abs`); without it, it warns that the result is unsigned (local tests only), and [`update.yaml`](../../../../.github/workflows/update.yaml) fails. The public key comes from Git, not the secret: `keys/pwsh-termux-archive-keyring.gpg` is published byte for byte as `pwsh-termux.gpg` and armored as `pwsh-termux.asc`. Key rules, pre-signing checks, rotation and recovery: [signing](signing.md).
+`build-repo.sh` writes no signature. `sign-release.sh sign` (in [`update.yaml`](../../../../.github/workflows/update.yaml)'s `sign` job) writes `InRelease` (`gpg --clearsign`, preferred by apt) and `Release.gpg` (`gpg -abs`), and `install` adds them to the repository the `publish` job rebuilds. The public key comes from Git, not the secret: `keys/pwsh-termux-archive-keyring.gpg` is published byte for byte as `pwsh-termux.gpg` and armored as `pwsh-termux.asc`. Key rules, pre-signing checks, rotation and recovery: [signing](signing.md).
 
 ## The keyring package
 

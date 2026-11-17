@@ -186,7 +186,7 @@ read_fingerprint_marker() {
 # ---------------------------------------------------------------------------
 
 # online_gpg_options <array-name>: set the named array to the options gpg
-# signs with as the online key (build-repo.sh, release-tags.sh): --batch and
+# signs with as the online key (sign-release.sh, release-tags.sh): --batch and
 # --pinentry-mode loopback, so gpg never prompts; SIGN_KEY as the signer; and,
 # when GPG_PASSPHRASE_FILE is set (update.yaml writes it from the
 # GPG_PASSPHRASE secret), the passphrase read from that file, never from an
@@ -260,6 +260,10 @@ verify_release_signatures() {
 # be replayed to users for longer than this. The daily update.yaml run
 # re-signs the index, which moves the window on.
 readonly VALID_UNTIL_DAYS=14
+# The fields a Packages stanza may hold: those build-deb.sh and
+# build-keyring.sh put in a control file, and the ones build-repo.sh adds.
+# sign-release.sh refuses any other.
+readonly PACKAGES_FIELDS="Package Version Architecture Maintainer Installed-Size Depends Section Priority Homepage Description Filename Size MD5sum SHA256"
 # Fewer days left than this is stale: the staleness monitor opens an issue,
 # and a recovery-signed index with less is not signed or deployed.
 readonly VALID_UNTIL_WARN_DAYS=7
@@ -461,6 +465,26 @@ write_index_archives() {
   if command -v xz >/dev/null; then
     xz -9ke "$1"
   fi
+}
+
+# check_packages_fields <Packages>: each stanza holds only the fields the
+# build writes (PACKAGES_FIELDS), each once, and a Filename inside pool/. A
+# .deb's control file is copied into Packages as it is, so a field of its own
+# (a second Filename or SHA256, a Replaces, a Pre-Depends on another package)
+# would otherwise be signed.
+check_packages_fields() {
+  awk -v allowed="$PACKAGES_FIELDS" '
+    BEGIN { RS = ""; FS = "\n"; n = split(allowed, list, " "); for (i = 1; i <= n; i++) ok[list[i]] = 1 }
+    { delete seen
+      for (i = 1; i <= NF; i++) {
+        if ($i ~ /^[ \t]/) continue
+        name = $i; sub(/:.*/, "", name)
+        if ($i !~ /^[A-Za-z][A-Za-z0-9-]*:/ || !(name in ok)) { print "field not allowed: " $i > "/dev/stderr"; bad = 1; continue }
+        if (name in seen) { print "field repeated: " name > "/dev/stderr"; bad = 1 }
+        seen[name] = 1
+        if (name == "Filename" && ($i !~ /^Filename: pool\/[A-Za-z0-9._+~\/-]+$/ || $i ~ /\.\./)) { print "Filename outside pool/: " $i > "/dev/stderr"; bad = 1 }
+      } }
+    END { exit bad }' "$1" || die "$1 holds a field or a Filename that the build does not write"
 }
 
 # write_release <dist-dir> <epoch>: <dist-dir>/Release for the Packages files
