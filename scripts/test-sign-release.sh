@@ -26,7 +26,7 @@ source "$(dirname "$0")/lib/common.sh"
 T=$(mktemp -d)
 trap 'rm -rf "$T"' EXIT
 SR=$SCRIPTS_DIR/sign-release.sh SB=$SCRIPTS_DIR/signing-bundle.sh RT=$SCRIPTS_DIR/release-tags.sh
-unset KEYRING_FILE SIGN_KEY GPG_PASSPHRASE_FILE KEYRING_DEB_SHA256 GIT_DIR GIT_WORK_TREE
+unset KEYRING_FILE SIGN_KEY GPG_PASSPHRASE_FILE KEYRING_DEB_SHA256 VERIFIED_DEB_SHA256S GIT_DIR GIT_WORK_TREE
 ONLINE=$T/online OFFLINE=$T/offline
 mkdir -m 700 "$ONLINE" "$OFFLINE"
 export GNUPGHOME=$ONLINE
@@ -76,6 +76,8 @@ deb "$T/debs" pwsh-preview '7.8.0~preview.1-1'
 bash "$SCRIPTS_DIR/build-keyring.sh" "$T/debs" >/dev/null 2>&1
 KEYRING_DEB_SHA256=$(sha256_of "$T/debs/${KEYRING_PACKAGE}"_*_all.deb)
 export KEYRING_DEB_SHA256
+VERIFIED_DEB_SHA256S=$(for f in "$T"/debs/*.deb; do sha256_of "$f"; done)
+export VERIFIED_DEB_SHA256S
 
 # --- the unsigned index, as the assemble job writes it
 bash "$SCRIPTS_DIR/build-repo.sh" "$T/debs" "$T/repo" >/dev/null 2>&1
@@ -127,6 +129,10 @@ GNUPGHOME=$OFFLINE gpg --batch --export-secret-keys "$R" | GNUPGHOME="$T/both" g
 expect refuse "sign: the online key, with the recovery secret in the same gpg home" env GNUPGHOME="$T/both" SIGN_KEY="$A" bash "$SR" sign "$T/in" "$T/s3b"
 expect refuse "sign: no SIGN_KEY" bash "$SR" sign "$T/in" "$T/s4"
 expect refuse "sign: another keyring digest" as_a env KEYRING_DEB_SHA256="$(printf 0%.0s {1..64})" bash "$SR" sign "$T/in" "$T/s5"
+expect refuse "sign: no list of verified digests" as_a env -u VERIFIED_DEB_SHA256S bash "$SR" sign "$T/in" "$T/s6b"
+expect refuse "sign: a .deb missing from the verified list" as_a env VERIFIED_DEB_SHA256S="$(head -n 2 <<<"$VERIFIED_DEB_SHA256S")" bash "$SR" sign "$T/in" "$T/s6c"
+expect refuse "sign: a verified digest that is no package of the index" as_a env VERIFIED_DEB_SHA256S="$VERIFIED_DEB_SHA256S"$'\n'"$(printf 2%.0s {1..64})" bash "$SR" sign "$T/in" "$T/s6d"
+expect refuse "sign: a verified list that is not digests" as_a env VERIFIED_DEB_SHA256S="not a digest" bash "$SR" sign "$T/in" "$T/s6e"
 expect refuse "sign: no keyring digest" as_a env -u KEYRING_DEB_SHA256 bash "$SR" sign "$T/in" "$T/s6"
 mkdir "$T/in-p"; cp "$T/in/Release" "$T/in-p/"; { cat "$T/in/Packages"; echo; echo "Package: extra"; } > "$T/in-p/Packages"
 expect refuse "sign: a Packages file Release does not list" as_a bash "$SR" sign "$T/in-p" "$T/s7"
@@ -141,7 +147,7 @@ mkdir "$T/in-tab"
 { cat "$T/in/Packages"; printf '\nPackage:\t%s\nVersion: 99\nSHA256:\t%s\n' "$KEYRING_PACKAGE" "$(printf 0%.0s {1..64})"; } > "$T/in-tab/Packages"
 tsha=$(sha256_of "$T/in-tab/Packages"); tsize=$(file_size "$T/in-tab/Packages")
 sed "s/^ $sha $size / $tsha $tsize /" "$T/in/Release" > "$T/in-tab/Release"
-expect refuse "sign: a second keyring stanza written with tabs" as_a bash "$SR" sign "$T/in-tab" "$T/s7d"
+expect refuse "sign: a second keyring stanza written with tabs" as_a env VERIFIED_DEB_SHA256S="$VERIFIED_DEB_SHA256S"$'\n'"$(printf 0%.0s {1..64})" bash "$SR" sign "$T/in-tab" "$T/s7d"
 # a second keyring stanza with no SHA256 field, listed correctly by Release
 mkdir "$T/in-nosum"
 { cat "$T/in/Packages"; printf '\nPackage: %s\nVersion: 99\nSHA512: 00\n' "$KEYRING_PACKAGE"; } > "$T/in-nosum/Packages"
@@ -166,6 +172,7 @@ printf 'junk\n' > "$T/signed-s/Release.gpg"
 expect refuse "install: an altered signature" bash "$SR" install "$T/signed-s" "$T/repo"
 cp -r "$T/signed" "$T/signed-m"; rm "$T/signed-m/InRelease"
 expect refuse "install: a signed folder without InRelease" bash "$SR" install "$T/signed-m" "$T/repo"
+expect refuse "install: a .deb missing from the verified list" env VERIFIED_DEB_SHA256S="$(head -n 2 <<<"$VERIFIED_DEB_SHA256S")" bash "$SR" install "$T/signed" "$T/repo"
 expect refuse "install: another keyring digest" env KEYRING_DEB_SHA256="$(printf 1%.0s {1..64})" bash "$SR" install "$T/signed" "$T/repo"
 
 # --- release-tags.sh payloads, sign-payloads, assemble

@@ -70,6 +70,7 @@ jobs:
       attestations: read       # read the keyring package's provenance attestation
     outputs:
       keyring-sha256: ${{ steps.verify.outputs.sha256 }}
+      deb-sha256s: ${{ steps.verify.outputs.sha256s }}
     steps:
       - name: Harden the runner
         uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a # v2.22.4
@@ -86,7 +87,7 @@ jobs:
           name: packages
           path: packages
 
-      - name: Verify the keyring package's provenance
+      - name: Verify the provenance of every package
         id: verify
         env:
           GH_TOKEN: ${{ github.token }}
@@ -95,6 +96,15 @@ jobs:
           [ "${#debs[@]}" -eq 1 ] && [ -f "${debs[0]}" ]
           sha=$(bash scripts/verify-attestation.sh "${debs[0]}" "$GITHUB_SHA")
           echo "sha256=$sha" >> "$GITHUB_OUTPUT"
+          # Every .deb, so the signing job signs an index of nothing else.
+          all=(packages/*.deb)
+          [ -f "${all[0]}" ]
+          echo "sha256s<<EOF_SHA256S" >> "$GITHUB_OUTPUT"
+          for deb in "${all[@]}"; do
+            sum=$(bash scripts/verify-attestation.sh "$deb" "$GITHUB_SHA")
+            echo "$sum" >> "$GITHUB_OUTPUT"
+          done
+          echo "EOF_SHA256S" >> "$GITHUB_OUTPUT"
 
   # Builds the unsigned apt index (Release and Packages) and the payloads of
   # the release tags the signing job will sign. No signing key and no token
@@ -197,6 +207,7 @@ jobs:
           GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
           GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
           KEYRING_DEB_SHA256: ${{ needs.verify.outputs.keyring-sha256 }}
+          VERIFIED_DEB_SHA256S: ${{ needs.verify.outputs.deb-sha256s }}
           BUNDLE: ${{ needs.assemble.outputs.bundle }}
         run: |
           unset KEYRING_FILE GPG_PASSPHRASE_FILE
@@ -279,6 +290,7 @@ jobs:
       - name: Install the signed index and make the signed tags
         env:
           KEYRING_DEB_SHA256: ${{ needs.verify.outputs.keyring-sha256 }}
+          VERIFIED_DEB_SHA256S: ${{ needs.verify.outputs.deb-sha256s }}
           BUNDLE: ${{ needs.sign.outputs.bundle }}
         run: |
           unset SIGN_KEY KEYRING_FILE GPG_PASSPHRASE_FILE

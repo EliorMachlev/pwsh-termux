@@ -9,6 +9,10 @@
 #        KEYRING_DEB_SHA256   the SHA-256 of the pwsh-termux-keyring .deb, as
 #                             its build provenance was verified (update.yaml's
 #                             verify job). Required.
+#        VERIFIED_DEB_SHA256S the SHA-256 of every .deb of the build, one per
+#                             line, as each one's build provenance was verified
+#                             (the verify job). Packages must list exactly
+#                             these files, no other. Required.
 #        KEYRING_FILE         TEST ONLY: the keyring instead of keys/
 #
 #   sign     <in-dir> holds Release and Packages, as build-repo.sh (unsigned)
@@ -17,7 +21,8 @@
 #            key, whose secret is not in this gpg home at all; Release's
 #            window is well formed and fresh (written within the last day);
 #            Release lists this Packages file by its SHA-256; and Packages
-#            holds exactly one keyring package, with KEYRING_DEB_SHA256. It
+#            holds exactly one keyring package, with KEYRING_DEB_SHA256, and
+#            lists exactly the files of VERIFIED_DEB_SHA256S. It
 #            writes InRelease and Release.gpg to <out-dir> and checks them
 #            with gpgv against the keyring file, as apt will.
 #   install  <signed-dir> holds Release, InRelease and Release.gpg. <repo-dir>
@@ -51,9 +56,29 @@ keyring_stanza_sha256() {
   printf '%s\n' "$sums"
 }
 
-# check_index_is_verified <Packages>: the keyring package in it is the
-# attestation-verified file.
+# stanza_sha256s <Packages>: the SHA256 field of every stanza, one per line
+# ("missing" for a stanza without one).
+stanza_sha256s() {
+  awk '
+    BEGIN { RS = ""; FS = "\n" }
+    { sum = ""
+      for (i = 1; i <= NF; i++) if ($i ~ /^SHA256:[ \t]/) { sum = $i; sub(/^SHA256:[ \t]*/, "", sum) }
+      print (sum == "" ? "missing" : sum) }' "$1"
+}
+
+# check_index_is_verified <Packages>: every package in it is a file whose
+# build provenance was verified, and the keyring package is the one
+# KEYRING_DEB_SHA256 names.
 check_index_is_verified() {
+  local listed verified
+  [ -n "${VERIFIED_DEB_SHA256S:-}" ] \
+    || die "VERIFIED_DEB_SHA256S (the attestation-verified digests of every .deb) is not set"
+  verified=$(LC_ALL=C sort <<<"$VERIFIED_DEB_SHA256S")
+  ! grep -qvE '^[0-9a-f]{64}$' <<<"$verified" || die "VERIFIED_DEB_SHA256S is not a list of SHA-256 digests"
+  listed=$(stanza_sha256s "$1" | LC_ALL=C sort)
+  [ "$listed" = "$verified" ] \
+    || die "$1 does not list exactly the .deb files whose provenance was verified (VERIFIED_DEB_SHA256S)"
+
   [[ "${KEYRING_DEB_SHA256:-}" =~ ^[0-9a-f]{64}$ ]] \
     || die "KEYRING_DEB_SHA256 (the attestation-verified digest of the keyring package) is not set"
   [ "$(keyring_stanza_sha256 "$1")" = "$KEYRING_DEB_SHA256" ] \
