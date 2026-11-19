@@ -1,0 +1,5 @@
+# ClusterFuzzLite: fuzzes scripts/spdx-build-view.py, the only Python the
+# packages are built with (.github/workflows/clusterfuzzlite.yaml). The
+# Hypothesis tests in tests/fuzz are the main fuzzing; this adds a coverage
+# guided fuzzer (Atheris) that OpenSSF Scorecard's Fuzzing check recognises.
+language: python
