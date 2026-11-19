@@ -124,7 +124,7 @@ jobs:
             release/*.json
 
       # The same attestations as a file for the release (OpenSSF Scorecard's
-      # Signed-Releases check looks for a "*.intoto.jsonl" release file).
+      # Signed-Releases check looks for an in-toto provenance release file, named below).
       - name: Keep the provenance as a file
         env:
           BUNDLE: ${{ steps.attest.outputs.bundle-path }}
