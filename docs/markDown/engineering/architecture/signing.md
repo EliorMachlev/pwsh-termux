@@ -12,20 +12,23 @@ Which keys may sign the [apt index](repository.md#signing), what is checked befo
 
 Allowed shapes: `{current}`, `{current, recovery}`, `{current, next}`, `{current, next, recovery}`. A stray key, a marker naming a missing key, or a `ROTATION` marker whose key is the only online key left (stale) fails.
 
-The signer must be the current key, or the next one while `ROTATION` exists. `build-repo.sh` refuses the recovery key, and refuses to sign at all if its secret is in the same gpg home. The key is Ed25519 (OpenPGP v4); fingerprint in [SECURITY.md](../../../../SECURITY.md#signing-key).
+The signer must be the current key, or the next one while `ROTATION` exists. `sign-release.sh` and `release-tags.sh` refuse the recovery key, and refuse to sign at all if its secret is in the same gpg home. The key is Ed25519 (OpenPGP v4); fingerprint in [SECURITY.md](../../../../SECURITY.md#signing-key).
 
 ## Publish checks
 
-[`update.yaml`](../../../../.github/workflows/update.yaml) runs them in two jobs:
+[`update.yaml`](../../../../.github/workflows/update.yaml) runs them in three jobs:
 
-1. **`verify`** (read-only token, no signing key) runs [`verify-attestation.sh`](../../../../scripts/verify-attestation.sh) on the keyring package the build uploaded: `gh attestation verify --repo EliorMachlev/pwsh-termux --signer-workflow …/build-packages.yaml --source-digest <this commit> --deny-self-hosted-runners`. It outputs the file's SHA-256.
-2. **`publish`** runs `build-repo.sh` with the signing key and `KEYRING_DEB_SHA256` set to that digest.
+1. **`verify`** (read-only token, no signing key) runs [`verify-attestation.sh`](../../../../scripts/verify-attestation.sh) on every `.deb` the build uploaded (the keyring package first): `gh attestation verify --repo EliorMachlev/pwsh-termux --signer-workflow …/build-packages.yaml --source-digest <this commit> --deny-self-hosted-runners`. It outputs the keyring package's SHA-256 and the SHA-256 of every `.deb`.
+2. **`assemble`** (no key) runs `build-repo.sh` unsigned and writes the release tag payloads; `Release`, `Packages` and the payloads go to `sign` as a job output ([`signing-bundle.sh`](../../../../scripts/signing-bundle.sh)).
+3. **`sign`** (the only job with the key, no `.deb`, no artifact access) runs [`sign-release.sh`](../../../../scripts/sign-release.sh) with the signing key and `KEYRING_DEB_SHA256` set to that digest, and `release-tags.sh sign-payloads` (which signs a tag payload only for a package and version that `Packages` lists, under the tag name its title gives). `publish` (no key) installs the signatures only if they verify (`sign-release.sh install`, `release-tags.sh assemble`).
 
-`build-repo.sh` refuses to sign unless:
+`sign-release.sh` (given the `Release` and `Packages` files `build-repo.sh` wrote in `assemble`, never a `.deb`) refuses to sign unless:
 
 1. `keys/` passes the key rules and the signing key is an allowed signer;
-2. the `.deb` folder holds exactly one `pwsh-termux-keyring`, with SHA-256 `KEYRING_DEB_SHA256`, shipping `keys/pwsh-termux-archive-keyring.gpg` byte for byte;
-3. `InRelease` and `Release.gpg` verify with `gpgv` against `keys/` alone, as apt will.
+2. `Packages` holds exactly one `pwsh-termux-keyring` stanza, with a `SHA256` field equal to `KEYRING_DEB_SHA256` (the digest of the file `verify` attested);
+3. `Packages` lists exactly the `.deb` files `verify` attested (`VERIFIED_DEB_SHA256S`): no other package and none missing, so the key never signs an index of a file with no verified provenance, and each stanza has only the fields the build writes (`PACKAGES_FIELDS`), each once, with a `Filename` inside `pool/`, so a `.deb`'s own control file cannot put a field of its own into the signed index; and
+4. `Release` is byte for byte what `write_release` (`scripts/lib/common.sh`) writes for that `Packages` (the signer rebuilds `Packages.gz` and `Packages.xz` from it) and `Release`'s own `Date`, which must be under a day old. So it has no repeated or extra field or section (apt reads the last `Valid-Until`, and any extra `SHA512:` section), and every digest in it is the index's own. `publish` makes the same comparison against the index it rebuilds (`sign-release.sh install`);
+5. `InRelease` and `Release.gpg` verify with `gpgv` against `keys/` alone, as apt will.
 
 It then publishes that file unchanged. A secret replaced without changing `keys/`, or the reverse, publishes nothing.
 
@@ -33,7 +36,7 @@ This proves the keyring package was built by `build-packages.yaml` from the publ
 
 ## Testing
 
-`KEYRING_FILE` overrides the key file and its markers, for tests with throwaway keys only ([build](../build.md#build-and-test-a-repository)); `update.yaml`'s signing step clears it. [`test-keys.sh`](../../../../scripts/test-keys.sh) tests every rule and refusal with throwaway keys and a stub `gh`; [`test-release-tags.sh`](../../../../scripts/test-release-tags.sh) tests the [release tags](../release/tags.md), which the same online key signs.
+`KEYRING_FILE` overrides the key file and its markers, for tests with throwaway keys only ([build](../build.md#build-and-test-a-repository)); `update.yaml`'s signing step clears it. [`test-keys.sh`](../../../../scripts/test-keys.sh) tests every rule and refusal with throwaway keys and a stub `gh`; [`test-release-tags.sh`](../../../../scripts/test-release-tags.sh) tests the [release tags](../release/tags.md), which the same online key signs; [`test-sign-release.sh`](../../../../scripts/test-sign-release.sh) tests the hand-off between `assemble`, `sign` and `publish`.
 
 ## Rotation and recovery
 

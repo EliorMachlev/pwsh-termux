@@ -24,6 +24,7 @@ Job **Key rules and key tests** (`keys`):
    - each tag annotated, on the given commit, by `github-actions[bot]`, verified with `gpgv` and `git tag -v`; an existing tag left alone; the next key and a passphrase-protected key accepted;
    - refused, leaving no tag: a stray or recovery key, a missing passphrase, no `SIGN_KEY`, no commit; and any tag that is lightweight, unsigned, misnamed, altered, doubly signed, recovery- or stray-signed, or points at a tree;
    - the push refused for an unsigned tag or a different remote tag of the same name, and deferred (exit 3) when the remote `main`'s workflows changed.
+4. [`test-sign-release.sh`](../../../../scripts/test-sign-release.sh), offline with throwaway keys: the bundle handed from `assemble` to `sign`, `sign-release.sh sign`/`install`, and the release tag payloads (`payloads`, `sign-payloads`, `assemble`); anything altered, stale, linked or signed by another key is refused.
 
 ## Run the package (arm64)
 

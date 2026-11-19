@@ -1,16 +1,18 @@
 #!/usr/bin/env bash
 # Signed release tags. Each pwsh and pwsh-preview release on GitHub sits on
-# an annotated tag that update.yaml's publish job signs with the online
+# an annotated tag that update.yaml's sign job signs with the online
 # signing key (the key in keys/ that signs the apt index), on the commit that
 # built the package. The release is then made on that tag with
 # `gh release create --verify-tag`, so gh never creates a lightweight one.
 #
 # Usage: release-tags.sh name <deb>
-#        release-tags.sh sign <debs-dir> <commit>
 #        release-tags.sh verify <tag>
 #        release-tags.sh push <tag> <remote>
-# Env:   SIGN_KEY      (sign) the online key's id or fingerprint
-#        GPG_PASSPHRASE_FILE  (sign) its passphrase file, as for build-repo.sh
+#        release-tags.sh payloads <debs-dir> <commit> <out-dir>
+#        release-tags.sh sign-payloads <in-dir> <commit> <out-dir> <Packages>
+#        release-tags.sh assemble <dir>
+# Env:   SIGN_KEY      (sign-payloads) the online key's id or fingerprint
+#        GPG_PASSPHRASE_FILE  (sign-payloads) its passphrase file, as for build-repo.sh
 #        GH_TOKEN      (push) the job's GITHUB_TOKEN (contents: write); git
 #                      gets it from `gh auth git-credential`, so it is never
 #                      in an argument, a file or .git/config
@@ -20,13 +22,16 @@
 #   name    the release tag of a pwsh or pwsh-preview .deb:
 #           <package>-<version>, '~' written as '-' (a git tag cannot hold
 #           '~'): pwsh-7.7.0-1, pwsh-preview-7.8.0-preview.1-1
-#   sign    for each pwsh or pwsh-preview .deb in the folder whose tag this
-#           clone does not have yet (update.yaml's checkout has every tag),
-#           writes the tag object with git mktag, signed as `git tag -s`
-#           signs (an armored detached signature by SIGN_KEY appended to the
-#           payload), tagger github-actions[bot]; checks it as verify does;
-#           only then creates refs/tags/<tag>. An existing tag is left alone
-#           (the Tag Protection ruleset forbids moving one).
+#   payloads, sign-payloads, assemble
+#           Signing in three steps, so the key can live in a job that never
+#           sees a .deb: payloads (no key) writes <tag>.payload for each
+#           package that has no tag yet; sign-payloads (the key; <commit>
+#           is the run's commit) checks that each payload is exactly what
+#           `payloads` writes for that commit, under the tag name its title
+#           gives and for a package and version <Packages> lists, and signs
+#           it as <tag>.sig;
+#           assemble (no key) turns each payload and signature into the tag
+#           object, verifies it as verify does and creates refs/tags/<tag>.
 #   verify  the tag is an annotated tag whose object names <tag>, points at
 #           a commit, and carries exactly one OpenPGP signature, which
 #           verifies with gpgv against the keyring file alone and was made by
@@ -105,19 +110,30 @@ verify_tag_object() {
   printf '%s\n' "$fingerprint"
 }
 
-# sign_tag <commit> <tag> <title>: create refs/tags/<tag>, signed, on the commit.
-sign_tag() {
-  local commit=$1 tag=$2 title=$3 payload=$W/sign-payload signature=$W/sign-signature object fingerprint
+# write_tag_payload <commit> <tag> <title> <epoch> <file>: the tag object
+# without its signature.
+write_tag_payload() {
+  {
+    printf 'object %s\ntype commit\ntag %s\n' "$1" "$2"
+    printf 'tagger %s %s +0000\n\n' "$GITHUB_ACTIONS_BOT_IDENTITY" "$4"
+    printf '%s\n\n%s\n' "$3" "$TAG_MESSAGE"
+  } > "$5"
+}
+
+# sign_payload <payload> <signature>: an armored detached signature by SIGN_KEY.
+sign_payload() {
+  local payload=$1 signature=$2
   local -a gpg_options
   online_gpg_options gpg_options
-  {
-    printf 'object %s\ntype commit\ntag %s\n' "$commit" "$tag"
-    printf 'tagger %s %s +0000\n\n' "$GITHUB_ACTIONS_BOT_IDENTITY" "$(now_epoch)"
-    printf '%s\n\n%s\n' "$title" "$TAG_MESSAGE"
-  } > "$payload"
   rm -f "$signature"
   gpg "${gpg_options[@]}" --armor --detach-sign -o "$signature" "$payload" \
-    || die "gpg could not sign the tag $tag: is the key passphrase-protected, and is GPG_PASSPHRASE_FILE set to its passphrase?"
+    || die "gpg could not sign $payload: is the key passphrase-protected, and is GPG_PASSPHRASE_FILE set to its passphrase?"
+}
+
+# attach_signature <payload> <signature> <tag> <commit>: the tag object from
+# a payload and its signature, verified, as refs/tags/<tag>.
+attach_signature() {
+  local payload=$1 signature=$2 tag=$3 commit=$4 object fingerprint
   object=$(cat "$payload" "$signature" | git mktag) || die "git mktag refused the tag object of $tag"
   fingerprint=$(verify_tag_object "$object" "$tag")
   # "" as the old value: fails if the tag appeared meanwhile.
@@ -125,19 +141,99 @@ sign_tag() {
   log "signed $tag on $commit with $fingerprint"
 }
 
-sign_tags() {
-  local debs_dir=$1 commit deb tag
-  [ -n "${SIGN_KEY:-}" ] || die "SIGN_KEY is not set"
-  commit=$(git rev-parse --verify --quiet --end-of-options "$2^{commit}") || die "$2 is not a commit here"
+# For each released package in the folder whose tag this clone lacks:
+# "<tag><TAB><title>" lines.
+unreleased_tags() {
+  local deb tag
   shopt -s nullglob
-  for deb in "$debs_dir"/*.deb; do
+  for deb in "$1"/*.deb; do
     is_released_package "$deb" || continue
     tag=$(release_tag_name "$deb")
     if git rev-parse --verify --quiet "refs/tags/$tag" >/dev/null; then
       log "$tag exists already; left as it is"
       continue
     fi
-    sign_tag "$commit" "$tag" "$(dpkg-deb -f "$deb" Package) $(dpkg-deb -f "$deb" Version)"
+    printf '%s\t%s %s\n' "$tag" "$(dpkg-deb -f "$deb" Package)" "$(dpkg-deb -f "$deb" Version)"
+  done
+}
+
+# A tag name that is also a safe file name.
+readonly PAYLOAD_TAG_REGEX='^pwsh(-preview)?-[A-Za-z0-9][A-Za-z0-9._+-]*$'
+
+write_payloads() {
+  local debs_dir=$1 commit tag title out=$3
+  commit=$(git rev-parse --verify --quiet --end-of-options "$2^{commit}") || die "$2 is not a commit here"
+  mkdir -p "$out"
+  while IFS=$'\t' read -r tag title; do
+    [[ "$tag" =~ $PAYLOAD_TAG_REGEX ]] || die "'$tag' is not a tag name a payload may carry"
+    write_tag_payload "$commit" "$tag" "$title" "$(now_epoch)" "$out/$tag.payload"
+    log "payload for $tag on $commit"
+  done < <(unreleased_tags "$debs_dir")
+}
+
+# packages_lists <Packages> <package> <version>: it has a stanza for exactly
+# that package and version.
+packages_lists() {
+  awk -v pkg="$2" -v ver="$3" '
+    BEGIN { RS = ""; FS = "\n" }
+    { name = ""; version = ""
+      for (i = 1; i <= NF; i++) {
+        if ($i ~ /^Package:[ \t]/) { name = $i; sub(/^Package:[ \t]*/, "", name) }
+        if ($i ~ /^Version:[ \t]/) { version = $i; sub(/^Version:[ \t]*/, "", version) }
+      }
+      if (name == pkg && version == ver) found = 1 }
+    END { exit !found }' "$1"
+}
+
+# sign_payloads <in-dir> <commit> <out-dir> <Packages>: only a payload that is
+# exactly what write_payloads writes for <commit> (with its own title and
+# time) is signed, and only for a package and version that <Packages> (the
+# index whose files were verified) lists, under the tag name release_tag_name
+# gives it.
+sign_payloads() {
+  local in=$1 commit=$2 out=$3 packages=$4 payload tag title epoch now sign_fpr package version signed=0
+  [ -n "${SIGN_KEY:-}" ] || die "SIGN_KEY is not set"
+  [[ "$commit" =~ ^[0-9a-f]{40}$ ]] || die "$commit is not a commit id"
+  [ -f "$packages" ] || die "$packages is not a file"
+  # Only an online key of the keyring signs (the recovery key never does).
+  sign_fpr=$(check_online_signer "$KEYRING_FILE" "$SIGN_KEY")
+  mkdir -p "$out"
+  shopt -s nullglob
+  for payload in "$in"/*.payload; do
+    tag=$(basename "$payload" .payload)
+    [[ "$tag" =~ $PAYLOAD_TAG_REGEX ]] || die "'$tag' is not a tag name a payload may carry"
+    title=$(sed -n '6p' "$payload")
+    [[ "$title" =~ ^(pwsh(-preview)?)\ ([A-Za-z0-9][A-Za-z0-9.+~:-]*)$ ]] || die "$payload: unexpected title '$title'"
+    package=${BASH_REMATCH[1]} version=${BASH_REMATCH[3]}
+    [ "$package-${version//\~/-}" = "$tag" ] || die "$payload: the title '$title' does not name the tag $tag"
+    packages_lists "$packages" "$package" "$version" || die "$payload: $packages lists no $package $version"
+    epoch=$(sed -n '4p' "$payload" | awk '{print $(NF - 1)}')
+    [[ "$epoch" =~ ^[0-9]{9,11}$ ]] || die "$payload: unexpected tagger time '$epoch'"
+    now=$(now_epoch)
+    { [ $((now - epoch)) -le "$SECONDS_PER_DAY" ] && [ "$epoch" -le $((now + RELEASE_CLOCK_SKEW_SECONDS)) ]; } \
+      || die "$payload: the tagger time is not within the last day"
+    write_tag_payload "$commit" "$tag" "$title" "$epoch" "$W/expected-payload"
+    cmp -s "$W/expected-payload" "$payload" || die "$payload is not the tag payload of $tag on $commit"
+    sign_payload "$payload" "$out/$tag.sig"
+    cp "$payload" "$out/$tag.payload"
+    signed=$((signed + 1))
+  done
+  log "signed $signed tag payload(s) for $commit with $sign_fpr"
+}
+
+assemble_tags() {
+  local dir=$1 payload tag commit
+  shopt -s nullglob
+  for payload in "$dir"/*.payload; do
+    tag=$(basename "$payload" .payload)
+    [[ "$tag" =~ $PAYLOAD_TAG_REGEX ]] || die "'$tag' is not a tag name a payload may carry"
+    [ -f "$dir/$tag.sig" ] || die "$tag has a payload but no signature"
+    if git rev-parse --verify --quiet "refs/tags/$tag" >/dev/null; then
+      log "$tag exists already; left as it is"
+      continue
+    fi
+    commit=$(sed -n '1s/^object //p' "$payload")
+    attach_signature "$payload" "$dir/$tag.sig" "$tag" "$commit"
   done
 }
 
@@ -172,8 +268,10 @@ push_tag() {
 
 case "${1:-} $#" in
   "name 2") release_tag_name "$2" ;;
-  "sign 3") sign_tags "$2" "$3" ;;
   "verify 2") verify_tag_object "refs/tags/$2" "$2" ;;
   "push 3") push_tag "$2" "$3" ;;
-  *) die "usage: release-tags.sh name <deb> | sign <debs-dir> <commit> | verify <tag> | push <tag> <remote>" ;;
+  "payloads 4") write_payloads "$2" "$3" "$4" ;;
+  "sign-payloads 5") sign_payloads "$2" "$3" "$4" "$5" ;;
+  "assemble 2") assemble_tags "$2" ;;
+  *) die "usage: release-tags.sh name <deb> | verify <tag> | push <tag> <remote> | payloads <debs-dir> <commit> <out-dir> | sign-payloads <in-dir> <commit> <out-dir> <Packages> | assemble <dir>" ;;
 esac

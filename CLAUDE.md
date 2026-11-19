@@ -17,7 +17,7 @@ If behaviour changes, update the relevant doc in the same commit.
 
 ## Easy to get wrong
 
-- **Never publish an unsigned repository.** `scripts/build-repo.sh` skips signing only when `SIGN_KEY` is unset (local tests); the workflow refuses to run without `GPG_PRIVATE_KEY`.
+- **Never publish an unsigned repository.** `scripts/build-repo.sh` never signs (it writes the unsigned index); only `sign-release.sh sign`, in `update.yaml`'s `sign` job, does, and that job refuses to run without `GPG_PRIVATE_KEY`.
 - **`keys/` holds the online signing key plus only what a marker names.** `keys/pwsh-termux-archive-keyring.gpg` is what users trust (shipped in `pwsh-termux-keyring` and as `/pwsh-termux.gpg`): exactly one online key, the signer; the recovery key only if `keys/RECOVERY` names it; a next online key only while `keys/ROTATION` names it. `check-keys.sh`, CI and the publish job refuse anything else, refuse the recovery key as a signer, and refuse a keyring package whose provenance does not verify. Change `keys/` and `GPG_PRIVATE_KEY` only as [release.md](docs/markDown/engineering/release/signing-keys.md#rotating-the-signing-key) says. `KEYRING_FILE` is for tests only; never set it in a publishing workflow.
 - **The recovery key never goes near GitHub or CI**, and an agent must never generate it: only the maintainer creates it, offline.
 - **Never print, commit or copy the signing key** or its backups (logs, repo, website, artifacts, `GITHUB_ENV`, step outputs).

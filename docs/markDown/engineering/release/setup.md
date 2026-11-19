@@ -11,7 +11,7 @@ How the repository was set up, and where a fork or a rebuilt repository starts. 
    gpg --export <fingerprint> > keys/pwsh-termux-archive-keyring.gpg     # public half only, binary
    bash scripts/check-keys.sh                                            # prints the fingerprint
    ```
-   Commit `keys/pwsh-termux-archive-keyring.gpg`; `build-repo.sh` refuses to sign with any other key. Make a revocation certificate (`gpg --gen-revoke`, needs a terminal) and store it apart.
+   Commit `keys/pwsh-termux-archive-keyring.gpg`; `sign-release.sh` refuses to sign with any other key. Make a revocation certificate (`gpg --gen-revoke`, needs a terminal) and store it apart.
 2. **Secrets, in the environment `signing`** ([below](#the-signing-environment)).
 3. **Pages.** Settings → Pages → *Source: GitHub Actions*, or `gh api -X POST repos/EliorMachlev/pwsh-termux/pages -f build_type=workflow`.
 4. **Run the workflow once**, then check the site.
@@ -33,11 +33,11 @@ gh secret set GPG_PRIVATE_KEY --env signing < signing-secret.asc
 gh secret set GPG_PASSPHRASE --env signing    # asks for the value; never put it on the command line
 ```
 
-How the "Build the signed apt repository" step uses them:
+How the "Sign the index and the tag payloads" step (the `sign` job) uses them:
 
 1. Imports the key with `gpg --batch --import`.
-2. Writes the passphrase to a mode-600 file under `RUNNER_TEMP` and passes it to `build-repo.sh` as `GPG_PASSPHRASE_FILE` (gpg reads it with `--pinentry-mode loopback --passphrase-file`, never from an argument).
-3. Unsets both secrets before `build-repo.sh` runs, and removes the file when the step ends and again in an `always()` step.
+2. Writes the passphrase to a mode-600 file under `RUNNER_TEMP` and passes it to `sign-release.sh` and `release-tags.sh` as `GPG_PASSPHRASE_FILE` (gpg reads it with `--pinentry-mode loopback --passphrase-file`, never from an argument).
+3. Unsets both secrets before `sign-release.sh` runs, and removes the file when the step ends and again in an `always()` step.
 
 Without `GPG_PASSPHRASE` a key with no passphrase still signs, with a warning; a protected key without its passphrase fails to sign, and nothing is published.
 

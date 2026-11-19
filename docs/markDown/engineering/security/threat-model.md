@@ -38,17 +38,17 @@ GitHub disables a public repository's schedules after 60 days without activity, 
 
 ## Signing key theft
 
-- **Mitigation.** The key is a secret of the environment `signing` (`main` only), used in one step that signs the index and release tags, and never written to `GITHUB_ENV`, an output, an artifact or the log. A copy and a revocation certificate are held outside GitHub. [Rotation](../release/signing-keys.md#rotating-the-signing-key) is documented, and the offline [recovery key](../release/signing-keys.md#recovery-with-the-offline-key) moves users to a new key through `pkg upgrade`.
+- **Mitigation.** The key is a secret of the environment `signing` (`main` only), used in one step of the `sign` job, which signs the index and release tags, sees no `.deb` and may reach only GitHub, and never written to `GITHUB_ENV`, an output, an artifact or the log. A copy and a revocation certificate are held outside GitHub. [Rotation](../release/signing-keys.md#rotating-the-signing-key) is documented, and the offline [recovery key](../release/signing-keys.md#recovery-with-the-offline-key) moves users to a new key through `pkg upgrade`.
 - **Left over.** The passphrase is in the same environment (the workflow is unattended), so it protects only a copy of the key on its own. No hardware token. If the recovery key is lost too, every user must reinstall the keyring by hand.
 
 ## Forged or moved release tag
 
-- **Mitigation.** Each release sits on an annotated tag signed with the online key, on the commit that built it. [`release-tags.sh`](../../../../scripts/release-tags.sh) makes it in the signing step and checks it with `gpgv` against `keys/` before the push; `gh release create --verify-tag` refuses a missing tag. *Tag Protection* forbids moving or deleting tags, and releases are immutable. Users check with `git tag -v` ([SECURITY.md](../../../../SECURITY.md#verifying-a-release-tag), [signed release tags](../release/tags.md)).
+- **Mitigation.** Each release sits on an annotated tag signed with the online key, on the commit that built it. [`release-tags.sh`](../../../../scripts/release-tags.sh) signs its payload in the signing step, makes it in `publish` and checks it with `gpgv` against `keys/` before the push; `gh release create --verify-tag` refuses a missing tag. *Tag Protection* forbids moving or deleting tags, and releases are immutable. Users check with `git tag -v` ([SECURITY.md](../../../../SECURITY.md#verifying-a-release-tag), [signed release tags](../release/tags.md)).
 - **Left over.** GitHub does not verify tag signatures on push. Anyone with the signing key or tag write access can create a new tag name.
 
 ## Wrong key in the keyring package
 
-- **Mitigation.** `keys/` holds exactly one online key plus only keys named by `keys/RECOVERY` or `keys/ROTATION`; `check-keys.sh` enforces it in CI and the publish job. The package is attested in the unprivileged build job, a job without the signing key verifies the attestation, and the publish job signs only that verified file, only if it ships `keys/` byte for byte and the signer is the online key ([repository](../architecture/repository.md#signing)).
+- **Mitigation.** `keys/` holds exactly one online key plus only keys named by `keys/RECOVERY` or `keys/ROTATION`; `check-keys.sh` enforces it in CI and the `sign` job. The package is attested in the unprivileged build job, a job without the signing key verifies the attestation, and the `sign` job signs only an index that lists that verified file (by its SHA-256) and only if the signer is the online key; the `publish` job has no key and installs the signatures only if they verify against `keys/` ([repository](../architecture/repository.md#signing)).
 - **Left over.** That the committed keys are the right ones rests on review of `keys/` and on users comparing fingerprints with [SECURITY.md](../../../../SECURITY.md#signing-key). The first download rests on HTTPS.
 
 ## Malicious change to the workflows or scripts

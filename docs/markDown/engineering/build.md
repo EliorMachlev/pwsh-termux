@@ -67,7 +67,7 @@ bash scripts/build-repo.sh out repo                  # unsigned: fine locally
 bash scripts/assemble-site.sh docs repo              # needs a full Git clone, not --depth 1
 ```
 
-To test signing and let real `apt` read the result without touching your sources, use a throwaway Ed25519 key and an isolated apt configuration. `build-repo.sh` signs only with the key in `keys/`, so point the test-only `KEYRING_FILE` at a keyring holding the throwaway key, in a folder of its own (a `ROTATION` file next to it would count), and build the keyring package from it. `KEYRING_DEB_SHA256` stands in for the digest from the workflow's `verify` job ([publish checks](architecture/signing.md#publish-checks)).
+To test signing and let real `apt` read the result without touching your sources, use a throwaway Ed25519 key and an isolated apt configuration. `sign-release.sh` signs only with the key in `keys/`, so point the test-only `KEYRING_FILE` at a keyring holding the throwaway key, in a folder of its own (a `ROTATION` file next to it would count), and build the keyring package from it. `KEYRING_DEB_SHA256` and `VERIFIED_DEB_SHA256S` stand in for the digests from the workflow's `verify` job ([publish checks](architecture/signing.md#publish-checks)).
 
 ```bash
 export GNUPGHOME=$(mktemp -d); chmod 700 "$GNUPGHOME"
@@ -79,8 +79,13 @@ gpg --export "$SIGN_KEY" > "$KEYRING_FILE"
 rm -f out/pwsh-termux-keyring_*                      # the one built from keys/, if any
 bash scripts/build-keyring.sh out
 export KEYRING_DEB_SHA256=$(sha256sum < out/pwsh-termux-keyring_*_all.deb | cut -d' ' -f1)
-bash scripts/build-repo.sh out repo
-# a passphrase-protected key, as in CI: GPG_PASSPHRASE_FILE=<mode-600 file> bash scripts/build-repo.sh out repo
+export VERIFIED_DEB_SHA256S=$(sha256sum out/*.deb | cut -d' ' -f1)
+bash scripts/build-repo.sh out repo                  # unsigned
+D=repo/dists/stable; mkdir in
+cp "$D/Release" "$D/main/binary-aarch64/Packages" in/
+bash scripts/sign-release.sh sign in signed
+bash scripts/sign-release.sh install signed repo
+# a passphrase-protected key, as in CI: GPG_PASSPHRASE_FILE=<mode-600 file> bash scripts/sign-release.sh sign in signed
 
 # apt reads the key from the keyring package's own layout, as on a device
 X=$(mktemp -d); dpkg-deb -x repo/pwsh-termux-keyring.deb "$X"

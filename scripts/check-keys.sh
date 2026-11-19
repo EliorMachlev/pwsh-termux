@@ -19,7 +19,7 @@
 # and {current, next, recovery}; anything else fails. A ROTATION marker whose
 # key is the only online key left is stale and fails too.
 # Which online key may sign, and that the recovery key never does, is
-# build-repo.sh's check (it knows the signer).
+# check_online_signer's (common.sh; it knows the signer).
 #
 # Prints one line per primary key on stdout: <fingerprint> <role>, role being
 # current, next or recovery. Also binary OpenPGP only, no secret material.

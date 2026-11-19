@@ -186,7 +186,7 @@ read_fingerprint_marker() {
 # ---------------------------------------------------------------------------
 
 # online_gpg_options <array-name>: set the named array to the options gpg
-# signs with as the online key (build-repo.sh, release-tags.sh): --batch and
+# signs with as the online key (sign-release.sh, release-tags.sh): --batch and
 # --pinentry-mode loopback, so gpg never prompts; SIGN_KEY as the signer; and,
 # when GPG_PASSPHRASE_FILE is set (update.yaml writes it from the
 # GPG_PASSPHRASE secret), the passphrase read from that file, never from an
@@ -223,6 +223,35 @@ gpgv_quiet() {
   gpgv --keyring "$keyring_file" "$@" 2>/dev/null
 }
 
+# check_online_signer <keyring-file> <key>: dies unless <key> is an online key
+# of the keyring file (never the recovery key, whose secret must not even be
+# in this gpg home). Prints the signer's fingerprint.
+check_online_signer() {
+  local keyring_file=$1 key=$2 key_roles online recovery fingerprint
+  key_roles=$(check_keyring "$keyring_file")
+  online=$(online_fingerprints <<<"$key_roles")
+  recovery=$(fingerprints_with_role "$ROLE_RECOVERY" <<<"$key_roles")
+  fingerprint=$(secret_key_fingerprint "$key")
+  [ -n "$fingerprint" ] || die "no secret key for SIGN_KEY in the keyring"
+  [ "$fingerprint" != "$recovery" ] \
+    || die "refusing to sign with the recovery key $recovery: it is offline only (scripts/recovery-sign.sh)"
+  if [ -n "$recovery" ] && gpg --batch --list-secret-keys -- "$recovery" >/dev/null 2>&1; then
+    die "the secret of the recovery key $recovery is in this gpg home; it must never be where the online key is"
+  fi
+  grep -qx -- "$fingerprint" <<<"$online" \
+    || die "the signing key $fingerprint is not the online key in $keyring_file ($(tr '\n' ' ' <<<"$online")); see release/signing-keys.md, rotating the signing key"
+  printf '%s\n' "$fingerprint"
+}
+
+# verify_release_signatures <dist-dir> <keyring-file>: what apt does with the
+# published key: both signatures verify with gpgv against that file alone.
+verify_release_signatures() {
+  local dist_dir=$1 keyring_file
+  keyring_file=$(realpath "$2")
+  gpgv_quiet "$keyring_file" "$dist_dir/InRelease" || die "InRelease does not verify against $2"
+  gpgv_quiet "$keyring_file" "$dist_dir/Release.gpg" "$dist_dir/Release" || die "Release.gpg does not verify against $2"
+}
+
 # ---------------------------------------------------------------------------
 # The index's validity window (Date and Valid-Until in Release)
 # ---------------------------------------------------------------------------
@@ -231,6 +260,10 @@ gpgv_quiet() {
 # be replayed to users for longer than this. The daily update.yaml run
 # re-signs the index, which moves the window on.
 readonly VALID_UNTIL_DAYS=14
+# The fields a Packages stanza may hold: those build-deb.sh and
+# build-keyring.sh put in a control file, and the ones build-repo.sh adds.
+# sign-release.sh refuses any other.
+readonly PACKAGES_FIELDS="Package Version Architecture Maintainer Installed-Size Depends Section Priority Homepage Description Filename Size MD5sum SHA256"
 # Fewer days left than this is stale: the staleness monitor opens an issue,
 # and a recovery-signed index with less is not signed or deployed.
 readonly VALID_UNTIL_WARN_DAYS=7
@@ -416,4 +449,62 @@ has_keepalive_status() {
         --arg login "$GITHUB_ACTIONS_BOT_LOGIN" --argjson id "$GITHUB_ACTIONS_BOT_ID" '
       add // [] | any(.[]; .context == $context and .state == $state
                          and .creator.login == $login and .creator.id == $id)' >/dev/null
+}
+
+# ---------------------------------------------------------------------------
+# The index files (build-repo.sh writes them; sign-release.sh rebuilds them)
+# ---------------------------------------------------------------------------
+
+readonly RELEASE_ORIGIN=$PROJECT_NAME
+readonly RELEASE_DESCRIPTION="Unofficial PowerShell packages for Termux (glibc)"
+
+# write_index_archives <Packages>: Packages.gz and, with xz, Packages.xz next
+# to it. The same Packages gives the same bytes.
+write_index_archives() {
+  gzip -9kn "$1"
+  if command -v xz >/dev/null; then
+    xz -9ke "$1"
+  fi
+}
+
+# check_packages_fields <Packages>: each stanza holds only the fields the
+# build writes (PACKAGES_FIELDS), each once, and a Filename inside pool/. A
+# .deb's control file is copied into Packages as it is, so a field of its own
+# (a second Filename or SHA256, a Replaces, a Pre-Depends on another package)
+# would otherwise be signed.
+check_packages_fields() {
+  awk -v allowed="$PACKAGES_FIELDS" '
+    BEGIN { RS = ""; FS = "\n"; n = split(allowed, list, " "); for (i = 1; i <= n; i++) ok[list[i]] = 1 }
+    { delete seen
+      for (i = 1; i <= NF; i++) {
+        if ($i ~ /^[ \t]/) continue
+        name = $i; sub(/:.*/, "", name)
+        if ($i !~ /^[A-Za-z][A-Za-z0-9-]*:/ || !(name in ok)) { print "field not allowed: " $i > "/dev/stderr"; bad = 1; continue }
+        if (name in seen) { print "field repeated: " name > "/dev/stderr"; bad = 1 }
+        seen[name] = 1
+        if (name == "Filename" && ($i !~ /^Filename: pool\/[A-Za-z0-9._+~\/-]+$/ || $i ~ /\.\./)) { print "Filename outside pool/: " $i > "/dev/stderr"; bad = 1 }
+      } }
+    END { exit bad }' "$1" || die "$1 holds a field or a Filename that the build does not write"
+}
+
+# write_release <dist-dir> <epoch>: <dist-dir>/Release for the Packages files
+# in its index folder, dated <epoch>, valid VALID_UNTIL_DAYS days. The same
+# files and epoch give the same bytes.
+write_release() {
+  local dist_dir=$1 now=$2 index_file
+  {
+    echo "Origin: $RELEASE_ORIGIN"
+    echo "Label: $RELEASE_ORIGIN"
+    echo "Suite: $APT_SUITE"
+    echo "Codename: $APT_SUITE"
+    echo "Architectures: $APT_ARCH"
+    echo "Components: $APT_COMPONENT"
+    echo "Date: $(release_date "$now")"
+    echo "Valid-Until: $(release_date $((now + VALID_UNTIL_DAYS * SECONDS_PER_DAY)))"
+    echo "Description: $RELEASE_DESCRIPTION"
+    echo "SHA256:"
+    for index_file in "$dist_dir/$(repo_index_subdir)"/Packages*; do
+      echo " $(sha256_of "$index_file") $(file_size "$index_file") ${index_file#"$dist_dir/"}"
+    done
+  } > "$dist_dir/Release"
 }

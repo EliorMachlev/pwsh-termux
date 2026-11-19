@@ -23,7 +23,7 @@ A user who did not run `pkg upgrade` during the overlap, or who added the key by
 
 ## The recovery key
 
-An offline Ed25519 key that only the maintainer holds, never on a networked machine, in GitHub or in CI. Its public half is in every installed keyring, so it can sign the way out of a lost or compromised online key ([below](#recovery-with-the-offline-key)). It signs nothing else: `build-repo.sh` refuses it as a signer and refuses to sign if its secret is in the gpg home.
+An offline Ed25519 key that only the maintainer holds, never on a networked machine, in GitHub or in CI. Its public half is in every installed keyring, so it can sign the way out of a lost or compromised online key ([below](#recovery-with-the-offline-key)). It signs nothing else: `sign-release.sh` and `release-tags.sh` refuse it as a signer and refuse to sign if its secret is in the gpg home.
 
 **It is set up**: its fingerprint is in `keys/RECOVERY` and [SECURITY.md](../../../../SECURITY.md#signing-key). The code still accepts `keys/` without one, as a fork or a rebuilt repository would start. The steps below are how it was made and how to replace it. Never generate it on a phone or on any online machine.
 
