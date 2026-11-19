@@ -128,6 +128,12 @@ mkdir "$T/b-out9"
 expect refuse "bundle: unpack refuses base64 that is no tar" bash -c "echo hello | base64 | bash '$SB' unpack '$T/b-out9'"
 mkdir "$T/huge"; head -c 700000 /dev/urandom > "$T/huge/Release"
 expect refuse "bundle: pack refuses more than a job output carries" bash "$SB" pack "$T/huge"
+# 400000 random bytes encode to about 533000 characters: under 900000, but
+# over 1 MB once counted as UTF-16
+mkdir "$T/utf16"; head -c 400000 /dev/urandom > "$T/utf16/Release"
+expect refuse "bundle: pack counts a job output in UTF-16" bash "$SB" pack "$T/utf16"
+mkdir "$T/fits"; head -c 300000 /dev/urandom > "$T/fits/Release"
+bash "$SB" pack "$T/fits" > /dev/null || fail "bundle: pack refuses a bundle that fits (300000 bytes)"
 expect refuse "bundle: no sub-command" bash "$SB"
 expect refuse "sign-release: no sub-command" bash "$SR"
 

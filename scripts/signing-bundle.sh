@@ -14,8 +14,10 @@ source "$(dirname "$0")/lib/common.sh"
 
 readonly MAX_FILES=40
 readonly MAX_BYTES=2000000
-# GitHub limits the job outputs of a job to 1 MB.
-readonly MAX_ENCODED_CHARS=900000
+# GitHub limits the job outputs of a job to 1 MB and estimates the size in
+# UTF-16 (2 bytes a character). Half of that, minus room for the job's other
+# outputs (a few digests), is 450000 characters.
+readonly MAX_ENCODED_CHARS=450000
 readonly NAME_REGEX='^(Release|Packages|InRelease|Release\.gpg|tags/[A-Za-z0-9][A-Za-z0-9._+-]*\.(payload|sig))$'
 
 pack() {
