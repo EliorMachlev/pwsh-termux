@@ -5,18 +5,16 @@ either refuse a record with BuildRecordError or give a document; any other
 exception is a bug the fuzzer reports.
 """
 
-import importlib.util
 import json
 import sys
-from pathlib import Path
 
 import atheris
 
-SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "spdx-build-view.py"
-spec = importlib.util.spec_from_file_location("spdx_build_view", SCRIPT)
-assert spec is not None and spec.loader is not None
-sbv = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(sbv)
+# build.sh copies scripts/spdx-build-view.py next to this file as
+# spdx_build_view.py (the file name has a hyphen, and the packed fuzzer
+# cannot reach the repository's scripts/ folder).
+with atheris.instrument_imports():
+    import spdx_build_view as sbv
 
 
 def test_one_input(data: bytes) -> None:
