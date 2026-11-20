@@ -3,7 +3,8 @@
 # offline, with a stub curl: a file with the right SHA-256 is kept, one with
 # the wrong hash is refused, a copy that already matches is not downloaded
 # again, a stale or wrong copy is replaced, a failing download fails, every
-# error is retried, and the arguments are required. Touches nothing outside a
+# error is retried, and the arguments are required; each refusal is checked
+# for its diagnostic. Touches nothing outside a
 # temporary folder.
 #
 # Usage: test-fetch-verified.sh
@@ -17,16 +18,22 @@ FETCH=$SCRIPTS_DIR/fetch-verified.sh
 fails=0
 pass() { printf 'ok    %s\n' "$*"; }
 fail() { printf 'FAIL  %s\n' "$*"; fails=$((fails + 1)); }
-# expect <accept|refuse> <description> <command...>: as in test-keys.sh.
+# expect <accept|refuse> <description> [--says <diagnostic>] <command...>: as
+# in test-keys.sh; a refusal can name the diagnostic (a fixed string) it must
+# print, so it is checked for its reason, not only for failing.
 expect() {
-  local want=$1 what=$2; shift 2
+  local want=$1 what=$2 says=; shift 2
+  if [ "${1:-}" = --says ]; then says=$2; shift 2; fi
   local got=refuse
   if "$@" > "$T/out.log" 2>&1; then got=accept; fi
-  if [ "$got" = "$want" ]; then
-    pass "$what ($got)"
-  else
+  if [ "$got" != "$want" ]; then
     fail "$what ($got, expected $want)"
     cat "$T/out.log"
+  elif [ -n "$says" ] && ! grep -qF -- "$says" "$T/out.log"; then
+    fail "$what ($got, but the output lacks: $says)"
+    cat "$T/out.log"
+  else
+    pass "$what ($got${says:+, says: $says})"
   fi
 }
 # check <description> <command...>: the command succeeds.
@@ -61,7 +68,7 @@ expect accept "the right hash is kept" bash "$FETCH" "$URL" "$GOOD" "$T/tool"
 check "the file is there" test -f "$T/tool"
 check "curl retries every error, $DOWNLOAD_RETRIES times" grep -q -- "--retry $DOWNLOAD_RETRIES .*--retry-all-errors" "$T/curl.log"
 check "the URL is passed" grep -qF "$URL" "$T/curl.log"
-expect refuse "a wrong hash is refused" bash "$FETCH" "$URL" "$BAD" "$T/tool2"
+expect refuse "a wrong hash is refused" --says "did NOT match" bash "$FETCH" "$URL" "$BAD" "$T/tool2"
 
 echo "== a copy that is already there"
 : > "$T/curl.log"
@@ -73,10 +80,10 @@ check "it was downloaded again" test -s "$T/curl.log"
 
 echo "== failures"
 touch "$T/curl-fails"
-expect refuse "a failing download fails" bash "$FETCH" "$URL" "$GOOD" "$T/tool3"
+expect refuse "a failing download fails" --says "returned error: 404" bash "$FETCH" "$URL" "$GOOD" "$T/tool3"
 rm "$T/curl-fails"
-expect refuse "no arguments" bash "$FETCH"
-expect refuse "two arguments" bash "$FETCH" "$URL" "$GOOD"
+expect refuse "no arguments" --says "usage: fetch-verified.sh" bash "$FETCH"
+expect refuse "two arguments" --says "usage: fetch-verified.sh" bash "$FETCH" "$URL" "$GOOD"
 
 if [ "$fails" -ne 0 ]; then echo "$fails FAILED" >&2; exit 1; fi
 echo "all passed"
