@@ -25,7 +25,7 @@ FILE_LINK = re.compile(r"\[`([\w.-]+\.yaml)`\]")
 # item that is a path; x is "double-quoted", 'single-quoted' or bare, and may
 # be followed by a comment.
 SCALAR = r"""(?:"([^"]*)"|'([^']*)'|([^"'#\s][^#]*?))\s*(?:#.*)?$"""
-ENTRY = re.compile(rf"\s*(?:- )?(package-ecosystem|directory):\s*{SCALAR}|\s*- (?:\"(/[^\"]*)\"|'(/[^']*)'|(/[^#\s]*))\s*(?:#.*)?$")
+ENTRY = re.compile(rf"\s*(?:- )?(package-ecosystem|directory):\s*{SCALAR}|\s*- (?:\"(/[^\"]*)\"|'(/[^']*)'|(/[^#]*?))\s*(?:#.*)?$")
 errors = []
 
 
@@ -78,6 +78,8 @@ def read_entry(line):
     key = re.match(r"\s*(?:- )?(package-ecosystem|directory):", line)
     if key:
         return key.group(1), None
+    if re.match(r"""\s*- ["']?/""", line):
+        return "directory", None
     return None
 
 

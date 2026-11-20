@@ -17,9 +17,13 @@ CASES = [
     ('      - "/tools/x y"', ("directory", "/tools/x y")),
     ("      - '/tools/z'  # c", ("directory", "/tools/z")),
     ("      - /tools/bare", ("directory", "/tools/bare")),
+    ("      - /.clusterfuzzlite extra", ("directory", "/.clusterfuzzlite extra")),
+    ("      - /tools/x y  # c", ("directory", "/tools/x y")),
     # Cannot be read in full: reported, never cut short.
     ("  - directory: '/it''s'", ("directory", None)),
     ('    directory: "/a" extra', ("directory", None)),
+    ("      - '/it''s'", ("directory", None)),
+    ('      - "/a" extra', ("directory", None)),
     # Not Dependabot entries.
     ("    schedule:", None),
     ("      interval: daily", None),
