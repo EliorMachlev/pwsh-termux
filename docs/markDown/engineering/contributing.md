@@ -85,7 +85,7 @@ The [template](../../../.github/pull_request_template.md) is the checklist:
 1. Every commit is signed off ([DCO](#developer-certificate-of-origin)).
 2. A changed script was run locally, and the pull request says what you ran.
 3. A changed `build-deb.sh` was run on a device ([build](build.md#testing-on-a-device)).
-4. A change to packaging, releases, the repository, keys or the site assembly ran the matching offline tests: `test-build-deb.sh`, `test-find-releases.sh`, `test-make-sboms.sh`, `test-assemble-site.sh`, `test-keys.sh`, `test-release-tags.sh`, `test-keepalive.sh`, `test-dco.sh`; the keyring still builds byte-identical ([build](build.md#build-the-keyring-package)).
+4. A change to packaging, releases, the repository, keys or the site assembly ran the matching offline tests: `test-build-deb.sh`, `test-find-releases.sh`, `test-make-sboms.sh`, `test-fetch-verified.sh`, `test-assemble-site.sh`, `test-keys.sh`, `test-release-tags.sh`, `test-keepalive.sh`, `test-dco.sh`; the keyring still builds byte-identical ([build](build.md#build-the-keyring-package)).
 5. Changed behaviour or a bug fix comes with a test, or the pull request says why not.
 6. Nothing is suppressed beyond [exceptions.md](exceptions.md).
 7. A new or changed action is pinned to a SHA with its version in a comment.

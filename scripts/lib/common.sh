@@ -52,6 +52,28 @@ readonly PUBLISHED_KEY_GPG=$PROJECT_NAME.gpg          # the keyring file, binary
 readonly PUBLISHED_KEY_ASC=$PROJECT_NAME.asc          # the keyring file, armored
 readonly PUBLISHED_KEYRING_DEB=$KEYRING_PACKAGE.deb   # the keyring package, fixed name
 
+# Downloads: one retry policy for every script and workflow step. A 404 or a
+# 5xx from a release host is often a few minutes of CDN trouble, so every
+# error is retried (about two minutes in all) before the download fails.
+readonly DOWNLOAD_RETRIES=8
+readonly DOWNLOAD_RETRY_DELAY_SECONDS=15
+
+# download_file <url> <file>
+download_file() {
+  curl -fsSL --retry "$DOWNLOAD_RETRIES" --retry-delay "$DOWNLOAD_RETRY_DELAY_SECONDS" --retry-all-errors -o "$2" "$1"
+}
+
+# fetch_verified <url> <sha256> <file>: the file at that path has that SHA-256,
+# downloaded unless a copy (a cache's) already matches; a mismatch fails.
+fetch_verified() {
+  if [ -f "$3" ] && echo "$2  $3" | sha256sum -c --strict --quiet - 2> /dev/null; then
+    log "$3 is already here, hash checked"
+    return 0
+  fi
+  download_file "$1" "$3"
+  echo "$2  $3" | sha256sum -c --strict -
+}
+
 # project_blob_url <path>: the file on GitHub, on main.
 project_blob_url() { printf '%s\n' "$PROJECT_GITHUB_URL/blob/main/$1"; }
 

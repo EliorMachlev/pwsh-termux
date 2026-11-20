@@ -31,6 +31,7 @@ Offline tests, with fake tarballs and stub downloads (seconds each):
 PATCHELF=$PREFIX/glibc/bin/patchelf bash scripts/test-build-deb.sh
 bash scripts/test-find-releases.sh
 bash scripts/test-make-sboms.sh
+bash scripts/test-fetch-verified.sh
 bash scripts/test-assemble-site.sh
 ```
 

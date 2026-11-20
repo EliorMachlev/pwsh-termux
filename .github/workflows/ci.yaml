@@ -18,8 +18,9 @@ name: CI
 #               (audit-main-commits.sh), with local git repositories and a
 #               stub gh, offline
 #   packaging-tests  scripts/test-find-releases.sh, test-build-deb.sh,
-#               test-make-sboms.sh and test-assemble-site.sh: the release
-#               lookup, the .deb build, the SBOMs and the site assembly, with
+#               test-make-sboms.sh, test-fetch-verified.sh and
+#               test-assemble-site.sh: the release lookup, the .deb build, the
+#               SBOMs, the verified download and the site assembly, with
 #               stub downloads, fake tarballs and local git repositories,
 #               offline
 #   device-smoke  the real .deb built and run on an arm64 runner, with the
@@ -125,8 +126,7 @@ jobs:
       - name: Install jactionlint
         run: |
           archive="$RUNNER_TEMP/jactionlint.tar.gz"
-          curl -fsSL --retry 6 --retry-delay 10 --retry-all-errors -o "$archive" "https://github.com/jdx/jactionlint/releases/download/v${JACTIONLINT_VERSION}/jactionlint_${JACTIONLINT_VERSION}_linux_amd64.tar.gz"
-          echo "${JACTIONLINT_SHA256}  $archive" | sha256sum --check --strict -
+          bash scripts/fetch-verified.sh "https://github.com/jdx/jactionlint/releases/download/v${JACTIONLINT_VERSION}/jactionlint_${JACTIONLINT_VERSION}_linux_amd64.tar.gz" "$JACTIONLINT_SHA256" "$archive"
           tar -xzf "$archive" -C "$RUNNER_TEMP" jactionlint
       # ShellCheck comes with the runner image. The pedantic profile is every
       # rule of the default and correctness profiles plus the opinionated ones,
@@ -267,6 +267,8 @@ jobs:
         run: bash scripts/test-build-deb.sh
       - name: Test make-sboms.sh
         run: bash scripts/test-make-sboms.sh
+      - name: Test fetch-verified.sh
+        run: bash scripts/test-fetch-verified.sh
       - name: Test assemble-site.sh
         run: bash scripts/test-assemble-site.sh
 
@@ -329,8 +331,7 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y patchelf jq xz-utils
       - name: Install shfmt
         run: |
-          curl -fsSL --retry 6 --retry-delay 10 --retry-all-errors -o "$RUNNER_TEMP/shfmt" "https://github.com/mvdan/sh/releases/download/v${SHFMT_VERSION}/shfmt_v${SHFMT_VERSION}_linux_amd64"
-          echo "${SHFMT_SHA256}  $RUNNER_TEMP/shfmt" | sha256sum --check --strict -
+          bash scripts/fetch-verified.sh "https://github.com/mvdan/sh/releases/download/v${SHFMT_VERSION}/shfmt_v${SHFMT_VERSION}_linux_amd64" "$SHFMT_SHA256" "$RUNNER_TEMP/shfmt"
           chmod 755 "$RUNNER_TEMP/shfmt"
       # As in site.yaml: the lockfile's versions, no install script.
       - name: Install vnu
