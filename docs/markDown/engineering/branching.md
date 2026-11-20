@@ -12,7 +12,7 @@ There is one long-lived branch, **`main`**. The website and the repository are b
 
 1. [CI](../../../.github/workflows/ci.yaml): shellcheck, jactionlint, key, keep-alive and audit tests, packaging script tests, coverage, and a build of the real stable package.
 2. [Site](../../../.github/workflows/site.yaml): site check, HTML and CSS validation.
-3. [Docs checks](../../../.github/workflows/docs-checks.yaml): lychee (local links only) and typos.
+3. [Docs checks](../../../.github/workflows/docs-checks.yaml): lychee (local links only), typos, and `tools/docs-checks/facts.py` (the docs' counts and names against the workflows).
 4. [Zizmor](../../../.github/workflows/zizmor.yaml), uploading SARIF to code scanning.
 5. [CodeQL](../../../.github/workflows/codeql.yaml), `actions` language.
 6. [Gitleaks](../../../.github/workflows/gitleaks.yaml), [Betterleaks and TruffleHog](../../../.github/workflows/secret-scan.yaml), whole history.
