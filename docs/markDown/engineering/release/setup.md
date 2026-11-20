@@ -23,7 +23,7 @@ How the repository was set up, and where a fork or a rebuilt repository starts. 
 
 ## The signing environment
 
-`update.yaml`'s `publish` job is the only one that reads `GPG_PRIVATE_KEY` and `GPG_PASSPHRASE`. It runs in the environment `signing`, restricted to `main`, which holds both, so a run on any other branch cannot read them:
+`update.yaml`'s `sign` job is the only one that reads `GPG_PRIVATE_KEY` and `GPG_PASSPHRASE`. It runs in the environment `signing`, restricted to `main`, which holds both, so a run on any other branch cannot read them:
 
 ```bash
 R=repos/EliorMachlev/pwsh-termux
