@@ -7,7 +7,7 @@ Part of the [CI / CD](../ci-cd.md) docs.
 [`dependabot.yml`](../../../../.github/dependabot.yml) runs weekly (Mondays), with a 7-day cooldown after each upstream release. Six grouped pull requests:
 
 1. the pinned GitHub Actions, moving both the SHA and its `# vX.Y.Z` comment (every `uses:` is a full SHA, except the local reusable workflow, called as `$/.github/workflows/build-packages.yaml`);
-2. the hash-pinned Python requirements of `tools/zizmor` and `tools/docs-checks` (typos);
+2. the hash-pinned Python requirements of `tools/zizmor` and `tools/docs-checks` (typos, PyYAML);
 3. Hypothesis and its dependencies in [`tools/fuzz/`](../../../../tools/fuzz), hash-pinned;
 4. the website's checkers in [`tools/site-lint/`](../../../../tools/site-lint) (npm: `vnu-jar`, `stylelint`, `stylelint-config-standard`; exact versions in `package.json`, integrity hashes in `package-lock.json`);
 5. coverage.py in [`tools/coverage/`](../../../../tools/coverage), hash-pinned, for the `coverage` job;
