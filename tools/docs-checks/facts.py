@@ -21,6 +21,11 @@ DEPENDABOT_DOC = ROOT / "docs/markDown/engineering/ci-cd/dependabot.md"
 DEPENDABOT_YML = ROOT / ".github/dependabot.yml"
 ITEM = re.compile(r"^\d+\. `([^`]+)`: (?:.*?`([\w.-]+\.yaml)`.*?, )?job `([\w-]+)`")
 FILE_LINK = re.compile(r"\[`([\w.-]+\.yaml)`\]")
+# A Dependabot line: `package-ecosystem: x`, `directory: x` or a `- x` list
+# item that is a path; x is "double-quoted", 'single-quoted' or bare, and may
+# be followed by a comment.
+SCALAR = r"""(?:"([^"]*)"|'([^']*)'|([^"'#\s][^#]*?))\s*(?:#.*)?$"""
+ENTRY = re.compile(rf"\s*(?:- )?(package-ecosystem|directory):\s*{SCALAR}|\s*- (?:\"(/[^\"]*)\"|'(/[^']*)'|(/[^#\s]*))\s*(?:#.*)?$")
 errors = []
 
 
@@ -67,10 +72,12 @@ def check_required_checks():
 def check_dependabot():
     doc = DEPENDABOT_DOC.read_text()
     for line in DEPENDABOT_YML.read_text().splitlines():
-        match = re.match(r"""\s*(?:- )?(package-ecosystem|directory):\s*["']?([^"'\s#]+)|\s*- ["']?(/[^"'\s#]*)""", line)
+        match = ENTRY.match(line)
         if not match:
+            if re.match(r"\s*(?:- )?(?:package-ecosystem|directory):", line):
+                errors.append(f"dependabot.yml: cannot read the value in {line.strip()!r}")
             continue
-        value = match.group(2) or match.group(3)
+        value = next(g for g in match.groups()[1:] if g is not None)
         needle = value.strip("/") if value != "/" else None
         if match.group(1) == "package-ecosystem":
             needle = {"github-actions": "GitHub Actions", "pip": "Python", "npm": "npm", "docker": "docker"}[value]
