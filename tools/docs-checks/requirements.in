@@ -3,4 +3,4 @@
 # workflow sets up):
 #   pip-compile --allow-unsafe --generate-hashes --strip-extras requirements.in
 # Dependabot (pip, this directory) recompiles it when typos has a new release.
-typos==1.52.0
+typos==1.52.2
