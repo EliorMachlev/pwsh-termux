@@ -24,8 +24,11 @@ FILE_LINK = re.compile(r"\[`([\w.-]+\.yaml)`\]")
 # A Dependabot line: `package-ecosystem: x`, `directory: x` or a `- x` list
 # item that is a path; x is "double-quoted", 'single-quoted' or bare, and may
 # be followed by a comment.
-SCALAR = r"""(?:"([^"]*)"|'([^']*)'|([^"'#\s][^#]*?))\s*(?:#.*)?$"""
-ENTRY = re.compile(rf"\s*(?:- )?(package-ecosystem|directory):\s*{SCALAR}|\s*- (?:\"(/[^\"]*)\"|'(/[^']*)'|(/[^#]*?))\s*(?:#.*)?$")
+# In YAML a "#" starts a comment only after whitespace, so "/a#b" is a value.
+TAIL = r"(?:\s+#.*)?\s*$"
+BARE = r"(?:(?!\s#).)*?"
+SCALAR = rf"""(?:"([^"]*)"|'([^']*)'|([^"'#\s]{BARE})){TAIL}"""
+ENTRY = re.compile(rf"""\s*(?:- )?(package-ecosystem|directory):\s*{SCALAR}|\s*- (?:"(/[^"]*)"|'(/[^']*)'|(/{BARE})){TAIL}""")
 errors = []
 
 

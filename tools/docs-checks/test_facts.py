@@ -19,6 +19,9 @@ CASES = [
     ("      - /tools/bare", ("directory", "/tools/bare")),
     ("      - /.clusterfuzzlite extra", ("directory", "/.clusterfuzzlite extra")),
     ("      - /tools/x y  # c", ("directory", "/tools/x y")),
+    ("    directory: /.clusterfuzzlite#extra", ("directory", "/.clusterfuzzlite#extra")),
+    ("      - /.clusterfuzzlite#extra", ("directory", "/.clusterfuzzlite#extra")),
+    ("      - /.clusterfuzzlite#extra y # c", ("directory", "/.clusterfuzzlite#extra y")),
     # Cannot be read in full: reported, never cut short.
     ("  - directory: '/it''s'", ("directory", None)),
     ('    directory: "/a" extra', ("directory", None)),
