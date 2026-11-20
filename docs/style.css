@@ -452,14 +452,6 @@ th {
   white-space: nowrap;
 }
 
-ol.steps {
-  padding-left: 1.4rem;
-}
-
-ol.steps li {
-  margin-block: .5rem;
-}
-
 /* Pill buttons. A press shows at once, on the press itself, as a spring-eased shrink that releases the
    same way. With reduced motion it is a change of shade instead. */
 .btn {

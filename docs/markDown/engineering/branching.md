@@ -16,7 +16,7 @@ There is one long-lived branch, **`main`**. The website and the repository are b
 4. [Zizmor](../../../.github/workflows/zizmor.yaml), uploading SARIF to code scanning.
 5. [CodeQL](../../../.github/workflows/codeql.yaml), `actions` language.
 6. [Gitleaks](../../../.github/workflows/gitleaks.yaml), [Betterleaks and TruffleHog](../../../.github/workflows/secret-scan.yaml), whole history.
-7. [Fuzz](../../../.github/workflows/fuzz.yaml): Hypothesis on `spdx-build-view.py`.
+7. [Fuzz](../../../.github/workflows/fuzz.yaml): Hypothesis on `spdx-build-view.py`. (ClusterFuzzLite, [`clusterfuzzlite.yaml`](../../../.github/workflows/clusterfuzzlite.yaml), fuzzes it too when it changes, and weekly; not required.)
 8. [Dependency Review](../../../.github/workflows/dependency-review.yaml): blocks high-severity advisories.
 9. [DCO](../../../.github/workflows/dco.yaml): a sign-off on every commit.
 
