@@ -21,7 +21,7 @@ Every release carries a CycloneDX and three SPDX SBOMs and signed build provenan
 
 - Every action is pinned to a commit SHA with its version in a comment.
 - Dependabot updates the actions, the pinned Python tools (zizmor, typos, Hypothesis, coverage.py) and the site's npm checkers; Dependency Review runs on pull requests.
-- harden-runner runs first in each job, in `audit` mode, so unexpected egress shows in the run's insights. The jobs that hold secrets (`sign`, keep-alive commit) run it in `block` mode with a GitHub-only `allowed-endpoints` list; `sign` receives only small files (a job output), never a `.deb` or artifact storage access, so it needs no storage endpoint. `publish`, whose token can write releases, also blocks, but must allow the artifact storage. `deploy` (Pages, no key, no `.deb`) blocks too, with the GitHub-only list; it passes the artifact id to GitHub and needs no storage endpoint.
+- harden-runner runs first in each job, in `block` mode with a per-job `allowed-endpoints` list (two jobs, `Scorecard analysis` and `Links (lychee)`, stay in `audit` mode and show unexpected egress in the run's insights). The jobs that hold secrets (`sign`, keep-alive commit) run it in `block` mode with a GitHub-only `allowed-endpoints` list; `sign` receives only small files (a job output), never a `.deb` or artifact storage access, so it needs no storage endpoint. `publish`, whose token can write releases, also blocks, but must allow the artifact storage. `deploy` (Pages, no key, no `.deb`) blocks too, with the GitHub-only list; it passes the artifact id to GitHub and needs no storage endpoint.
 
 ## Network
 
