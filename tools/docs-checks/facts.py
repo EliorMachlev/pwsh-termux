@@ -30,11 +30,11 @@ def jobs(workflow):
     for line in (WORKFLOWS / workflow).read_text().splitlines():
         if line.startswith("jobs:"):
             in_jobs = True
-        elif in_jobs and (job := re.match(r"^  ([\w-]+):\s*$", line)):
+        elif in_jobs and (job := re.match(r"^  ([\w-]+):\s*(?:#.*)?$", line)):
             current = job.group(1)
             found[current] = current
-        elif in_jobs and current and (name := re.match(r"^    name:\s*(.+?)\s*$", line)):
-            found[current] = name.group(1).strip("'\"")
+        elif in_jobs and current and (name := re.match(r"^    name:\s*(?:\"([^\"]*)\"|'([^']*)'|([^#\s][^#]*?))\s*(?:#.*)?$", line)):
+            found[current] = next(g for g in name.groups() if g is not None)
     return found
 
 
@@ -67,7 +67,7 @@ def check_required_checks():
 def check_dependabot():
     doc = DEPENDABOT_DOC.read_text()
     for line in DEPENDABOT_YML.read_text().splitlines():
-        match = re.match(r'\s*(?:- )?(package-ecosystem|directory):\s*"([^"]+)"|\s*- "(/[^"]*)"', line)
+        match = re.match(r"""\s*(?:- )?(package-ecosystem|directory):\s*["']?([^"'\s#]+)|\s*- ["']?(/[^"'\s#]*)""", line)
         if not match:
             continue
         value = match.group(2) or match.group(3)
