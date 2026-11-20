@@ -115,3 +115,5 @@ jobs:
       # Dependabot's ecosystems) against the workflows and dependabot.yml.
       - name: Check the docs against the workflows
         run: python3 tools/docs-checks/facts.py
+      - name: Test how facts.py reads dependabot.yml
+        run: python3 tools/docs-checks/test_facts.py

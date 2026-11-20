@@ -69,26 +69,40 @@ def check_required_checks():
     return count
 
 
+def read_entry(line):
+    """(key, value) of a Dependabot line, None if it is not one, or
+    (key, None) if it is one whose value cannot be read in full."""
+    match = ENTRY.match(line)
+    if match:
+        return match.group(1) or "directory", next(g for g in match.groups()[1:] if g is not None)
+    key = re.match(r"\s*(?:- )?(package-ecosystem|directory):", line)
+    if key:
+        return key.group(1), None
+    return None
+
+
 def check_dependabot():
     doc = DEPENDABOT_DOC.read_text()
     for line in DEPENDABOT_YML.read_text().splitlines():
-        match = ENTRY.match(line)
-        if not match:
-            if re.match(r"\s*(?:- )?(?:package-ecosystem|directory):", line):
-                errors.append(f"dependabot.yml: cannot read the value in {line.strip()!r}")
+        entry = read_entry(line)
+        if entry is None:
             continue
-        value = next(g for g in match.groups()[1:] if g is not None)
+        key, value = entry
+        if value is None:
+            errors.append(f"dependabot.yml: cannot read the value in {line.strip()!r}")
+            continue
         needle = value.strip("/") if value != "/" else None
-        if match.group(1) == "package-ecosystem":
+        if key == "package-ecosystem":
             needle = {"github-actions": "GitHub Actions", "pip": "Python", "npm": "npm", "docker": "docker"}[value]
         if needle and needle not in doc:
             errors.append(f"dependabot.md: does not mention {needle} (dependabot.yml: {value})")
 
 
-count = check_required_checks()
-check_dependabot()
-for error in errors:
-    print(f"::error::{error}")
-if errors:
-    sys.exit(1)
-print(f"Docs match the workflows: {count} required checks, Dependabot ecosystems and folders")
+if __name__ == "__main__":
+    count = check_required_checks()
+    check_dependabot()
+    for error in errors:
+        print(f"::error::{error}")
+    if errors:
+        sys.exit(1)
+    print(f"Docs match the workflows: {count} required checks, Dependabot ecosystems and folders")
