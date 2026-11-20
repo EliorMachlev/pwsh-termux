@@ -34,10 +34,8 @@ Dependabot does not follow a download, and nothing reminds you when these fall b
 2. jactionlint and shfmt, in `ci.yaml` (`JACTIONLINT_*`, `SHFMT_*`);
 3. lychee, in `docs-checks.yaml` (`LYCHEE_*`).
 
-To move jactionlint to a new release:
+[`tools/pinned-tools/bump.py`](../../../../tools/pinned-tools/bump.py) does Dependabot's job for them: it picks the newest stable release at least two weeks old, takes the SHA-256 from the project's checksums file (for Microsoft's SBOM tool and tools-java, which publish none, it hashes the download), and prints the change; `--apply` rewrites the constants.
 
-1. Pick a release at least two weeks old (`gh release list -R jdx/jactionlint`).
-2. Download `jactionlint_<version>_checksums.txt` and `jactionlint_<version>_linux_amd64.tar.gz`.
-3. Check that `sha256sum` of the archive matches its line in the checksums file.
-4. Read the release notes for new or changed rules: every rule of the `pedantic` profile runs, and any finding fails.
-5. Set `JACTIONLINT_VERSION` and `JACTIONLINT_SHA256` together.
+1. Run `python3 tools/pinned-tools/bump.py`, then again with `--apply`.
+2. Read the release notes. jactionlint's `pedantic` profile runs every rule and any finding fails, so a new rule can fail CI.
+3. Run the offline tests ([build](../build.md)), commit and open a pull request. CI checks the new pins.

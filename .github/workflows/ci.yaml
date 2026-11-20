@@ -69,8 +69,8 @@ env:
   # it runs (it matched the release's own checksums file when it was pinned).
   # Dependabot doesn't follow a download: for a new release, update both
   # lines by hand, after checking that file (ci-cd/dependabot.md).
-  JACTIONLINT_VERSION: "2.4.0"
-  JACTIONLINT_SHA256: "26ddba81db28fffc51163175c070ee1a9d1150260de4b5232f01d9b749f32d8e"
+  JACTIONLINT_VERSION: "2.5.0"
+  JACTIONLINT_SHA256: "5ac307b0499bb0eab45ae99c23e8e0790874fbc667c75224410954e0e3c6e0f5"
   # shfmt's release binary (https://github.com/mvdan/sh), whose parser gives
   # the coverage job the commands of each script; checked the same way (it
   # matched the release asset's digest when it was pinned), updated by hand.
