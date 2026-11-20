@@ -54,7 +54,7 @@ GitHub disables a public repository's schedules after 60 days without activity, 
 ## Malicious change to the workflows or scripts
 
 - **Mitigation.** Pull requests run with read-only tokens and no secrets; no `pull_request_target`; zizmor, CodeQL and jactionlint audit the workflows; signing runs only on `main`, in `update.yaml`. Four rulesets ([rulesets](../ci-cd/rulesets.md)):
-  1. *Main* (`main`): signed commits, clean code scanning (CodeQL, zizmor), a pull request (squash merge only, no approval needed: a solo repository) and 21 required status checks. Only the deploy key can bypass it; the Admin role cannot.
+  1. *Main* (`main`): signed commits, clean code scanning (CodeQL, zizmor), a pull request (squash merge only, no approval needed: a solo repository) and 23 required status checks. Only the deploy key can bypass it; the Admin role cannot.
   2. *Protection, other branches*: signed commits and clean code scanning.
   3. *Protection* (every branch but `refs/heads/dependabot/**/*`): no deletion, force push or branch creation.
   4. *Tag Protection* (every tag): no deletion, force push or update; signed commits; no `creation` rule.
@@ -79,6 +79,6 @@ GitHub disables a public repository's schedules after 60 days without activity, 
 
 ## Other threats
 
-- **Leaked secret in the history.** Betterleaks and TruffleHog (two independent scanners) scan the whole history on every pull request, every push to `main` and weekly; GitHub secret scanning and push protection are on.
+- **Leaked secret in the history.** Gitleaks, Betterleaks and TruffleHog (three independent scanners) scan the whole history on every pull request, every push to `main` and weekly; GitHub secret scanning and push protection are on.
 - **Vulnerable dependency.** Dependabot and Dependency Review ([supply chain](supply-chain.md#actions-and-dependencies)). The packages' contents are Microsoft's.
 - **Abuse of the name.** The packages and the site say they are unofficial and unaffiliated; the trademark is acknowledged ([compliance posture](../../legal/compliance-posture.md)).

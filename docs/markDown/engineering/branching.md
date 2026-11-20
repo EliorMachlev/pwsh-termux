@@ -4,7 +4,7 @@ There is one long-lived branch, **`main`**. The website and the repository are b
 
 - Changes arrive by **pull request** from a topic branch off `main`, titled `type(scope): description` ([contributing](contributing.md)).
 - **Releases are not branches and need no commit here.** The scheduled workflow picks up a new PowerShell release, publishes it and pushes its signed release tag ([release](release.md), [tags](release/tags.md)).
-- Nobody pushes straight to `main`, the maintainer included: the ruleset *Main* takes changes only through a pull request whose 22 required checks have passed, merged with *Squash and merge* ([rulesets](ci-cd/rulesets.md)). The one exception is the monthly keep-alive commit, pushed with the deploy key ([keep-alive commit](ci-cd/keepalive.md#keep-alive-commit)).
+- Nobody pushes straight to `main`, the maintainer included: the ruleset *Main* takes changes only through a pull request whose 23 required checks have passed, merged with *Squash and merge* ([rulesets](ci-cd/rulesets.md)). The one exception is the monthly keep-alive commit, pushed with the deploy key ([keep-alive commit](ci-cd/keepalive.md#keep-alive-commit)).
 
 ## Which checks run where
 
@@ -15,7 +15,7 @@ There is one long-lived branch, **`main`**. The website and the repository are b
 3. [Docs checks](../../../.github/workflows/docs-checks.yaml): lychee (local links only) and typos.
 4. [Zizmor](../../../.github/workflows/zizmor.yaml), uploading SARIF to code scanning.
 5. [CodeQL](../../../.github/workflows/codeql.yaml), `actions` language.
-6. [Betterleaks and TruffleHog](../../../.github/workflows/secret-scan.yaml), whole history.
+6. [Gitleaks](../../../.github/workflows/gitleaks.yaml), [Betterleaks and TruffleHog](../../../.github/workflows/secret-scan.yaml), whole history.
 7. [Fuzz](../../../.github/workflows/fuzz.yaml): Hypothesis on `spdx-build-view.py`.
 8. [Dependency Review](../../../.github/workflows/dependency-review.yaml): blocks high-severity advisories.
 9. [DCO](../../../.github/workflows/dco.yaml): a sign-off on every commit.
@@ -28,13 +28,13 @@ Plus the CodeRabbit review. These workflows have no `paths` filter on `pull_requ
 2. Site, for `docs/**`, `art/brand/**`, its checkers and the site scripts.
 3. Docs checks, for the docs.
 4. Zizmor and CodeQL, for the workflows.
-5. Secret scan (Betterleaks, TruffleHog), Fuzz, OpenSSF Scorecard and the [audit of main](ci-cd/audit.md), on every push.
+5. Gitleaks, Betterleaks, TruffleHog, Fuzz, OpenSSF Scorecard and the [audit of main](ci-cd/audit.md), on every push.
 6. [Update packages](../../../.github/workflows/update.yaml), for scripts, keys, docs and its own workflows: builds, signs and **deploys**.
 
 **On a schedule:**
 
 1. Daily: Update packages (re-signs the index for `Valid-Until`), [index staleness](../../../.github/workflows/staleness.yaml) (an issue if the live index has under 7 days left) and the audit of main.
-2. Weekly: Site (also catches an expiring `security.txt`), Docs checks (adds external links), Zizmor, CodeQL, Secret scan, Fuzz (a longer run), Scorecard.
+2. Weekly: Site (also catches an expiring `security.txt`), Docs checks (adds external links), Zizmor, CodeQL, the secret scanners, Fuzz (a longer run), Scorecard.
 3. Keep-alive: `keepalive.yaml` twice a week, `keepalive-commit.yaml` on Mondays ([keep-alive](ci-cd/keepalive.md)).
 4. Monthly: `renew-security-txt.yaml`. Yearly: the [key review](../../../.github/workflows/key-review.yaml) reminder issue.
 
