@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Check that the docs state what the workflows and dependabot.yml say.
 
-Stdlib only; run from anywhere: python3 tools/docs-checks/facts.py
+Needs PyYAML (requirements.txt); run from anywhere: python3 tools/docs-checks/facts.py
 
 1. rulesets.md lists the required checks as "`<check name>`: `<workflow>`,
    job `<id>`". Each must be a job with that id and name in that workflow
@@ -14,6 +14,8 @@ import re
 import sys
 from pathlib import Path
 
+import yaml
+
 ROOT = Path(__file__).resolve().parents[2]
 WORKFLOWS = ROOT / ".github" / "workflows"
 RULESETS = ROOT / "docs/markDown/engineering/ci-cd/rulesets.md"
@@ -21,29 +23,13 @@ DEPENDABOT_DOC = ROOT / "docs/markDown/engineering/ci-cd/dependabot.md"
 DEPENDABOT_YML = ROOT / ".github/dependabot.yml"
 ITEM = re.compile(r"^\d+\. `([^`]+)`: (?:.*?`([\w.-]+\.yaml)`.*?, )?job `([\w-]+)`")
 FILE_LINK = re.compile(r"\[`([\w.-]+\.yaml)`\]")
-# A Dependabot line: `package-ecosystem: x`, `directory: x` or a `- x` list
-# item that is a path; x is "double-quoted", 'single-quoted' or bare, and may
-# be followed by a comment.
-# In YAML a "#" starts a comment only after whitespace, so "/a#b" is a value.
-TAIL = r"(?:\s+#.*)?\s*$"
-BARE = r"(?:(?!\s#).)*?"
-SCALAR = rf"""(?:"([^"]*)"|'([^']*)'|([^"'#\s]{BARE})){TAIL}"""
-ENTRY = re.compile(rf"""\s*(?:- )?(package-ecosystem|directory):\s*{SCALAR}|\s*- (?:"(/[^"]*)"|'(/[^']*)'|(/{BARE})){TAIL}""")
 errors = []
 
 
 def jobs(workflow):
-    """{job id: job name} of a workflow file, read line by line."""
-    found, current, in_jobs = {}, None, False
-    for line in (WORKFLOWS / workflow).read_text().splitlines():
-        if line.startswith("jobs:"):
-            in_jobs = True
-        elif in_jobs and (job := re.match(r"^  ([\w-]+):\s*(?:#.*)?$", line)):
-            current = job.group(1)
-            found[current] = current
-        elif in_jobs and current and (name := re.match(r"^    name:\s*(?:\"([^\"]*)\"|'([^']*)'|([^#\s][^#]*?))\s*(?:#.*)?$", line)):
-            found[current] = next(g for g in name.groups() if g is not None)
-    return found
+    """{job id: job name} of a workflow file."""
+    data = yaml.safe_load((WORKFLOWS / workflow).read_text())
+    return {job: (body or {}).get("name", job) for job, body in data["jobs"].items()}
 
 
 def check_required_checks():
@@ -72,33 +58,26 @@ def check_required_checks():
     return count
 
 
-def read_entry(line):
-    """(key, value) of a Dependabot line, None if it is not one, or
-    (key, None) if it is one whose value cannot be read in full."""
-    match = ENTRY.match(line)
-    if match:
-        return match.group(1) or "directory", next(g for g in match.groups()[1:] if g is not None)
-    key = re.match(r"\s*(?:- )?(package-ecosystem|directory):", line)
-    if key:
-        return key.group(1), None
-    if re.match(r"""\s*- ["']?/""", line):
-        return "directory", None
-    return None
+def dependabot_entries(text):
+    """[(kind, value)] for every ecosystem and directory in dependabot.yml."""
+    found = []
+    for update in yaml.safe_load(text)["updates"]:
+        found.append(("package-ecosystem", update["package-ecosystem"]))
+        for directory in [update.get("directory"), *update.get("directories", [])]:
+            if directory is not None:
+                found.append(("directory", directory))
+    return found
 
 
 def check_dependabot():
     doc = DEPENDABOT_DOC.read_text()
-    for line in DEPENDABOT_YML.read_text().splitlines():
-        entry = read_entry(line)
-        if entry is None:
-            continue
-        key, value = entry
-        if value is None:
-            errors.append(f"dependabot.yml: cannot read the value in {line.strip()!r}")
-            continue
-        needle = value.strip("/") if value != "/" else None
+    for key, value in dependabot_entries(DEPENDABOT_YML.read_text()):
+        needle = value.strip("/") or None
         if key == "package-ecosystem":
-            needle = {"github-actions": "GitHub Actions", "pip": "Python", "npm": "npm", "docker": "docker"}[value]
+            needle = {"github-actions": "GitHub Actions", "pip": "Python", "npm": "npm", "docker": "docker"}.get(value)
+            if needle is None:
+                errors.append(f"dependabot.md: no docs name known for ecosystem {value}")
+                continue
         if needle and needle not in doc:
             errors.append(f"dependabot.md: does not mention {needle} (dependabot.yml: {value})")
 
