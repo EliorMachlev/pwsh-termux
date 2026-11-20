@@ -4,17 +4,18 @@ Part of the [CI / CD](../ci-cd.md) docs.
 
 ## What Dependabot updates
 
-[`dependabot.yml`](../../../../.github/dependabot.yml) runs weekly (Mondays), with a 7-day cooldown after each upstream release. Five grouped pull requests:
+[`dependabot.yml`](../../../../.github/dependabot.yml) runs weekly (Mondays), with a 7-day cooldown after each upstream release. Six grouped pull requests:
 
 1. the pinned GitHub Actions, moving both the SHA and its `# vX.Y.Z` comment (every `uses:` is a full SHA, except the local reusable workflow, called as `$/.github/workflows/build-packages.yaml`);
 2. the hash-pinned Python requirements of `tools/zizmor` and `tools/docs-checks` (typos);
 3. Hypothesis and its dependencies in [`tools/fuzz/`](../../../../tools/fuzz), hash-pinned;
 4. the website's checkers in [`tools/site-lint/`](../../../../tools/site-lint) (npm: `vnu-jar`, `stylelint`, `stylelint-config-standard`; exact versions in `package.json`, integrity hashes in `package-lock.json`);
-5. coverage.py in [`tools/coverage/`](../../../../tools/coverage), hash-pinned, for the `coverage` job.
+5. coverage.py in [`tools/coverage/`](../../../../tools/coverage), hash-pinned, for the `coverage` job;
+6. the base image of [`.clusterfuzzlite/`](../../../../.clusterfuzzlite) (`docker`), pinned by digest.
 
 These folders live under `tools/`, not `.github/`: Dependabot could not open pull requests for files under `.github/` (its API refused the change as "invalid or unauthorized"), while the same files at the top level were accepted.
 
-These are the only package ecosystems in the repository. The npm packages are CI tooling: `site.yaml` installs them with `npm ci --ignore-scripts` and checks them with `npm audit signatures`; no JavaScript ships on the site.
+These are the only ecosystems in the repository. The npm packages are CI tooling: `site.yaml` installs them with `npm ci --ignore-scripts` and checks them with `npm audit signatures`; no JavaScript ships on the site.
 
 Dependabot's pull requests are held to the same [required checks](rulesets.md#required-status-checks) as any other; Dependency Review and zizmor check them too.
 

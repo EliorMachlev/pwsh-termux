@@ -121,7 +121,7 @@ GitHub disables a public repository's schedules after 60 days without activity, 
 
 ## Commits on main
 
-Every change reaches `main` through a pull request on signed commits that passes 19 required checks, merged as a squash commit that GitHub signs; the maintainer's admin role cannot bypass that ([rulesets](docs/markDown/engineering/ci-cd/rulesets.md)). The one exception is the keep-alive commit, pushed with the repository's only deploy key. Every commit on `main` is audited on each push and daily; anything unexpected opens the issue *Unexpected unsigned commit on main*, which means the deploy key must be rotated ([threat model](docs/markDown/engineering/security/threat-model.md#leaked-keep-alive-deploy-key)).
+Every change reaches `main` through a pull request on signed commits that passes 22 required checks, merged as a squash commit that GitHub signs; the maintainer's admin role cannot bypass that ([rulesets](docs/markDown/engineering/ci-cd/rulesets.md)). The one exception is the keep-alive commit, pushed with the repository's only deploy key. Every commit on `main` is audited on each push and daily; anything unexpected opens the issue *Unexpected unsigned commit on main*, which means the deploy key must be rotated ([threat model](docs/markDown/engineering/security/threat-model.md#leaked-keep-alive-deploy-key)).
 
 ## Verifying a download
 
