@@ -79,6 +79,6 @@ GitHub disables a public repository's schedules after 60 days without activity, 
 
 ## Other threats
 
-- **Leaked secret in the history.** Gitleaks scans the whole history on every pull request, every push to `main` and weekly; GitHub secret scanning and push protection are on.
+- **Leaked secret in the history.** Betterleaks and TruffleHog (two independent scanners) scan the whole history on every pull request, every push to `main` and weekly; GitHub secret scanning and push protection are on.
 - **Vulnerable dependency.** Dependabot and Dependency Review ([supply chain](supply-chain.md#actions-and-dependencies)). The packages' contents are Microsoft's.
 - **Abuse of the name.** The packages and the site say they are unofficial and unaffiliated; the trademark is acknowledged ([compliance posture](../../legal/compliance-posture.md)).
