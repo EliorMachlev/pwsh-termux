@@ -24,6 +24,7 @@ Part of the [CI / CD](../ci-cd.md) docs. All are in [`.github/workflows/`](../..
 - [`codeql.yaml`](../../../../.github/workflows/codeql.yaml): CodeQL for the `actions` language (there is no CodeQL pack for shell).
 - [`gitleaks.yaml`](../../../../.github/workflows/gitleaks.yaml): scans the whole history for secrets; built from a pinned commit (checked after fetching) and cached; matches are redacted in the log.
 - [`fuzz.yaml`](../../../../.github/workflows/fuzz.yaml): Hypothesis fuzzing of `spdx-build-view.py` ([fuzzing](tests.md#fuzzing)).
+- [`clusterfuzzlite.yaml`](../../../../.github/workflows/clusterfuzzlite.yaml): ClusterFuzzLite (Atheris) on the same script, from [`.clusterfuzzlite/`](../../../../.clusterfuzzlite/); not a required check. It is what OpenSSF Scorecard's Fuzzing check recognises ([fuzzing](tests.md#fuzzing)).
 - [`dependency-review.yaml`](../../../../.github/workflows/dependency-review.yaml): fails on a new dependency with a high-severity advisory.
 - [`dco.yaml`](../../../../.github/workflows/dco.yaml): every commit a pull request adds must carry its author's `Signed-off-by:` ([DCO](tests.md#dco)).
 - [`scorecard.yaml`](../../../../.github/workflows/scorecard.yaml): OpenSSF Scorecard, weekly and on pushes to `main`; the README badge reads it.

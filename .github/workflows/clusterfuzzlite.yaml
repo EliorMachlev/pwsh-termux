@@ -1,0 +1,63 @@
+name: ClusterFuzzLite
+# Coverage-guided fuzzing (Atheris) of scripts/spdx-build-view.py with
+# ClusterFuzzLite (.clusterfuzzlite/). A few minutes on every pull request
+# that touches the script or the target, and longer weekly. The Hypothesis
+# tests (fuzz.yaml) stay the main fuzzing; this is what OpenSSF Scorecard's
+# Fuzzing check looks for.
+on:
+  pull_request:
+    paths:
+      - "scripts/spdx-build-view.py"
+      - ".clusterfuzzlite/**"
+      - ".github/workflows/clusterfuzzlite.yaml"
+  push:
+    branches: [main]
+    paths:
+      - "scripts/spdx-build-view.py"
+      - ".clusterfuzzlite/**"
+      - ".github/workflows/clusterfuzzlite.yaml"
+  schedule:
+    - cron: '47 3 * * 4'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ !contains(fromJSON('["refs/heads/main"]'), github.ref) }}
+
+permissions:
+  contents: read
+
+jobs:
+  fuzz:
+    name: Fuzz (ClusterFuzzLite)
+    runs-on: ubuntu-26.04
+    timeout-minutes: 30
+    steps:
+      # Blocked except what pulling the two ClusterFuzzLite images and the
+      # base image needs. No secret is passed to the third-party actions: no
+      # github-token (so no corpus storage or PR comments), and the job's
+      # token is read-only.
+      - name: Harden the runner
+        uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a # v2.22.4
+        with:
+          egress-policy: block
+          allowed-endpoints: >
+            github.com:443
+            api.github.com:443
+            gcr.io:443
+            *.gcr.io:443
+            storage.googleapis.com:443
+
+      - name: Build the fuzzers
+        id: build
+        uses: google/clusterfuzzlite/actions/build_fuzzers@884713a6c30a92e5e8544c39945cd7cb630abcd1 # v1
+        with:
+          language: python
+          sanitizer: address
+
+      - name: Run the fuzzers
+        uses: google/clusterfuzzlite/actions/run_fuzzers@884713a6c30a92e5e8544c39945cd7cb630abcd1 # v1
+        with:
+          fuzz-seconds: ${{ github.event_name == 'pull_request' && 180 || 600 }}
+          mode: ${{ github.event_name == 'pull_request' && 'code-change' || 'batch' }}
+          sanitizer: address
