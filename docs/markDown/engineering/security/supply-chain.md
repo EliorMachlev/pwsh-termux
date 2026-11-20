@@ -29,4 +29,4 @@ The pipeline contacts only GitHub: the API, the release downloads, Pages and the
 
 ## Code analysis
 
-On every change: shellcheck, jactionlint, zizmor, CodeQL (`actions`), Gitleaks, lychee, typos, Dependency Review, Hypothesis fuzzing of `spdx-build-view.py`, test coverage with a floor, and a real package build. OpenSSF Scorecard runs on pushes to `main` and weekly, and the audit checks every commit on `main`. No finding is suppressed beyond [exceptions](../exceptions.md).
+On every change: shellcheck, jactionlint, zizmor, CodeQL (`actions`), Gitleaks, Betterleaks, TruffleHog, lychee, typos, Dependency Review, Hypothesis fuzzing of `spdx-build-view.py`, test coverage with a floor, and a real package build. OpenSSF Scorecard runs on pushes to `main` and weekly, and the audit checks every commit on `main`. No finding is suppressed beyond [exceptions](../exceptions.md).

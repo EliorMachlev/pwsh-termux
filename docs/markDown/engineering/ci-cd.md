@@ -6,7 +6,7 @@ Workflows are in [`.github/workflows/`](../../../.github/workflows).
 
 1. [Workflows](ci-cd/workflows.md): what each one does and when it runs.
 2. [What the tests cover](ci-cd/tests.md): CI's test jobs, coverage, fuzzing, DCO.
-3. [Rulesets and required checks](ci-cd/rulesets.md): the 21 required checks and how `main` is protected.
+3. [Rulesets and required checks](ci-cd/rulesets.md): the 22 required checks and how `main` is protected.
 4. [Keep-alive](ci-cd/keepalive.md): the schedule renewal, the keep-alive commit and its deploy key.
 5. [The audit of main](ci-cd/audit.md)
 6. [Dependabot and pinned tools](ci-cd/dependabot.md)
