@@ -1,0 +1,120 @@
+name: Pinned tools
+
+# The tools pinned by hand (Syft, the SBOM generators, jactionlint, shfmt,
+# lychee) have no Dependabot ecosystem. Every Monday this runs
+# tools/pinned-tools/bump.py, which lists the releases that are past the
+# two-week cooldown, and opens the issue "Update pinned tools" (or comments
+# on it if already open) with the list and the commands to apply it, and
+# fails; once nothing is outdated it closes the issue. A tool bump.py cannot
+# check also fails the run.
+#
+# It cannot make the change itself: the rulesets refuse every write that
+# GITHUB_TOKEN could make (see renew-security-txt.yaml and
+# ci-cd/rulesets.md), so the maintainer commits the result, signed, through
+# a pull request.
+on:
+  schedule:
+    - cron: "23 5 * * 1"
+  workflow_dispatch:
+
+concurrency:
+  group: pinned-tools
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  ISSUE_TITLE: "Update pinned tools"
+
+# Every run: step runs as `bash --noprofile --norc -eo pipefail {0}`: a
+# failure anywhere in a pipeline fails the step.
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  check:
+    name: Check the pinned tools for new releases
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: write            # open, comment on and close "Update pinned tools"
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a # v2.22.4
+        with:
+          egress-policy: block
+          allowed-endpoints: >
+            github.com:443
+            api.github.com:443
+            *.actions.githubusercontent.com:443
+            *.githubusercontent.com:443
+            repo1.maven.org:443
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # The token only lifts the API rate limit; bump.py reads nothing private.
+      - name: List the tools with a newer release
+        id: bump
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          status=0
+          python3 tools/pinned-tools/bump.py > "$RUNNER_TEMP/bump.txt" 2> "$RUNNER_TEMP/bump.err" || status=$?
+          cat "$RUNNER_TEMP/bump.txt" "$RUNNER_TEMP/bump.err"
+          outdated=false
+          if grep -q -- ' -> ' "$RUNNER_TEMP/bump.txt"; then outdated=true; fi
+          echo "outdated=$outdated" >> "$GITHUB_OUTPUT"
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+
+      - name: Open, update or close the issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          OUTDATED: ${{ steps.bump.outputs.outdated }}
+          STATUS: ${{ steps.bump.outputs.status }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          existing=$(gh issue list --state open --limit 100 --search "in:title \"$ISSUE_TITLE\"" \
+            --json number,title --jq 'first(.[] | select(.title == env.ISSUE_TITLE) | .number)')
+          if [ "$OUTDATED" != true ]; then
+            # Close the issue only when every tool was checked and none is outdated.
+            if [ "$STATUS" -ne 0 ]; then
+              echo "::error::bump.py could not check every tool"
+              exit 1
+            fi
+            if [ -n "$existing" ]; then
+              gh issue close "$existing" --comment "Nothing is outdated now ($RUN_URL)"
+            fi
+            exit 0
+          fi
+          {
+            echo "These pinned tools have a release past the cooldown:"
+            echo
+            echo '```'
+            cat "$RUNNER_TEMP/bump.txt"
+            cat "$RUNNER_TEMP/bump.err"
+            echo '```'
+            echo
+            echo "From a branch off \`main\`:"
+            echo
+            echo '```bash'
+            echo 'python3 tools/pinned-tools/bump.py --apply'
+            echo 'git commit -s -S -am "chore: bump pinned tools"'
+            echo '```'
+            echo
+            echo "Read the release notes first and run the offline tests (docs/markDown/engineering/ci-cd/dependabot.md, \"Pinned by hand\"). Push it and open a pull request; the next Monday's run closes this issue. This workflow cannot make the commit itself: the rulesets refuse any push made with \`GITHUB_TOKEN\`."
+            echo
+            echo "Run: $RUN_URL"
+          } > "$RUNNER_TEMP/body.md"
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --body-file "$RUNNER_TEMP/body.md"
+          else
+            gh issue create --title "$ISSUE_TITLE" --body-file "$RUNNER_TEMP/body.md"
+          fi
+          echo "::error::pinned tools have newer releases (issue \"$ISSUE_TITLE\")"
+          exit 1

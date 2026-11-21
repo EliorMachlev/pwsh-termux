@@ -34,7 +34,7 @@ The CodeRabbit review is advisory, not a required check. These workflows have no
 **On a schedule:**
 
 1. Daily: Update packages (re-signs the index for `Valid-Until`), [index staleness](../../../.github/workflows/staleness.yaml) (an issue if the live index has under 7 days left) and the audit of main.
-2. Weekly: Site (also catches an expiring `security.txt`), Docs checks (adds external links), Zizmor, CodeQL, the secret scanners, Fuzz (a longer run), Scorecard.
+2. Weekly: Site (also catches an expiring `security.txt`), Docs checks (adds external links), Zizmor, `pinned-tools.yaml` (an issue when a hand-pinned tool has a new release), CodeQL, the secret scanners, Fuzz (a longer run), Scorecard.
 3. Keep-alive: `keepalive.yaml` twice a week, `keepalive-commit.yaml` on Mondays ([keep-alive](ci-cd/keepalive.md)).
 4. Monthly: `renew-security-txt.yaml`. Yearly: the [key review](../../../.github/workflows/key-review.yaml) reminder issue.
 
