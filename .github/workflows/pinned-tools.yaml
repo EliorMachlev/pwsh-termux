@@ -82,10 +82,14 @@ jobs:
           existing=$(gh issue list --state open --limit 100 --search "in:title \"$ISSUE_TITLE\"" \
             --json number,title --jq 'first(.[] | select(.title == env.ISSUE_TITLE) | .number)')
           if [ "$OUTDATED" != true ]; then
+            # Close the issue only when every tool was checked and none is outdated.
+            if [ "$STATUS" -ne 0 ]; then
+              echo "::error::bump.py could not check every tool"
+              exit 1
+            fi
             if [ -n "$existing" ]; then
               gh issue close "$existing" --comment "Nothing is outdated now ($RUN_URL)"
             fi
-            [ "$STATUS" -eq 0 ] || { echo "::error::bump.py could not check every tool"; exit 1; }
             exit 0
           fi
           {

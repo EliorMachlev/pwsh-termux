@@ -122,12 +122,15 @@ def sha256_from(checksums, asset):
 def pinned(text, name):
     match = re.search(rf"^\s*(?:readonly )?{name}(?:=|:\s*\"?)([^\s\"]+)", text, re.MULTILINE)
     if not match:
-        sys.exit(f"{name} not found")
+        raise RuntimeError(f"{name} not found")
     return match.group(1)
 
 
 def replace(text, name, value):
-    return re.sub(rf"(^\s*(?:readonly )?{name}(?:=|:\s*\"?))[^\s\"]+", lambda m: m.group(1) + value, text, count=1, flags=re.MULTILINE)
+    new, count = re.subn(rf"(^\s*(?:readonly )?{name}(?:=|:\s*\"?))[^\s\"]+", lambda m: m.group(1) + value, text, count=1, flags=re.MULTILINE)
+    if not count:
+        raise RuntimeError(f"{name} not found")
+    return new
 
 
 def update(text, tool):
@@ -163,9 +166,10 @@ def main():
     changed = failed = 0
     for tool in TOOLS:
         path = tool[1]
-        text = texts.setdefault(path, (ROOT / path).read_text())
         try:
-            new = update(text, tool)
+            if path not in texts:
+                texts[path] = (ROOT / path).read_text()
+            new = update(texts[path], tool)
         except (RuntimeError, http.client.HTTPException, OSError, ValueError, KeyError, ET.ParseError) as error:
             print(f"{tool[0]}: FAILED, skipped: {error}", file=sys.stderr)
             failed += 1

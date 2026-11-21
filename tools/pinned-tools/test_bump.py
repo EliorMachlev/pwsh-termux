@@ -71,5 +71,32 @@ check("nothing eligible", bump.github_latest("o/r", "v"), None)
 bump.get, _ = fake_api([[release("1.0.0")]])
 check("an asset without a digest is absent", "nodigest" in bump.github_latest("o/r", "v")[2], False)
 
+# Failures are isolated: a missing file, a missing version constant and a missing
+# hash constant each fail only their tool; the others are still written.
+import tempfile
+
+with tempfile.TemporaryDirectory() as tmp:
+    bump.ROOT = Path(tmp)
+    (bump.ROOT / "a.sh").write_text("readonly A_VERSION=1.0\nreadonly A_SHA=old\n")
+    (bump.ROOT / "nosha.sh").write_text("readonly B_VERSION=1.0\n")
+    (bump.ROOT / "nopin.sh").write_text("# nothing\n")
+    (bump.ROOT / "c.sh").write_text("readonly C_VERSION=1.0\nreadonly C_SHA=old\n")
+    bump.TOOLS = [
+        ("gone", "missing.sh", "G_VERSION", "G_SHA", "o/g", "v", "x", None),
+        ("nopin", "nopin.sh", "N_VERSION", "N_SHA", "o/n", "v", "x", None),
+        ("nosha", "nosha.sh", "B_VERSION", "B_SHA", "o/b", "v", "tool", None),
+        ("a", "a.sh", "A_VERSION", "A_SHA", "o/a", "v", "tool", None),
+        ("c", "c.sh", "C_VERSION", "C_SHA", "o/c", "v", "tool", None),
+    ]
+    bump.get, _ = fake_api([[release("2.0.0")]])
+    sys.argv = ["bump", "--apply"]
+    try:
+        bump.main()
+    except SystemExit as exit:
+        check("exit status 1 when a tool failed", exit.code, 1)
+    check("a.sh updated", (bump.ROOT / "a.sh").read_text(), "readonly A_VERSION=2.0.0\nreadonly A_SHA=aa\n")
+    check("c.sh updated", (bump.ROOT / "c.sh").read_text(), "readonly C_VERSION=2.0.0\nreadonly C_SHA=old\n".replace("old", "aa"))
+    check("a file whose hash constant is missing is left alone", (bump.ROOT / "nosha.sh").read_text(), "readonly B_VERSION=1.0\n")
+
 print("all passed" if not bad else f"{bad} failed")
 sys.exit(1 if bad else 0)
