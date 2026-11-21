@@ -34,18 +34,12 @@ readonly SPDX_VALID_MESSAGE='This SPDX Document is valid.'
 # error <message>: a GitHub Actions error annotation, then exit 1.
 error() { echo "::error::$*" >&2; exit "$EXIT_FAILURE"; }
 
-# fetch <url> <sha256> <file>: download, then check the SHA-256.
-fetch() {
-  curl -fsSL --retry 6 --retry-delay 10 --retry-all-errors -o "$3" "$1"
-  echo "$2  $3" | sha256sum -c -
-}
-
 install_tools() {
   mkdir -p "$TOOLS_DIR" "$OUT_DIR"
-  fetch "https://repo1.maven.org/maven2/org/spdx/tools-java/$SPDX_TOOLS_VERSION/tools-java-$SPDX_TOOLS_VERSION-jar-with-dependencies.jar" "$SPDX_TOOLS_SHA256" "$TOOLS_DIR/tools-java.jar"
-  fetch "https://github.com/anchore/syft/releases/download/v$SYFT_VERSION/syft_${SYFT_VERSION}_linux_amd64.tar.gz" "$SYFT_SHA256" "$TOOLS_DIR/syft.tar.gz"
+  fetch_verified "https://repo1.maven.org/maven2/org/spdx/tools-java/$SPDX_TOOLS_VERSION/tools-java-$SPDX_TOOLS_VERSION-jar-with-dependencies.jar" "$SPDX_TOOLS_SHA256" "$TOOLS_DIR/tools-java.jar"
+  fetch_verified "https://github.com/anchore/syft/releases/download/v$SYFT_VERSION/syft_${SYFT_VERSION}_linux_amd64.tar.gz" "$SYFT_SHA256" "$TOOLS_DIR/syft.tar.gz"
   tar -xzf "$TOOLS_DIR/syft.tar.gz" -C "$TOOLS_DIR" syft
-  fetch "https://github.com/microsoft/sbom-tool/releases/download/v$MS_SBOM_TOOL_VERSION/sbom-tool-linux-x64" "$MS_SBOM_TOOL_SHA256" "$TOOLS_DIR/sbom-tool"
+  fetch_verified "https://github.com/microsoft/sbom-tool/releases/download/v$MS_SBOM_TOOL_VERSION/sbom-tool-linux-x64" "$MS_SBOM_TOOL_SHA256" "$TOOLS_DIR/sbom-tool"
   chmod +x "$TOOLS_DIR/sbom-tool"
 }
 
