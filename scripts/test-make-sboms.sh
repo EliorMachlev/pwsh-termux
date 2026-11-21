@@ -179,9 +179,11 @@ echo "== the SBOMs of each package"
 touch "$T/trust-downloads"
 : > "$T/urls.log"
 expect accept "two packages" sboms "$DEBS" out
-check "  Syft 1.54.0 and the SBOM tool 4.1.5 downloaded" \
-  grep -qF '/v1.54.0/syft_1.54.0_linux_amd64.tar.gz' "$T/urls.log"
-check "  ... and the SBOM tool 4.1.5" grep -qF '/v4.1.5/sbom-tool-linux-x64' "$T/urls.log"
+SYFT_PINNED=$(grep -oP '^readonly SYFT_VERSION=\K\S+' "$SCRIPTS_DIR/make-sboms.sh")
+check "  Syft $SYFT_PINNED and the SBOM tool downloaded" \
+  grep -qF "/v$SYFT_PINNED/syft_${SYFT_PINNED}_linux_amd64.tar.gz" "$T/urls.log"
+SBOM_TOOL_PINNED=$(grep -oP '^readonly MS_SBOM_TOOL_VERSION=\K\S+' "$SCRIPTS_DIR/make-sboms.sh")
+check "  ... and the SBOM tool $SBOM_TOOL_PINNED" grep -qF "/v$SBOM_TOOL_PINNED/sbom-tool-linux-x64" "$T/urls.log"
 for base in pwsh_7.5.1-1_aarch64 "$KEYRING_BASE"; do
   for kind in cdx.json build.spdx.json syft.spdx3.json msft.spdx3.json; do
     check "$base.$kind" test -s "$T/out/$base.$kind"
