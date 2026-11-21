@@ -36,6 +36,8 @@ Dependabot does not follow a download, and nothing reminds you when these fall b
 
 [`tools/pinned-tools/bump.py`](../../../../tools/pinned-tools/bump.py) does Dependabot's job for them: it picks the newest stable release at least two weeks old (its GitHub publication time; for tools-java, the Last-Modified of that version's pom on Maven Central), takes the SHA-256 from the project's checksums file, else from the digest GitHub records for the asset; where there is neither (tools-java, or an asset recorded without a digest) it hashes the download, and prints the change; `--apply` rewrites the constants. A tool that fails is reported and skipped, the rest are still updated, and the exit status is 1.
 
+[`pinned-tools.yaml`](../../../../.github/workflows/pinned-tools.yaml) runs it every Monday and opens the issue *Update pinned tools* when something is outdated; it cannot open the pull request itself ([rulesets](rulesets.md)). By hand:
+
 1. Run `python3 tools/pinned-tools/bump.py`, then again with `--apply`.
 2. Read the release notes. jactionlint's `pedantic` profile runs every rule and any finding fails, so a new rule can fail CI.
 3. Run the offline tests ([build](../build.md)), commit and open a pull request. CI checks the new pins.
