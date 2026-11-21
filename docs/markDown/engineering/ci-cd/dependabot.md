@@ -34,7 +34,7 @@ Dependabot does not follow a download, and nothing reminds you when these fall b
 2. jactionlint and shfmt, in `ci.yaml` (`JACTIONLINT_*`, `SHFMT_*`);
 3. lychee, in `docs-checks.yaml` (`LYCHEE_*`).
 
-[`tools/pinned-tools/bump.py`](../../../../tools/pinned-tools/bump.py) does Dependabot's job for them: it picks the newest stable release at least two weeks old (its GitHub publication time; for tools-java, the Last-Modified of that version's pom on Maven Central), takes the SHA-256 from the project's checksums file, else from the digest GitHub records for the asset (tools-java, which has neither, is hashed from the download), and prints the change; `--apply` rewrites the constants. A tool that fails is reported and skipped, the rest are still updated, and the exit status is 1.
+[`tools/pinned-tools/bump.py`](../../../../tools/pinned-tools/bump.py) does Dependabot's job for them: it picks the newest stable release at least two weeks old (its GitHub publication time; for tools-java, the Last-Modified of that version's pom on Maven Central), takes the SHA-256 from the project's checksums file, else from the digest GitHub records for the asset; where there is neither (tools-java, or an asset recorded without a digest) it hashes the download, and prints the change; `--apply` rewrites the constants. A tool that fails is reported and skipped, the rest are still updated, and the exit status is 1.
 
 1. Run `python3 tools/pinned-tools/bump.py`, then again with `--apply`.
 2. Read the release notes. jactionlint's `pedantic` profile runs every rule and any finding fails, so a new rule can fail CI.

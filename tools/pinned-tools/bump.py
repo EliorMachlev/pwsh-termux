@@ -14,9 +14,9 @@ which is on Maven Central, it is the Last-Modified time of that version's pom
 
 Standard library only. GITHUB_TOKEN is used for the GitHub API when set. The
 asset's SHA-256 comes from the project's own checksums file where one exists;
-otherwise from the digest GitHub records for the asset; for tools-java, which
-has neither, it is the hash of the download, so check the release before
-merging. A tool that fails (a missing file, a network error) is reported and
+otherwise from the digest GitHub records for the asset; where there is neither
+(tools-java, or a GitHub asset recorded without a digest) it is the hash of
+the download, so check the release before merging. A tool that fails (a missing file, a network error) is reported and
 skipped, the others are still updated, and the exit status is 1. The scripts'
 tests and CI then check the new pins as usual.
 """
@@ -24,6 +24,7 @@ import datetime
 import email.utils
 import hashlib
 import http.client
+import itertools
 import json
 import os
 import re
@@ -35,7 +36,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 COOLDOWN_DAYS = 14
-MAX_PAGES = 10  # of 30 releases each
+PAGE_SIZE = 30
 MAVEN = "https://repo1.maven.org/maven2/org/spdx/tools-java"
 
 # name, file, version constant, SHA-256 constant, GitHub repo (or None for
@@ -77,10 +78,11 @@ def old_enough(when):
 
 def github_latest(repo, prefix):
     """(version, tag, {asset name: sha256 digest}) of the newest stable release
-    past the cooldown, or None. Follows the pages of the releases list."""
+    past the cooldown, or None. Follows the pages of the releases list until
+    they run out."""
     found = []
-    for page in range(1, MAX_PAGES + 1):
-        releases = json.loads(get(f"https://api.github.com/repos/{repo}/releases?per_page=30&page={page}"))
+    for page in itertools.count(1):
+        releases = json.loads(get(f"https://api.github.com/repos/{repo}/releases?per_page={PAGE_SIZE}&page={page}"))
         for release in releases:
             tag = release["tag_name"]
             if release["draft"] or release["prerelease"] or not tag.startswith(prefix):
@@ -90,7 +92,7 @@ def github_latest(repo, prefix):
             if re.fullmatch(r"\d+(\.\d+)*", version) and old_enough(published):
                 digests = {a["name"]: a["digest"].removeprefix("sha256:") for a in release["assets"] if a.get("digest")}
                 found.append((version_key(version), version, tag, digests))
-        if len(releases) < 30:
+        if len(releases) < PAGE_SIZE:
             break
     if not found:
         return None

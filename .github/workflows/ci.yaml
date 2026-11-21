@@ -269,6 +269,8 @@ jobs:
         run: bash scripts/test-make-sboms.sh
       - name: Test fetch-verified.sh
         run: bash scripts/test-fetch-verified.sh
+      - name: Test bump.py
+        run: python3 tools/pinned-tools/test_bump.py
       - name: Test assemble-site.sh
         run: bash scripts/test-assemble-site.sh
 
