@@ -173,7 +173,9 @@ sboms() {
 echo "== the pinned hashes"
 refuse 'did NOT match' "stub downloads do not match the pinned SHA-256" sboms "$DEBS" refused
 same "the validator is checked before anything else is downloaded" "$(wc -l < "$T/urls.log")" 1
-check "  the SPDX validator, version 2.0.7" grep -qF '/tools-java/2.0.7/tools-java-2.0.7-jar-with-dependencies.jar' "$T/urls.log"
+SPDX_TOOLS_PINNED=$(grep -oP '^readonly SPDX_TOOLS_VERSION=\K\S+' "$SCRIPTS_DIR/make-sboms.sh")
+check "  the SPDX validator, version $SPDX_TOOLS_PINNED" \
+  grep -qF "/tools-java/$SPDX_TOOLS_PINNED/tools-java-$SPDX_TOOLS_PINNED-jar-with-dependencies.jar" "$T/urls.log"
 
 echo "== the SBOMs of each package"
 touch "$T/trust-downloads"
