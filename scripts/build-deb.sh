@@ -37,7 +37,6 @@ readonly UPSTREAM_VERSION_REGEX="^${VERSION_PATTERN}\$"
 readonly REVISION_REGEX='^[1-9][0-9]*$'
 readonly UPSTREAM_RELEASES_URL=https://github.com/PowerShell/PowerShell/releases/download
 readonly CHECKSUMS_ASSET=hashes.sha256
-readonly DOWNLOAD_RETRIES=3
 readonly MAINTAINER="pwsh-termux packagers <noreply@users.noreply.github.com>"
 readonly DEPENDS="glibc, gcc-libs-glibc, libicu-glibc, openssl-glibc, zlib-glibc"
 readonly GLIBC_LIB_DIR=$TERMUX_PREFIX/glibc/lib
@@ -84,9 +83,6 @@ packaging_revision() {
   done < "$REVISIONS_FILE" || die "cannot read $REVISIONS_FILE"
   printf '%s\n' "$revision"
 }
-
-# download <url> <file>
-download() { curl -fsSL --retry "$DOWNLOAD_RETRIES" -o "$2" "$1"; }
 
 # expected_sha256 <hashes-file> <asset>: the asset's hash in Microsoft's
 # hashes.sha256, which is UTF-16 with a BOM, so it is decoded properly.
@@ -220,8 +216,8 @@ main() {
   trap 'rm -rf "$WORK_DIR"' EXIT
 
   log "downloading $asset"
-  download "$base_url/$asset" "$WORK_DIR/$asset"
-  download "$base_url/$CHECKSUMS_ASSET" "$WORK_DIR/$CHECKSUMS_ASSET"
+  download_file "$base_url/$asset" "$WORK_DIR/$asset"
+  download_file "$base_url/$CHECKSUMS_ASSET" "$WORK_DIR/$CHECKSUMS_ASSET"
   verify_download "$WORK_DIR/$asset" "$WORK_DIR/$CHECKSUMS_ASSET"
 
   stage="$WORK_DIR/stage"
