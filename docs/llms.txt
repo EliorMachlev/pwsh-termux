@@ -15,3 +15,7 @@
 - [Security policy](https://github.com/EliorMachlev/pwsh-termux/blob/main/SECURITY.md)
 - [Privacy](https://pwsh-termux.machlev.org/privacy.html)
 - [Releases (every built .deb)](https://github.com/EliorMachlev/pwsh-termux/releases)
+
+## Full text
+
+- [llms-full.txt](https://pwsh-termux.machlev.org/llms-full.txt): INSTALL.md, SECURITY.md and the package list as one file
