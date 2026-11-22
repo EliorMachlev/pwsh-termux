@@ -33,7 +33,7 @@ GitHub disables a public repository's schedules after 60 days without activity, 
 - **Mitigation.**
   1. The key is the secret `KEEPALIVE_DEPLOY_KEY` of the environment `keepalive` (`main` only). The job refuses any other ref, runs only `keepalive-commit.sh`, keeps the key in an `ssh-agent` and pins GitHub's host key. The script pushes only a one-parent commit that changes only `keep.alive`, as `github-actions[bot]`.
   2. Deploy keys bypass only *Main*'s signature, code-scanning, pull-request and status-check rules, never *Protection*'s deletion, force-push or branch-creation rules ([rulesets](../ci-cd/rulesets.md)). The bypass covers every deploy key, so exactly one exists.
-  3. [`audit-main.yaml`](../../../../.github/workflows/audit-main.yaml) checks every commit on `main` on each push and daily ([audit](../ci-cd/audit.md)). It accepts verified commits by the owner, verified `web-flow` merge commits of merged pull requests, and valid keep-alive commits with the `keepalive/pushed` status, which only a workflow's `GITHUB_TOKEN` can set. Anything else opens an issue to rotate the key ([rotation](../ci-cd/keepalive.md#rotating-the-keep-alive-deploy-key)).
+  3. [`audit-main.yaml`](../../../../.github/workflows/audit-main.yaml) checks the commits pushed to `main` on each push, and daily the commits after a baseline (the last commit before signatures were required) that are from the last 90 days or among the newest 50, so an older commit is not rechecked ([audit](../ci-cd/audit.md)). It accepts verified commits by the owner, verified `web-flow` merge commits of merged pull requests, and valid keep-alive commits with the `keepalive/pushed` status, which only a workflow's `GITHUB_TOKEN` can set. Anything else opens an issue to rotate the key ([rotation](../ci-cd/keepalive.md#rotating-the-keep-alive-deploy-key)).
 - **Left over.** The holder can push any fast-forward commit to `main`, including a workflow change that reads the `signing` secrets: treat a leaked deploy key as a leaked signing key ([recovery](../release/signing-keys.md#recovery-with-the-offline-key)). The audit detects within a day but does not prevent, and the same push can change it. The key could also create a tag on an existing signed commit (*Tag Protection* has no `creation` rule), and create, force-push or delete a branch under `dependabot/`, which *Protection* excludes; a push to an open Dependabot pull request's branch changes what it would merge, so read its diff before merging ([Dependabot's branches](../ci-cd/rulesets.md)). GitHub cannot limit a bypass to one file; the guard is in the script.
 
 ## Signing key theft
@@ -64,7 +64,7 @@ GitHub disables a public repository's schedules after 60 days without activity, 
 
 ## Malicious or hijacked action
 
-- **Mitigation.** Every action is pinned to a commit SHA. Dependabot proposes updates only after a 7-day cooldown, and `pinned-tools.yaml` waits 14 days before it proposes a newer hand-pinned tool ([Dependabot](../ci-cd/dependabot.md)). harden-runner blocks egress outside each job's `allowed-endpoints`. zizmor flags impostor commits and unpinned actions.
+- **Mitigation.** Every action is pinned to a commit SHA. Dependabot proposes updates only after a 7-day cooldown, and `pinned-tools.yaml` waits 14 days before it proposes a newer hand-pinned tool ([Dependabot](../ci-cd/dependabot.md)). harden-runner blocks egress outside each job's `allowed-endpoints`, except in `docs-checks.yaml` and `scorecard.yaml`, which only audit it. zizmor flags impostor commits and unpinned actions.
 - **Left over.** A hijacked release that stays undetected past the cooldown is accepted after the maintainer's review of the update.
 
 ## Domain or Pages takeover
@@ -77,7 +77,7 @@ GitHub disables a public repository's schedules after 60 days without activity, 
 The "Update packages" run fails (for example, the `verify` job cannot reach a trust-root host), so nothing is signed or published and the index ages.
 
 - **Mitigation.** `staleness.yaml` checks the live index daily and opens an issue at fewer than 7 days left ([troubleshooting](../ci-cd/troubleshooting.md)). The 14-day window gives time to fix the run.
-- **Left over.** A failing run is not itself reported: the issue comes only once the index is 7 days from expiry, so a failure unnoticed for a week leaves a week to fix it. Users see no error until the index expires.
+- **Left over.** A failing run is not itself reported: the issue comes when the live index is unreachable, fails verification, or has fewer than 7 days left, so a failure that leaves a valid index in place is noticed only a week before it expires, which leaves a week to fix it. Users see no error until the index expires.
 
 ## Lost recovery-key backup
 
