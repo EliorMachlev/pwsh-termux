@@ -5,11 +5,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self'; img-src 'self'; font-src 'self'; base-uri 'none'; form-action 'none'">
 <title>Install: pwsh-termux</title>
-<meta name="description" content="Install PowerShell 7 on Termux from the pwsh-termux apt repository, check the signing key, update and remove it.">
+<meta name="description" content="Install PowerShell 7 on Termux from the pwsh-termux apt repository, then update or remove it.">
 <meta name="color-scheme" content="light dark">
 <meta property="og:type" content="website">
 <meta property="og:title" content="Install: pwsh-termux">
-<meta property="og:description" content="Install PowerShell 7 on Termux from the pwsh-termux apt repository, check the signing key, update and remove it.">
+<meta property="og:description" content="Install PowerShell 7 on Termux from the pwsh-termux apt repository, then update or remove it.">
 <meta property="og:url" content="https://pwsh-termux.machlev.org/install.html">
 <meta name="twitter:card" content="summary">
 <link rel="canonical" href="https://pwsh-termux.machlev.org/install.html">
@@ -22,6 +22,8 @@
   <a class="brand" href="/"><img src="/favicon.svg" alt="" width="32" height="32"><span>pwsh-termux</span></a>
   <nav aria-label="Main"><ul>
     <li><a href="/install.html" aria-current="page">Install</a></li>
+    <li><a href="/verify.html">Verify</a></li>
+    <li><a href="/troubleshooting.html">Help</a></li>
     <li><a href="/privacy.html">Privacy</a></li>
     <li><a href="https://github.com/EliorMachlev/pwsh-termux/blob/main/docs/markDown/README.md">Docs</a></li>
     <li><a href="https://github.com/EliorMachlev/pwsh-termux">GitHub</a></li>
@@ -33,26 +35,26 @@
     <h1>Install</h1>
     <p class="lead">Add the repository once, then <code>pkg</code> installs and updates PowerShell like any other package.</p>
     <nav class="toc" aria-label="On this page"><ul>
+      <li><a href="#requirements">Requirements</a></li>
       <li><a href="#setup">Set up</a></li>
       <li><a href="#stable">Stable</a></li>
       <li><a href="#preview">Preview</a></li>
       <li><a href="#update">Update</a></li>
       <li><a href="#uninstall">Uninstall</a></li>
-      <li><a href="#verify">Verify</a></li>
-      <li><a href="#troubleshooting">Troubleshooting</a></li>
+      <li><a href="#telemetry">Telemetry</a></li>
     </ul></nav>
   </section>
 
   <section class="panel">
     <h2 id="requirements">Before you start</h2>
-    <p>You need Termux on a 64-bit Arm phone (arm64, also written aarch64), about 200&nbsp;MB of free space (the download is about 50&nbsp;MB) and an internet connection. Check the architecture; the answer must be <code>aarch64</code>:</p>
+    <p>You need Termux on a 64-bit Arm phone and about 200&nbsp;MB of free space. <code>uname -m</code> must print <code>aarch64</code>:</p>
 <pre class="copy"><code>uname -m</code></pre>
   </section>
 
   <section class="panel">
     <p class="eyebrow">Step 1</p>
     <h2 id="setup">Set up the repository (once)</h2>
-    <p>Stable and preview both need this. The command enables Termux&rsquo;s glibc repository, installs <code>pwsh-termux-keyring</code> (the repository&rsquo;s public signing key and its apt source) and refreshes the package lists. The key goes to <code>$PREFIX/share/keyrings/</code>, not to apt&rsquo;s global trust store, and the source names it with <code>signed-by</code>, so apt trusts it for this repository only. <code>pkg</code> then checks every later download against it.</p>
+    <p>Stable and preview both need this. It enables Termux&rsquo;s glibc repository and installs <code>pwsh-termux-keyring</code>: the public signing key and the apt source, trusted for this repository only. <code>pkg</code> then checks every later download against it.</p>
 <pre class="copy"><code>pkg install -y glibc-repo &amp;&amp; \
 curl -fsSL https://pwsh-termux.machlev.org/pwsh-termux-keyring.deb -o "$TMPDIR/pwsh-termux-keyring.deb" &amp;&amp; \
 dpkg -i "$TMPDIR/pwsh-termux-keyring.deb" &amp;&amp; \
@@ -84,40 +86,37 @@ pkg update</code></pre>
     F["Run&lt;br/&gt;pwsh"]
     A --&gt; B --&gt; C --&gt; D --&gt; E --&gt; F</code></pre>
     </details>
-    <p>Prefer not to install a package for the key? <a href="#by-hand">Add it by hand</a>.</p>
+    <p>Prefer not to install a package for the key? <a href="/verify.html#by-hand">Add it by hand</a>.</p>
   </section>
 
   <section class="panel">
     <p class="eyebrow">Step 2</p>
-    <h2 id="stable">Stable: the regular install</h2>
-    <p><strong>Pick this unless you know you want the preview.</strong> <code>pwsh</code> is the highest stable PowerShell 7 release. The command is <code>pwsh</code>.</p>
+    <h2 id="stable">Stable</h2>
+    <p><strong>Pick this unless you want the preview.</strong> <code>pwsh</code> is the highest stable PowerShell 7 release.</p>
 <pre class="copy"><code>pkg install pwsh</code></pre>
-    <p>Start it and print its version:</p>
+    <p>Start it, then print its version:</p>
 <pre class="copy"><code>pwsh</code></pre>
 <pre class="copy"><code>$PSVersionTable.PSVersion</code></pre>
   </section>
 
   <section class="panel">
     <p class="eyebrow">Step 3, optional</p>
-    <h2 id="preview">Preview: the optional early build</h2>
+    <h2 id="preview">Preview</h2>
     <p><code>pwsh-preview</code> is the newest preview or release candidate. Expect rough edges.</p>
     <ul>
-      <li>It exists only while Microsoft&rsquo;s newest preview is newer than the newest stable release. When none qualifies, <code>pkg install pwsh-preview</code> fails with <em>Unable to locate package</em>.</li>
-      <li>It installs next to <code>pwsh</code>, as its own command, and shares no files with it. You can have both.</li>
-      <li>It never turns into stable. When the final release ships, previews of that version leave the repository; install <code>pwsh</code>.</li>
+      <li>It exists only while the newest preview is newer than stable; otherwise <code>pkg install</code> says <em>Unable to locate package</em>.</li>
+      <li>It installs beside <code>pwsh</code>, as its own command. You can have both.</li>
+      <li>It never turns into stable: when the final release ships, install <code>pwsh</code>.</li>
     </ul>
-    <p>See what is on offer now:</p>
 <pre class="copy"><code>apt-cache policy pwsh pwsh-preview</code></pre>
-    <p>Install and start it:</p>
 <pre class="copy"><code>pkg install pwsh-preview</code></pre>
 <pre class="copy"><code>pwsh-preview</code></pre>
   </section>
 
   <section class="panel">
     <h2 id="update">Update</h2>
-    <p><code>pkg upgrade</code> updates everything, including <code>pwsh</code>, <code>pwsh-preview</code> and the keyring.</p>
+    <p><code>pkg upgrade</code> updates <code>pwsh</code>, <code>pwsh-preview</code> and the keyring with everything else. A new PowerShell release arrives with the next daily run after Microsoft publishes it.</p>
 <pre class="copy"><code>pkg upgrade</code></pre>
-    <p>The repository is re-signed every day even when nothing changed, so most days <code>pkg update</code> only downloads the small, freshly signed <code>InRelease</code> file. A new PowerShell version is picked up by the next daily run after Microsoft releases it.</p>
   </section>
 
   <section class="panel">
@@ -126,88 +125,27 @@ pkg update</code></pre>
 pkg remove pwsh-preview    # only if installed
 pkg remove pwsh-termux-keyring
 pkg update</code></pre>
-    <p>The first line removes PowerShell. Remove <code>pwsh-preview</code> only if you installed it: apt stops with an error for a package it does not know. The third line removes the key and the apt source, so <code>pkg</code> stops contacting this site. If you added them by hand, delete the two files yourself:</p>
+    <p>Removing the keyring deletes the key and the apt source. If you <a href="/verify.html#by-hand">added them by hand</a>, delete the files yourself:</p>
 <pre class="copy"><code>rm "$PREFIX/share/keyrings/pwsh-termux-archive-keyring.gpg" "$PREFIX/etc/apt/sources.list.d/pwsh-termux.list"</code></pre>
-    <p>Your profile and modules in <code>~/.config/powershell</code> and <code>~/.local/share/powershell</code> stay. Delete them for a clean slate.</p>
-  </section>
-
-  <section class="panel">
-    <h2 id="verify">Verify it yourself</h2>
-    <p>Optional. You do not have to take this page&rsquo;s word for any of it. Each check uses a different channel, so a mismatch between them is itself a warning sign.</p>
-
-    <h3 id="check">1. The signing keys</h3>
-    <p>The keyring holds two keys. The first signs the repository; the second is an offline recovery key that only signs to move users to a new key if the first is ever lost or stolen. Compare both fingerprints with the <a href="https://github.com/EliorMachlev/pwsh-termux/blob/main/SECURITY.md#signing-key">security policy</a> on GitHub, or with the <code>FINGERPRINT.txt</code> attached to each <a href="https://github.com/EliorMachlev/pwsh-termux/releases">release</a>:</p>
-    <dl class="keys">
-      <dt>Signing key</dt>
-      <dd><code>7086 C70B 4A25 576F E0C0  CE77 E43F B41F 02D0 1FC8</code></dd>
-      <dt>Recovery key</dt>
-      <dd><code>937A 3D41 5103 CFF8 9DCD  A982 A4B4 5397 EEB6 D752</code></dd>
-    </dl>
-    <p>To print them from the installed file:</p>
-<pre class="copy"><code>pkg install gnupg
-gpg --show-keys "$PREFIX/share/keyrings/pwsh-termux-archive-keyring.gpg"</code></pre>
-
-    <h3 id="provenance">2. Where the packages were built</h3>
-    <p>Every <code>.deb</code>, including <code>pwsh-termux-keyring.deb</code>, has a signed build provenance from this project&rsquo;s build workflow, recorded on GitHub. With the <a href="https://cli.github.com/">GitHub CLI</a> (<code>pkg install gh</code>, signed in), these are the checks the publishing workflow itself runs before it signs anything:</p>
-<pre class="copy"><code>gh attestation verify "$TMPDIR/pwsh-termux-keyring.deb" \
-  --repo EliorMachlev/pwsh-termux \
-  --signer-workflow EliorMachlev/pwsh-termux/.github/workflows/build-packages.yaml \
-  --deny-self-hosted-runners</code></pre>
-    <p>The same command works for a <code>pwsh_&lt;version&gt;_aarch64.deb</code> downloaded from a release, and for its SBOM files.</p>
-
-    <h3 id="index">3. The signed index</h3>
-    <p><code>pkg</code> already does this on every update: it checks <code>InRelease</code> against the key, then the package list against <code>InRelease</code>, then each package against the list. To see it by hand:</p>
-<pre class="copy"><code>curl -fsSL https://pwsh-termux.machlev.org/dists/stable/InRelease -o "$TMPDIR/InRelease"
-gpgv --keyring "$PREFIX/share/keyrings/pwsh-termux-archive-keyring.gpg" "$TMPDIR/InRelease"
-grep -E '^(Date|Valid-Until):' "$TMPDIR/InRelease"</code></pre>
-    <p><code>Valid-Until</code> is 14 days after <code>Date</code>. The repository is re-signed every day, so an old index cannot be served to you for more than 14 days without apt refusing it.</p>
-    <p>The project&rsquo;s security contact is in <a href="/.well-known/security.txt"><code>/.well-known/security.txt</code></a>, which points to the <a href="https://github.com/EliorMachlev/pwsh-termux/blob/main/SECURITY.md">security policy</a>.</p>
-  </section>
-
-  <section class="panel">
-    <h2 id="by-hand">Add the key by hand instead</h2>
-    <p>If you would rather not install a package for it, these commands write the same two files with the same content, then install stable. Stable needs Termux&rsquo;s glibc repository, so the first line enables it:</p>
-<pre class="copy"><code>pkg install -y glibc-repo
-mkdir -p "$PREFIX/share/keyrings"
-curl -fsSL https://pwsh-termux.machlev.org/pwsh-termux.gpg \
-  -o "$PREFIX/share/keyrings/pwsh-termux-archive-keyring.gpg"
-echo "deb [signed-by=$PREFIX/share/keyrings/pwsh-termux-archive-keyring.gpg] https://pwsh-termux.machlev.org stable main" \
-  &gt; "$PREFIX/etc/apt/sources.list.d/pwsh-termux.list"
-pkg update
-pkg install pwsh</code></pre>
-    <p>A key added by hand is not updated by <code>pkg upgrade</code>. When the key is rotated, download it again (the <a href="https://github.com/EliorMachlev/pwsh-termux/blob/main/SECURITY.md#signing-key">security policy</a> announces it), or install the keyring package.</p>
-  </section>
-
-  <section class="panel">
-    <h2 id="faq">What happens when the signing key changes?</h2>
-    <p>If you installed with the commands above, nothing for you to do. A <strong>planned rotation</strong> ships the next key in a new <code>pwsh-termux-keyring</code> while the old key still signs, for 180 days; <code>pkg upgrade</code> lists <code>pwsh-termux-keyring</code> among the upgrades, and that is all you see. If the signing key is ever <strong>lost or stolen</strong>, a security advisory is published on GitHub, the repository is signed once with the offline recovery key that your keyring already trusts, and again <code>pkg upgrade</code> installs the new keyring. Either way, check the new fingerprints against the <a href="https://github.com/EliorMachlev/pwsh-termux/blob/main/SECURITY.md#signing-key">security policy</a> if you like.</p>
-  </section>
-
-  <section class="panel">
-    <h2 id="troubleshooting">If something goes wrong</h2>
-    <ul>
-      <li><strong><code>NO_PUBKEY</code>, or the repository is <em>not signed</em>.</strong> The key is missing, empty or outdated. A key added by hand is not updated by <code>pkg upgrade</code>, and a device that misses a whole 180-day rotation window keeps only the old key. Run the <a href="#setup">set-up</a> command again; if you added the key by hand, download it again and check the file is not an error page. Then compare the <a href="#check">fingerprints</a>.</li>
-      <li><strong><code>Unable to locate package pwsh</code>.</strong> The keyring package is not installed (the source line comes with it), or <code>pkg update</code> was not run afterwards. Repeat the <a href="#setup">set-up</a>.</li>
-      <li><strong><code>Unable to locate package pwsh-preview</code>.</strong> No preview is newer than stable right now. That is normal; see <a href="#preview">preview</a>.</li>
-      <li><strong><code>depends on glibc, but it is not installable</code>.</strong> The glibc repository is not enabled. Run <code>pkg install glibc-repo</code>, then <code>pkg update</code>.</li>
-      <li><strong><code>Unable to locate package glibc-repo</code>.</strong> Termux&rsquo;s own package lists are old or point to an outdated mirror. Run <code>pkg update</code> (or <code>termux-change-repo</code>), then the <a href="#setup">set-up</a> again.</li>
-      <li><strong>No installation candidate, or <code>dpkg</code> says <em>package architecture (aarch64) does not match system</em>.</strong> The device is not arm64. <code>uname -m</code> must print <code>aarch64</code>; a 32-bit Termux (<code>armv7l</code>, <code>armv8l</code>) or an x86 device cannot run these packages. On a 64-bit phone, check that Termux itself is the 64-bit (arm64-v8a) build: <code>dpkg --print-architecture</code> prints <code>aarch64</code>.</li>
-      <li><strong><code>Release file for https://pwsh-termux.machlev.org/dists/stable/InRelease is expired</code>.</strong> The signed index is valid for 14 days and is re-signed daily. If the project&rsquo;s build has been broken for longer than that, apt refuses the old index instead of quietly serving stale packages; PowerShell keeps working, and updates resume once the index is re-signed. Your device&rsquo;s clock may also be far ahead: check the date in Android&rsquo;s settings. If it lasts more than a day or two, check the <a href="https://github.com/EliorMachlev/pwsh-termux/issues">issues</a>.</li>
-      <li><strong><code>Release file &hellip; is not valid yet</code>.</strong> Your device&rsquo;s clock is behind. Set the date and time automatically in Android&rsquo;s settings.</li>
-      <li><strong><code>pwsh</code> says it cannot execute, or a library is missing.</strong> Reinstall it. If that fails, <a href="https://github.com/EliorMachlev/pwsh-termux/issues">open an issue</a> with the output of the second command.</li>
-    </ul>
-<pre class="copy"><code>pkg install --reinstall pwsh
-pkg list-installed | grep -E 'glibc|icu|pwsh'</code></pre>
+    <p>Your profile and modules in <code>~/.config/powershell</code> and <code>~/.local/share/powershell</code> stay; delete them for a clean slate.</p>
   </section>
 
   <section class="panel">
     <h2 id="telemetry">Turn off Microsoft&rsquo;s telemetry</h2>
-    <p>This package does not change PowerShell. Microsoft&rsquo;s build collects usage telemetry unless you opt out, and it can print a notice about newer versions. To turn both off, append this to <code>~/.bashrc</code> (or your shell&rsquo;s startup file) and export them in the current shell, which does not re-read that file:</p>
+    <p>This package does not change PowerShell. Microsoft&rsquo;s build collects usage telemetry and checks for new versions unless you opt out. Append these to <code>~/.bashrc</code> (or your shell&rsquo;s startup file) and export them in the current shell:</p>
 <pre class="copy"><code>echo 'export POWERSHELL_TELEMETRY_OPTOUT=1' &gt;&gt; ~/.bashrc
 echo 'export POWERSHELL_UPDATECHECK=Off' &gt;&gt; ~/.bashrc
 export POWERSHELL_TELEMETRY_OPTOUT=1
 export POWERSHELL_UPDATECHECK=Off</code></pre>
-    <p>This page is also on GitHub as <a href="https://github.com/EliorMachlev/pwsh-termux/blob/main/INSTALL.md">INSTALL.md</a>.</p>
+  </section>
+
+  <section class="panel">
+    <h2 id="next">Next</h2>
+    <ul>
+      <li><a href="/verify.html">Verify it yourself</a>: the key fingerprints, build provenance and the signed index.</li>
+      <li><a href="/troubleshooting.html">Troubleshooting</a>: if a command fails.</li>
+      <li>This page is also on GitHub as <a href="https://github.com/EliorMachlev/pwsh-termux/blob/main/INSTALL.md">INSTALL.md</a>.</li>
+    </ul>
   </section>
 </div></main>
 <footer class="site"><div class="wrap">
@@ -220,6 +158,8 @@ export POWERSHELL_UPDATECHECK=Off</code></pre>
       <h2>Get started</h2>
       <ul>
         <li><a href="/install.html">Install</a></li>
+        <li><a href="/verify.html">Verify</a></li>
+        <li><a href="/troubleshooting.html">Troubleshooting</a></li>
         <li><a href="https://github.com/EliorMachlev/pwsh-termux/releases">Releases</a></li>
         <li><a href="/documents.html">All documents</a></li>
       </ul>

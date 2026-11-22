@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self'; img-src 'self'; font-src 'self'; base-uri 'none'; form-action 'none'">
+<title>Troubleshooting: pwsh-termux</title>
+<meta name="description" content="Fix common pwsh-termux install and update errors: missing key, package not found, wrong architecture, expired index.">
+<meta name="color-scheme" content="light dark">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Troubleshooting: pwsh-termux">
+<meta property="og:description" content="Fix common pwsh-termux install and update errors: missing key, package not found, wrong architecture, expired index.">
+<meta property="og:url" content="https://pwsh-termux.machlev.org/troubleshooting.html">
+<meta name="twitter:card" content="summary">
+<link rel="canonical" href="https://pwsh-termux.machlev.org/troubleshooting.html">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="site"><div class="wrap">
+  <a class="brand" href="/"><img src="/favicon.svg" alt="" width="32" height="32"><span>pwsh-termux</span></a>
+  <nav aria-label="Main"><ul>
+    <li><a href="/install.html">Install</a></li>
+    <li><a href="/verify.html">Verify</a></li>
+    <li><a href="/troubleshooting.html" aria-current="page">Help</a></li>
+    <li><a href="/privacy.html">Privacy</a></li>
+    <li><a href="https://github.com/EliorMachlev/pwsh-termux/blob/main/docs/markDown/README.md">Docs</a></li>
+    <li><a href="https://github.com/EliorMachlev/pwsh-termux">GitHub</a></li>
+  </ul></nav>
+</div></header>
+<main id="main"><div class="wrap">
+  <section class="hero compact">
+    <p class="eyebrow">Help</p>
+    <h1>Troubleshooting</h1>
+    <p class="lead">Find the message <code>pkg</code> printed, and what to do about it.</p>
+    <nav class="toc" aria-label="On this page"><ul>
+      <li><a href="#keys">Keys</a></li>
+      <li><a href="#packages">Packages</a></li>
+      <li><a href="#device">Device</a></li>
+      <li><a href="#expired">Expired index</a></li>
+      <li><a href="#run">Running</a></li>
+    </ul></nav>
+  </section>
+
+  <section class="panel">
+    <h2 id="keys">Key and signature errors</h2>
+    <ul>
+      <li><strong><code>NO_PUBKEY</code>, or the repository is <em>not signed</em>.</strong> The key is missing, empty or outdated: a key added by hand is not updated by <code>pkg upgrade</code>, and a device that misses a whole 180-day rotation keeps only the old key. Repeat the <a href="/install.html#setup">set-up</a>, or download the key again and check it is not an error page. Then compare the <a href="/verify.html#check">fingerprints</a>.</li>
+    </ul>
+  </section>
+
+  <section class="panel">
+    <h2 id="packages">Package not found</h2>
+    <ul>
+      <li><strong><code>Unable to locate package pwsh</code>.</strong> The keyring package is missing (the source line comes with it), or <code>pkg update</code> was not run afterwards. Repeat the <a href="/install.html#setup">set-up</a>.</li>
+      <li><strong><code>Unable to locate package pwsh-preview</code>.</strong> No preview is newer than stable right now. That is normal; see <a href="/install.html#preview">preview</a>.</li>
+      <li><strong><code>Unable to locate package glibc-repo</code>.</strong> Termux&rsquo;s package lists are old or on an outdated mirror. Run <code>pkg update</code> (or <code>termux-change-repo</code>), then the <a href="/install.html#setup">set-up</a> again.</li>
+      <li><strong><code>depends on glibc, but it is not installable</code>.</strong> Run <code>pkg install glibc-repo</code>, then <code>pkg update</code>.</li>
+    </ul>
+  </section>
+
+  <section class="panel">
+    <h2 id="device">Wrong device</h2>
+    <ul>
+      <li><strong>No installation candidate, or <em>package architecture (aarch64) does not match system</em>.</strong> <code>uname -m</code> must print <code>aarch64</code>. A 32-bit Termux (<code>armv7l</code>, <code>armv8l</code>) or an x86 device cannot run these packages. On a 64-bit phone, make sure Termux is the arm64-v8a build: <code>dpkg --print-architecture</code> prints <code>aarch64</code>.</li>
+    </ul>
+  </section>
+
+  <section class="panel">
+    <h2 id="expired">Expired or not-yet-valid index</h2>
+    <ul>
+      <li><strong><code>Release file &hellip; is expired</code>.</strong> The index is valid for 14 days and re-signed daily. If the build has been broken for longer, apt refuses the old index rather than serve stale packages. PowerShell keeps working and updates resume once the index is re-signed. A device clock far ahead causes the same error: check the date in Android&rsquo;s settings. If it lasts more than a day or two, look at the <a href="https://github.com/EliorMachlev/pwsh-termux/issues">issues</a>.</li>
+      <li><strong><code>Release file &hellip; is not valid yet</code>.</strong> Your clock is behind. Set the date and time automatically in Android&rsquo;s settings.</li>
+    </ul>
+  </section>
+
+  <section class="panel">
+    <h2 id="run">PowerShell will not run</h2>
+    <ul>
+      <li><strong><code>pwsh</code> cannot execute, or a library is missing.</strong> Reinstall it. If that fails, <a href="https://github.com/EliorMachlev/pwsh-termux/issues">open an issue</a> with the output of the second command.</li>
+    </ul>
+<pre class="copy"><code>pkg install --reinstall pwsh
+pkg list-installed | grep -E 'glibc|icu|pwsh'</code></pre>
+  </section>
+</div></main>
+<footer class="site"><div class="wrap">
+  <nav class="crumbs" aria-label="Breadcrumb"><ol>
+    <li><a href="/">pwsh-termux</a></li>
+    <li aria-current="page">Troubleshooting</li>
+  </ol></nav>
+  <nav class="directory" aria-label="Footer">
+    <div>
+      <h2>Get started</h2>
+      <ul>
+        <li><a href="/install.html">Install</a></li>
+        <li><a href="/verify.html">Verify</a></li>
+        <li><a href="/troubleshooting.html">Troubleshooting</a></li>
+        <li><a href="https://github.com/EliorMachlev/pwsh-termux/releases">Releases</a></li>
+        <li><a href="/documents.html">All documents</a></li>
+      </ul>
+    </div>
+    <div>
+      <h2>Trust</h2>
+      <ul>
+        <li><a href="https://github.com/EliorMachlev/pwsh-termux/blob/main/SECURITY.md">Security policy</a></li>
+        <li><a href="/privacy.html">Privacy</a></li>
+        <li><a href="https://github.com/EliorMachlev/pwsh-termux/blob/main/docs/markDown/legal/terms-of-service.md">Terms</a></li>
+        <li><a href="https://github.com/EliorMachlev/pwsh-termux/blob/main/docs/markDown/legal/accessibility-statement.md">Accessibility</a></li>
+      </ul>
+    </div>
+    <div>
+      <h2>Project</h2>
+      <ul>
+        <li><a href="https://github.com/EliorMachlev/pwsh-termux">GitHub</a></li>
+        <li><a href="https://github.com/EliorMachlev/pwsh-termux/issues">Issues</a></li>
+        <li><a href="https://github.com/EliorMachlev/pwsh-termux/blob/main/docs/markDown/README.md">Handbook</a></li>
+      </ul>
+    </div>
+  </nav>
+  <p>pwsh-termux is an unofficial community project. It is not affiliated with or endorsed by Microsoft. &ldquo;PowerShell&rdquo; is a trademark of Microsoft.</p>
+  <p>Packaging scripts: MIT. PowerShell itself: MIT, &copy; Microsoft Corporation.</p>
+</div></footer>
+</body>
+</html>

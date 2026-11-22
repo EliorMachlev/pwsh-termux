@@ -22,6 +22,8 @@
   <a class="brand" href="/" aria-current="page"><img src="/favicon.svg" alt="" width="32" height="32"><span>pwsh-termux</span></a>
   <nav aria-label="Main"><ul>
     <li><a href="/install.html">Install</a></li>
+    <li><a href="/verify.html">Verify</a></li>
+    <li><a href="/troubleshooting.html">Help</a></li>
     <li><a href="/privacy.html">Privacy</a></li>
     <li><a href="https://github.com/EliorMachlev/pwsh-termux/blob/main/docs/markDown/README.md">Docs</a></li>
     <li><a href="https://github.com/EliorMachlev/pwsh-termux">GitHub</a></li>
@@ -31,7 +33,7 @@
   <section class="hero">
     <p class="eyebrow">Unofficial apt repository</p>
     <h1>PowerShell 7 for Termux, with <code>pkg</code>.</h1>
-    <p class="lead">Termux does not ship PowerShell. This apt repository follows Microsoft&rsquo;s PowerShell releases, checks each one against Microsoft&rsquo;s published hash, makes it run on Termux&rsquo;s glibc, signs it and publishes it. You install and update it like any other package.</p>
+    <p class="lead">Termux does not ship PowerShell. This apt repository follows Microsoft&rsquo;s releases, checks each against Microsoft&rsquo;s published hash, makes it run on Termux&rsquo;s glibc and signs it. You install and update it like any other package.</p>
     <p class="actions">
       <a class="btn" href="/install.html">Install</a>
       <a class="more" href="https://github.com/EliorMachlev/pwsh-termux">Source on GitHub</a>
@@ -56,7 +58,7 @@ pkg install pwsh</code></pre>
 <!-- generated:status -->
 <p class="status">The versions the repository serves now are in its <a href="https://github.com/EliorMachlev/pwsh-termux/releases">releases</a>.</p>
 <!-- /generated:status -->
-      <p>The first command also enables the glibc repository and installs the repository&rsquo;s signing key and source as one package, trusted for this repository only. <a class="more" href="/install.html">Updating, uninstalling, the fingerprint check and a manual alternative</a></p>
+      <p><a class="more" href="/install.html">Updating, uninstalling and what each command does</a></p>
     </div>
   </section>
 
@@ -69,13 +71,13 @@ pkg install pwsh</code></pre>
       <div class="card">
         <p class="eyebrow">Stable</p>
         <h3><code>pwsh</code></h3>
-        <p>The highest stable PowerShell 7 release. Command: <code>pwsh</code>. This is what you want.</p>
+        <p>The highest stable PowerShell 7 release. This is what you want.</p>
         <pre class="copy"><code>pkg install pwsh</code></pre>
       </div>
       <div class="card">
         <p class="eyebrow">Preview</p>
         <h3><code>pwsh-preview</code></h3>
-        <p>The highest preview or release candidate, only while it is newer than stable. Command: <code>pwsh-preview</code>. It installs next to <code>pwsh</code>; <a href="/install.html#preview">how to install it</a>.</p>
+        <p>The newest preview, only while it is newer than stable. It installs next to <code>pwsh</code>. <a href="/install.html#preview">How to install it</a>.</p>
       </div>
     </div>
   </section>
@@ -120,9 +122,9 @@ pkg install pwsh</code></pre>
     </div>
     <div class="grid two">
       <div class="card"><h3>Verified</h3><p>Every download is checked against the SHA-256 in Microsoft&rsquo;s own <code>hashes.sha256</code> before it is packaged.</p></div>
-      <div class="card"><h3>Signed</h3><p>The repository index is signed with an Ed25519 key; apt checks it on every <code>pkg update</code>.</p></div>
-      <div class="card"><h3>Made for Termux</h3><p>The binary is patched at build time to use Termux&rsquo;s glibc loader, so it runs directly: no proot, no extra launcher.</p></div>
-      <div class="card"><h3>Open and archived</h3><p>The scripts are public, and every built <code>.deb</code> is kept as a GitHub release asset.</p></div>
+      <div class="card"><h3>Signed</h3><p>The index is signed with an Ed25519 key that apt checks on every <code>pkg update</code>. <a href="/verify.html">Check it yourself</a>.</p></div>
+      <div class="card"><h3>Made for Termux</h3><p>Patched at build time for Termux&rsquo;s glibc loader: no proot, no launcher.</p></div>
+      <div class="card"><h3>Open and archived</h3><p>The scripts are public and every <code>.deb</code> is kept as a GitHub release asset.</p></div>
     </div>
   </section>
 
@@ -134,6 +136,8 @@ pkg install pwsh</code></pre>
       <h2>Get started</h2>
       <ul>
         <li><a href="/install.html">Install</a></li>
+        <li><a href="/verify.html">Verify</a></li>
+        <li><a href="/troubleshooting.html">Troubleshooting</a></li>
         <li><a href="https://github.com/EliorMachlev/pwsh-termux/releases">Releases</a></li>
         <li><a href="/documents.html">All documents</a></li>
       </ul>
