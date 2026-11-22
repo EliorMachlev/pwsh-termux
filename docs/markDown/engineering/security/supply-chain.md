@@ -25,7 +25,7 @@ Every release carries a CycloneDX and three SPDX SBOMs and signed build provenan
 
 ## Network
 
-The pipeline contacts only GitHub: the API, the release downloads, Pages and the Actions services. The website loads nothing from another origin ([website](../website.md)).
+The jobs that hold secrets (`sign`, keep-alive commit, `publish`, `deploy`) contact only GitHub: the API, the release downloads, Pages, the Actions services and, for `publish`, GitHub's artifact storage. Other jobs add only the hosts they need, each listed in the job's `allowed-endpoints`; `verify`, for example, also reaches the Sigstore trust root (`tuf-repo-cdn.sigstore.dev`). The website loads nothing from another origin ([website](../website.md)).
 
 ## Code analysis
 
