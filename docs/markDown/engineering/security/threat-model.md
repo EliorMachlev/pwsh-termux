@@ -19,7 +19,7 @@ The tarball changes between Microsoft and the build.
 An old, validly signed index is served again to hide an update.
 
 - **Mitigation.** `Release` carries `Valid-Until` = `Date` + 14 days, and the daily run re-signs it without a commit. `verify-recovery-repo.sh` and `recovery-sign.sh` refuse a window longer than 14 days or with fewer than 7 left. [`staleness.yaml`](../../../../.github/workflows/staleness.yaml) checks the live index daily (reachable, signed by a key in `keys/`, at least 7 days left) and opens an issue otherwise.
-- **Left over.** A replay within the 14 days is accepted. A pipeline broken for longer makes `pkg update` fail with *expired* for every user until the index is re-signed ([SECURITY.md](../../../../SECURITY.md#index-freshness-valid-until)).
+- **Left over.** A replay within the 14 days is accepted; a shorter window would make a broken pipeline expire the index sooner. A pipeline broken for longer makes `pkg update` fail with *expired* for every user until the index is re-signed ([SECURITY.md](../../../../SECURITY.md#index-freshness-valid-until)).
 
 ## Schedules disabled for inactivity
 
@@ -31,9 +31,9 @@ GitHub disables a public repository's schedules after 60 days without activity, 
 ## Leaked keep-alive deploy key
 
 - **Mitigation.**
-  - The key is the secret `KEEPALIVE_DEPLOY_KEY` of the environment `keepalive` (`main` only). The job refuses any other ref, runs only `keepalive-commit.sh`, keeps the key in an `ssh-agent` and pins GitHub's host key. The script pushes only a one-parent commit that changes only `keep.alive`, as `github-actions[bot]`.
-  - Deploy keys bypass only *Main*'s signature, code-scanning, pull-request and status-check rules, never *Protection*'s deletion, force-push or branch-creation rules ([rulesets](../ci-cd/rulesets.md)). The bypass covers every deploy key, so exactly one exists.
-  - [`audit-main.yaml`](../../../../.github/workflows/audit-main.yaml) checks every commit on `main` on each push and daily ([audit](../ci-cd/audit.md)). It accepts verified commits by the owner, verified `web-flow` merge commits of merged pull requests, and valid keep-alive commits with the `keepalive/pushed` status, which only a workflow's `GITHUB_TOKEN` can set. Anything else opens an issue to rotate the key ([rotation](../ci-cd/keepalive.md#rotating-the-keep-alive-deploy-key)).
+  1. The key is the secret `KEEPALIVE_DEPLOY_KEY` of the environment `keepalive` (`main` only). The job refuses any other ref, runs only `keepalive-commit.sh`, keeps the key in an `ssh-agent` and pins GitHub's host key. The script pushes only a one-parent commit that changes only `keep.alive`, as `github-actions[bot]`.
+  2. Deploy keys bypass only *Main*'s signature, code-scanning, pull-request and status-check rules, never *Protection*'s deletion, force-push or branch-creation rules ([rulesets](../ci-cd/rulesets.md)). The bypass covers every deploy key, so exactly one exists.
+  3. [`audit-main.yaml`](../../../../.github/workflows/audit-main.yaml) checks every commit on `main` on each push and daily ([audit](../ci-cd/audit.md)). It accepts verified commits by the owner, verified `web-flow` merge commits of merged pull requests, and valid keep-alive commits with the `keepalive/pushed` status, which only a workflow's `GITHUB_TOKEN` can set. Anything else opens an issue to rotate the key ([rotation](../ci-cd/keepalive.md#rotating-the-keep-alive-deploy-key)).
 - **Left over.** The holder can push any fast-forward commit to `main`, including a workflow change that reads the `signing` secrets: treat a leaked deploy key as a leaked signing key ([recovery](../release/signing-keys.md#recovery-with-the-offline-key)). The audit detects within a day but does not prevent, and the same push can change it. The key could also create a tag on an existing signed commit (*Tag Protection* has no `creation` rule), and create, force-push or delete a branch under `dependabot/`, which *Protection* excludes; a push to an open Dependabot pull request's branch changes what it would merge, so read its diff before merging ([Dependabot's branches](../ci-cd/rulesets.md)). GitHub cannot limit a bypass to one file; the guard is in the script.
 
 ## Signing key theft
@@ -60,17 +60,24 @@ GitHub disables a public repository's schedules after 60 days without activity, 
   4. *Tag Protection* (every tag): no deletion, force push or update; signed commits; no `creation` rule.
 
   The Admin role (the maintainer) can bypass rulesets 2 to 4. `GITHUB_TOKEN` can bypass none, so no workflow pushes a commit with it; it pushes only `update.yaml`'s signed release tags, on commits already on `main`.
-- **Left over.** The maintainer's account is the final control: keep two-factor authentication on. The deploy key is a second way to push to `main` ([above](#leaked-keep-alive-deploy-key)).
+- **Left over.** There is no second reviewer (no approval is required, and GitHub does not let an author approve their own pull request), so the maintainer's account is the final control: keep two-factor authentication on. The deploy key is a second way to push to `main` ([above](#leaked-keep-alive-deploy-key)).
 
 ## Malicious or hijacked action
 
-- **Mitigation.** Every action is pinned to a commit SHA; Dependabot proposes updates; harden-runner records egress; zizmor flags impostor commits and unpinned actions.
-- **Left over.** The maintainer's review of each update.
+- **Mitigation.** Every action is pinned to a commit SHA. Dependabot proposes updates only after a 7-day cooldown, and `pinned-tools.yaml` waits 14 days before it proposes a newer hand-pinned tool ([Dependabot](../ci-cd/dependabot.md)). harden-runner blocks egress outside each job's `allowed-endpoints`. zizmor flags impostor commits and unpinned actions.
+- **Left over.** A hijacked release that stays undetected past the cooldown is accepted after the maintainer's review of the update.
 
 ## Domain or Pages takeover
 
-- **Mitigation.** HTTPS is enforced and the `CNAME` record points only to GitHub ([custom domain](../release/setup.md#custom-domain)).
-- **Left over.** Until the domain is verified in the GitHub account, a dangling record is exploitable.
+- **Mitigation.** HTTPS is enforced, the `CNAME` record points only to GitHub, and the domain is verified in the maintainer's GitHub account, so no one else can claim it for a Pages site ([custom domain](../release/setup.md#custom-domain)).
+- **Left over.** The domain's registration and DNS account are the maintainer's to keep: a lapsed registration or a hijacked DNS account moves the site, and the verification `TXT` record must stay in place.
+
+## Publishing stops
+
+The "Update packages" run fails (for example, the `verify` job cannot reach a trust-root host), so nothing is signed or published and the index ages.
+
+- **Mitigation.** `staleness.yaml` checks the live index daily and opens an issue at fewer than 7 days left ([troubleshooting](../ci-cd/troubleshooting.md)). The 14-day window gives time to fix the run.
+- **Left over.** A failing run is not itself reported: the issue comes only once the index is 7 days from expiry, so a failure unnoticed for a week leaves a week to fix it. Users see no error until the index expires.
 
 ## Lost recovery-key backup
 
