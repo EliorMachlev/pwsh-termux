@@ -35,6 +35,7 @@ REQUIRED_CSP = ("default-src 'none'", "base-uri 'none'", "form-action 'none'")
 FORBIDDEN_TAGS = {"script", "form", "base", "iframe", "object", "embed"}
 
 # Files the site needs besides the pages.
+RELEASES_FEED = "https://github.com/EliorMachlev/pwsh-termux/releases.atom"
 REQUIRED_FILES = ("style.css", "favicon.svg", "llms.txt", ".nojekyll")
 # Pages that are not listed in sitemap.xml.
 NOT_IN_SITEMAP = ("404.html",)
@@ -96,7 +97,7 @@ class Page(HTMLParser):
             rel = (a.get("rel") or "").lower().split()
             if "canonical" in rel or "alternate" in rel:
                 # metadata, not a load: it may name the site's own absolute URL
-                if not a["href"].startswith(SITE + "/"):
+                if not a["href"].startswith((SITE + "/", RELEASES_FEED)):
                     self.problems.append(
                         f"<link rel={' '.join(rel)}> must point to {SITE}/: {a['href']}"
                     )

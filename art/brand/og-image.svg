@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="1200" height="630">
+  <rect width="1200" height="630" fill="#0b1f2a"/>
+  <rect x="96" y="96" width="176" height="176" rx="40" fill="#e7f6f3"/>
+  <g fill="none" stroke="#0f766e" stroke-width="18" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M150 150 L194 184 L150 218"/>
+    <path d="M208 220 H234"/>
+  </g>
+  <text x="96" y="400" font-family="DejaVu Sans, Helvetica, Arial, sans-serif" font-size="88" font-weight="700" fill="#ffffff">pwsh-termux</text>
+  <text x="96" y="480" font-family="DejaVu Sans, Helvetica, Arial, sans-serif" font-size="44" fill="#5eead4">PowerShell 7 for Termux, with pkg</text>
+  <text x="96" y="548" font-family="DejaVu Sans, Helvetica, Arial, sans-serif" font-size="30" fill="#9fb8bf">Unofficial apt repository. Not affiliated with Microsoft.</text>
+</svg>

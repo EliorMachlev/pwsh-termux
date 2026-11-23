@@ -55,7 +55,7 @@ flowchart TD
 
 </details>
 
-Prefer not to install a package for the key? [Add it by hand](https://pwsh-termux.machlev.org/install.html#by-hand). The manual steps include the glibc repository. A key added by hand is not updated by `pkg upgrade`.
+Prefer not to install a package for the key? [Add it by hand](https://pwsh-termux.machlev.org/verify.html#by-hand). The manual steps include the glibc repository. A key added by hand is not updated by `pkg upgrade`.
 
 ## 3. Stable: the regular install
 

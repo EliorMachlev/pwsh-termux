@@ -5,12 +5,14 @@
 ## Pages
 
 1. [`index.html`](../../index.html): the home page: quick start, stable or preview, how it works (diagram), why trust it.
-2. [`install.html`](../../install.html): *Set up the repository* (once), *Stable*, *Preview*; *Update*; *Uninstall*; *Verify it yourself* (the two fingerprints from `keys/`, `gh attestation verify` with the publish job's flags, `gpgv` on `InRelease` and its `Valid-Until`); *Add the key by hand*; *What happens when the signing key changes?*; *If something goes wrong* (missing `glibc-repo`, `NO_PUBKEY`, a non-arm64 device, an expired or not-yet-valid Release file).
-3. [`privacy.html`](../../privacy.html): the short privacy policy.
-4. [`documents.html`](../../documents.html): every Markdown document with its last change.
-5. [`404.html`](../../404.html).
+2. [`install.html`](../../install.html): requirements, *Set up the repository* (once), *Stable*, *Preview*, *Update*, *Uninstall*, *Turn off Microsoft's telemetry*.
+3. [`verify.html`](../../verify.html): *Verify it yourself* (the two fingerprints from `keys/`, `gh attestation verify` with the publish job's flags, `gpgv` on `InRelease` and its `Valid-Until`), *Add the key by hand*, *When the signing key changes*.
+4. [`troubleshooting.html`](../../troubleshooting.html): errors grouped by cause (keys, missing packages, wrong device, expired index, a `pwsh` that will not run).
+5. [`privacy.html`](../../privacy.html): the short privacy policy.
+6. [`documents.html`](../../documents.html): every Markdown document with its last change.
+7. [`404.html`](../../404.html).
 
-Each page links to the Markdown handbook on GitHub; `docs/markDown/` is not served. Keep the install page's fingerprints in step with [SECURITY.md](../../../SECURITY.md#signing-key), `INSTALL.md` and `llms.txt`.
+Each page links to the Markdown handbook on GitHub; `docs/markDown/` is not served. Keep the verify page's fingerprints in step with [SECURITY.md](../../../SECURITY.md#signing-key), `INSTALL.md` and `llms.txt`.
 
 The install command sits in a `<pre class="copy">` whose code has `user-select: all`: one tap selects it all for the browser's own copy. It wraps instead of scrolling sideways, so the whole command shows on a phone; the soft wraps are not copied. A copy button would need JavaScript, which the CSP forbids.
 
@@ -18,7 +20,7 @@ The install command sits in a `<pre class="copy">` whose code has `user-select: 
 
 `style.css` follows Apple's interface guidelines as far as plain CSS allows: the system font with tracking and leading set per size and balanced headlines, a light grey page with raised white tiles (black and dark grey in dark mode), dark code blocks in both schemes, pill buttons that shrink on the press itself with a spring-shaped easing (`linear()`), a translucent sticky bar on wide screens, hover effects only with a fine pointer, and 44px touch targets. `color-scheme: light dark` on `:root` and a `prefers-color-scheme: dark` block switch the palette with the system; there is no theme switch, since it would need a script. Reduced motion (a change of shade instead of the shrink), reduced transparency, more contrast and forced colours (real edges instead of shadows) each get a plainer version. The stylesheet is ordered from general to specific, ending with the header bar, so `no-descending-specificity` holds without exceptions.
 
-The markup follows the same pattern on every page: a `hero` (small `eyebrow` label, one large headline, a short lead, a pill button beside a `more` text link that ends in a chevron), then `band` sections with a centred headline, then `card` tiles (home page) or `panel` sections (install, privacy, documents). The install page opens with a `toc` row of pills that jump to its sections. Sections are plain `<section>` elements with an `id` on their heading for links; they carry no `aria-label` or `aria-labelledby`, which would turn each into a landmark region. A command is a bare `<pre class="copy">` with no role or label. The key fingerprints on the install page are a `<dl class="keys">`, one name and value per key. The footer is a labelled directory in three columns, with a breadcrumb on inner pages and the legal text last. Keep the generated-block markers alone on their lines, flush left.
+The markup follows the same pattern on every page: a `hero` (small `eyebrow` label, one large headline, a short lead, a pill button beside a `more` text link that ends in a chevron), then `band` sections with a centred headline, then `card` tiles (home page) or `panel` sections (install, verify, troubleshooting, privacy, documents). The install, verify and troubleshooting pages open with a `toc` row of pills that jump to its sections. Sections are plain `<section>` elements with an `id` on their heading for links; they carry no `aria-label` or `aria-labelledby`, which would turn each into a landmark region. A command is a bare `<pre class="copy">` with no role or label. The key fingerprints on the verify page are a `<dl class="keys">`, one name and value per key. The footer is a labelled directory in three columns, with a breadcrumb on inner pages and the legal text last. Keep the generated-block markers alone on their lines, flush left.
 
 ## Diagrams
 
@@ -54,7 +56,7 @@ No Markdown file holds its own date (a file cannot name the commit that changes 
 
 Each page's Content Security Policy is a `<meta>` tag (Pages sets no headers): `default-src 'none'; style-src 'self'; img-src 'self'; font-src 'self'; base-uri 'none'; form-action 'none'`. No scripts; styles and images from the site only.
 
-[`docs/.well-known/security.txt`](../../.well-known/security.txt) points to private vulnerability reporting (`Contact`) and to [SECURITY.md](../../../SECURITY.md) (`Policy`); the install page links it.
+[`docs/.well-known/security.txt`](../../.well-known/security.txt) points to private vulnerability reporting (`Contact`) and to [SECURITY.md](../../../SECURITY.md) (`Policy`); the verify page links it.
 
 ## Cache busting
 

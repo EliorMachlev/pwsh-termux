@@ -23,6 +23,7 @@
 #                      "Last updated <date> · <short sha>" linked to its commit.
 #   last-updated:<path>  that line for one Markdown file (path from the
 #                      repository root).
+# It also adds <lastmod> to sitemap.xml and writes llms-full.txt.
 # The dates and commits come from `git log -1` for each file, so they cannot
 # go stale and no file holds its own date. That needs the full Git history:
 # it stops with an error in a shallow clone (actions/checkout needs
@@ -43,6 +44,9 @@ readonly DEB_VERSION_REGEX='^[0-9][0-9A-Za-z.+~-]*$'
 # The Markdown documents the documents block lists, besides docs/markDown.
 readonly TOP_LEVEL_DOCUMENTS=(README.md INSTALL.md SECURITY.md CONTRIBUTING.md NOTICE.md)
 readonly LAST_UPDATED_BLOCK_PREFIX=last-updated:
+readonly SITE_URL=https://pwsh-termux.machlev.org
+# The documents llms-full.txt joins, from the repository root.
+readonly LLMS_FULL_SOURCES=(INSTALL.md SECURITY.md docs/markDown/product/packages.md)
 
 # Set by require_full_history: the Git checkout docs/ is in, and docs/'s
 # path in it ("docs/").
@@ -201,6 +205,35 @@ join_with() {
   printf '%s\n' "$joined"
 }
 
+# add_lastmod: a <lastmod> (the date of the last commit that changed the page
+# in docs/) for every <loc> in sitemap.xml, so a crawler sees what changed.
+add_lastmod() {
+  local sitemap=$REPO_DIR/sitemap.xml loc page date
+  [ -f "$sitemap" ] || return 0
+  while read -r loc; do
+    page=${loc#"$SITE_URL"/}
+    page=${page:-index.html}
+    date=$(last_commit "$DOCS_PREFIX$page" | cut -d' ' -f1)
+    sed -i "s#<loc>$loc</loc>#<loc>$loc</loc><lastmod>$date</lastmod>#" "$sitemap"
+  done < <(sed -n 's#.*<loc>\([^<]*\)</loc>.*#\1#p' "$sitemap")
+  log "sitemap.xml: lastmod added"
+}
+
+# write_llms_full: llms-full.txt, the Markdown behind the install, verify and
+# security pages as one plain-text file (llms.txt is the short index).
+write_llms_full() {
+  local out=$REPO_DIR/llms-full.txt path
+  {
+    printf '# pwsh-termux (full text)\n\nThe documents behind %s, as one file. The short index is %s/llms.txt.\n' "$SITE_URL" "$SITE_URL"
+    for path in "${LLMS_FULL_SOURCES[@]}"; do
+      [ -f "$GIT_TOP/$path" ] || die "$path not found (needed for llms-full.txt)"
+      printf '\n\n---\n\nSource: %s/blob/main/%s\n\n' "$PROJECT_GITHUB_URL" "$path"
+      cat "$GIT_TOP/$path"
+    done
+  } > "$out"
+  log "llms-full.txt: ${#LLMS_FULL_SOURCES[@]} documents"
+}
+
 # stamp_asset <asset>: every page references it as /<asset>?v=<content hash>.
 stamp_asset() {
   local asset=$1 hash page
@@ -227,6 +260,8 @@ main() {
   fill_last_updated_blocks
   write_status "$WORK_DIR/status.html"
   fill_blocks status "$WORK_DIR/status.html"
+  add_lastmod
+  write_llms_full
   for asset in "${CACHE_BUSTED_ASSETS[@]}"; do
     stamp_asset "$asset"
   done

@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self'; img-src 'self'; font-src 'self'; base-uri 'none'; form-action 'none'">
+<title>Verify: pwsh-termux</title>
+<meta name="description" content="Check the pwsh-termux signing keys, build provenance and signed index yourself.">
+<meta name="color-scheme" content="light dark">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Verify: pwsh-termux">
+<meta property="og:description" content="Check the pwsh-termux signing keys, build provenance and signed index yourself.">
+<meta property="og:url" content="https://pwsh-termux.machlev.org/verify.html">
+<meta property="og:image" content="https://pwsh-termux.machlev.org/og-image.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="pwsh-termux: PowerShell 7 for Termux, with pkg">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="alternate" type="application/atom+xml" title="pwsh-termux releases" href="https://github.com/EliorMachlev/pwsh-termux/releases.atom">
+<link rel="canonical" href="https://pwsh-termux.machlev.org/verify.html">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="site"><div class="wrap">
+  <a class="brand" href="/"><img src="/favicon.svg" alt="" width="32" height="32"><span>pwsh-termux</span></a>
+  <nav aria-label="Main"><ul>
+    <li><a href="/install.html">Install</a></li>
+    <li><a href="/verify.html" aria-current="page">Verify</a></li>
+    <li><a href="/troubleshooting.html">Help</a></li>
+    <li><a href="/privacy.html">Privacy</a></li>
+    <li><a href="https://github.com/EliorMachlev/pwsh-termux/blob/main/docs/markDown/README.md">Docs</a></li>
+    <li><a href="https://github.com/EliorMachlev/pwsh-termux">GitHub</a></li>
+  </ul></nav>
+</div></header>
+<main id="main"><div class="wrap">
+  <section class="hero compact">
+    <p class="eyebrow">Optional</p>
+    <h1>Verify it yourself</h1>
+    <p class="lead">You do not have to take this site&rsquo;s word for it. Each check uses a different channel, so a mismatch between them is itself a warning sign.</p>
+    <nav class="toc" aria-label="On this page"><ul>
+      <li><a href="#check">Keys</a></li>
+      <li><a href="#provenance">Provenance</a></li>
+      <li><a href="#index">Index</a></li>
+      <li><a href="#by-hand">By hand</a></li>
+      <li><a href="#faq">Key changes</a></li>
+    </ul></nav>
+  </section>
+
+  <section class="panel">
+    <h2 id="check">1. The signing keys</h2>
+    <p>The keyring holds two keys: the one that signs the repository, and an offline recovery key that only signs to move users to a new key if the first is lost or stolen. Compare both fingerprints with the <a href="https://github.com/EliorMachlev/pwsh-termux/blob/main/SECURITY.md#signing-key">security policy</a> or the <code>FINGERPRINT.txt</code> on each <a href="https://github.com/EliorMachlev/pwsh-termux/releases">release</a>:</p>
+    <dl class="keys">
+      <dt>Signing key</dt>
+      <dd><code>7086 C70B 4A25 576F E0C0  CE77 E43F B41F 02D0 1FC8</code></dd>
+      <dt>Recovery key</dt>
+      <dd><code>937A 3D41 5103 CFF8 9DCD  A982 A4B4 5397 EEB6 D752</code></dd>
+    </dl>
+    <p>Print them from the installed file:</p>
+<pre class="copy"><code>pkg install gnupg
+gpg --show-keys "$PREFIX/share/keyrings/pwsh-termux-archive-keyring.gpg"</code></pre>
+  </section>
+
+  <section class="panel">
+    <h2 id="provenance">2. Where the packages were built</h2>
+    <p>Every <code>.deb</code> has a signed build provenance from this project&rsquo;s build workflow, recorded on GitHub. With the <a href="https://cli.github.com/">GitHub CLI</a> (<code>pkg install gh</code>, signed in), run the checks the publishing workflow runs before it signs anything:</p>
+<pre class="copy"><code>gh attestation verify "$TMPDIR/pwsh-termux-keyring.deb" \
+  --repo EliorMachlev/pwsh-termux \
+  --signer-workflow EliorMachlev/pwsh-termux/.github/workflows/build-packages.yaml \
+  --deny-self-hosted-runners</code></pre>
+    <p>The same works for a <code>pwsh_&lt;version&gt;_aarch64.deb</code> from a release, and for its SBOMs.</p>
+  </section>
+
+  <section class="panel">
+    <h2 id="index">3. The signed index</h2>
+    <p><code>pkg</code> checks <code>InRelease</code> against the key, the package list against <code>InRelease</code> and each package against the list on every update. To see it by hand:</p>
+<pre class="copy"><code>curl -fsSL https://pwsh-termux.machlev.org/dists/stable/InRelease -o "$TMPDIR/InRelease"
+gpgv --keyring "$PREFIX/share/keyrings/pwsh-termux-archive-keyring.gpg" "$TMPDIR/InRelease"
+grep -E '^(Date|Valid-Until):' "$TMPDIR/InRelease"</code></pre>
+    <p><code>Valid-Until</code> is 14 days after <code>Date</code> and the index is re-signed daily, so apt refuses an old index served to you for longer than that. The security contact is in <a href="/.well-known/security.txt"><code>/.well-known/security.txt</code></a>.</p>
+  </section>
+
+  <section class="panel">
+    <h2 id="by-hand">Add the key by hand</h2>
+    <p>These commands write the same two files as the keyring package, then install stable:</p>
+<pre class="copy"><code>pkg install -y glibc-repo
+mkdir -p "$PREFIX/share/keyrings"
+curl -fsSL https://pwsh-termux.machlev.org/pwsh-termux.gpg \
+  -o "$PREFIX/share/keyrings/pwsh-termux-archive-keyring.gpg"
+echo "deb [signed-by=$PREFIX/share/keyrings/pwsh-termux-archive-keyring.gpg] https://pwsh-termux.machlev.org stable main" \
+  &gt; "$PREFIX/etc/apt/sources.list.d/pwsh-termux.list"
+pkg update
+pkg install pwsh</code></pre>
+    <p><code>pkg upgrade</code> does not update a key added by hand. After a rotation, download it again or install the keyring package.</p>
+  </section>
+
+  <section class="panel">
+    <h2 id="faq">When the signing key changes</h2>
+    <p>If you installed with the keyring package, nothing to do: <code>pkg upgrade</code> brings the new keyring.</p>
+    <ul>
+      <li><strong>Planned rotation.</strong> The next key ships in a new keyring while the old key still signs, for 180 days.</li>
+      <li><strong>Lost or stolen key.</strong> A security advisory is published on GitHub and the repository is signed once with the offline recovery key your keyring already trusts.</li>
+    </ul>
+    <p>Either way, you can check the new fingerprints against the <a href="https://github.com/EliorMachlev/pwsh-termux/blob/main/SECURITY.md#signing-key">security policy</a>.</p>
+  </section>
+</div></main>
+<footer class="site"><div class="wrap">
+  <nav class="crumbs" aria-label="Breadcrumb"><ol>
+    <li><a href="/">pwsh-termux</a></li>
+    <li aria-current="page">Verify</li>
+  </ol></nav>
+  <nav class="directory" aria-label="Footer">
+    <div>
+      <h2>Get started</h2>
+      <ul>
+        <li><a href="/install.html">Install</a></li>
+        <li><a href="/verify.html">Verify</a></li>
+        <li><a href="/troubleshooting.html">Help</a></li>
+        <li><a href="https://github.com/EliorMachlev/pwsh-termux/releases">Releases</a></li>
+        <li><a href="/documents.html">All documents</a></li>
+      </ul>
+    </div>
+    <div>
+      <h2>Trust</h2>
+      <ul>
+        <li><a href="https://github.com/EliorMachlev/pwsh-termux/blob/main/SECURITY.md">Security policy</a></li>
+        <li><a href="/privacy.html">Privacy</a></li>
+        <li><a href="https://github.com/EliorMachlev/pwsh-termux/blob/main/docs/markDown/legal/terms-of-service.md">Terms</a></li>
+        <li><a href="https://github.com/EliorMachlev/pwsh-termux/blob/main/docs/markDown/legal/accessibility-statement.md">Accessibility</a></li>
+      </ul>
+    </div>
+    <div>
+      <h2>Project</h2>
+      <ul>
+        <li><a href="https://github.com/EliorMachlev/pwsh-termux">GitHub</a></li>
+        <li><a href="https://github.com/EliorMachlev/pwsh-termux/issues">Issues</a></li>
+        <li><a href="https://github.com/EliorMachlev/pwsh-termux/blob/main/docs/markDown/README.md">Handbook</a></li>
+      </ul>
+    </div>
+  </nav>
+  <p>pwsh-termux is an unofficial community project. It is not affiliated with or endorsed by Microsoft. &ldquo;PowerShell&rdquo; is a trademark of Microsoft.</p>
+  <p>Packaging scripts: MIT. PowerShell itself: MIT, &copy; Microsoft Corporation.</p>
+</div></footer>
+</body>
+</html>

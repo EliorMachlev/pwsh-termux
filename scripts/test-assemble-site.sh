@@ -71,6 +71,9 @@ mkdir -p "$O/docs/markDown"
 printf 'body { color: black; }\n' > "$O/docs/style.css"
 printf '<svg xmlns="http://www.w3.org/2000/svg"/>\n' > "$O/docs/favicon.svg"
 printf '# Guide & <tips>\n\nText.\n' > "$O/docs/markDown/guide.md"
+mkdir -p "$O/docs/markDown/product"
+printf '# Packages\n' > "$O/docs/markDown/product/packages.md"
+printf '<urlset>\n  <url><loc>https://pwsh-termux.machlev.org/</loc></url>\n  <url><loc>https://pwsh-termux.machlev.org/other.html</loc></url>\n</urlset>\n' > "$O/docs/sitemap.xml"
 printf 'No heading here.\n' > "$O/docs/markDown/untitled.md"
 for doc in README INSTALL SECURITY CONTRIBUTING NOTICE; do printf '# The %s\n' "$doc" > "$O/$doc.md"; done
 git -C "$O" init -q
@@ -107,6 +110,10 @@ expect accept "assemble the site into the repository" assemble "$O/docs" "$R"
 for f in index.html other.html style.css favicon.svg; do
   if [ -f "$R/$f" ]; then pass "  $f copied"; else fail "  $f copied"; fi
 done
+has "sitemap.xml: lastmod on the home page" "$R/sitemap.xml" '  <url><loc>https://pwsh-termux.machlev.org/</loc><lastmod>2026-01-02</lastmod></url>'
+has "sitemap.xml: lastmod on another page" "$R/sitemap.xml" '  <url><loc>https://pwsh-termux.machlev.org/other.html</loc><lastmod>2026-01-02</lastmod></url>'
+has "llms-full.txt joins INSTALL.md" "$R/llms-full.txt" '# The INSTALL'
+has "llms-full.txt joins packages.md" "$R/llms-full.txt" '# Packages'
 if [ -e "$R/markDown" ]; then fail "  the handbook stays on GitHub"; else pass "  the handbook stays on GitHub"; fi
 if [ -d "$R/dists" ]; then pass "  the index is kept"; else fail "  the index is kept"; fi
 
@@ -123,7 +130,7 @@ has "documents: the handbook first, the title HTML-escaped, its last commit" "$R
 has "  a document without a heading is listed by its path" "$R/index.html" \
   "    <tr><td><a href=\"$BLOB/docs/markDown/untitled.md\">docs/markDown/untitled.md</a><br><code>docs/markDown/untitled.md</code></td><td>Last updated <time datetime=\"2026-01-02\">2026-01-02</time> &middot; <a href=\"$COMMIT/$FIRST\"><code>${FIRST:0:7}</code></a></td></tr>"
 same_order=$(grep -o '<code>[A-Za-z/]*\.md</code>' "$R/index.html" | tr '\n' ' ')
-if [ "$same_order" = "<code>docs/markDown/guide.md</code> <code>docs/markDown/untitled.md</code> <code>README.md</code> <code>INSTALL.md</code> <code>SECURITY.md</code> <code>CONTRIBUTING.md</code> <code>NOTICE.md</code> " ]; then
+if [ "$same_order" = "<code>docs/markDown/guide.md</code> <code>docs/markDown/product/packages.md</code> <code>docs/markDown/untitled.md</code> <code>README.md</code> <code>INSTALL.md</code> <code>SECURITY.md</code> <code>CONTRIBUTING.md</code> <code>NOTICE.md</code> " ]; then
   pass "  then the top-level documents, in order"
 else
   fail "  then the top-level documents, in order: $same_order"
