@@ -118,7 +118,7 @@ if [ -e "$R/markDown" ]; then fail "  the handbook stays on GitHub"; else pass "
 if [ -d "$R/dists" ]; then pass "  the index is kept"; else fail "  the index is kept"; fi
 
 has "status: the packages served, in order" "$R/index.html" \
-  '<p class="status">Now serving <code>pwsh</code> <strong>7.5.1-1</strong> and <code>pwsh-preview</code> <strong>7.6.0~preview.4-1</strong>. Repository index last signed <time datetime="2026-11-14T00:00Z">2026-11-14 00:00 UTC</time>, valid until <time datetime="2026-11-22T00:00Z">2026-11-22</time> (it is re-signed daily).</p>'
+  '<p class="status">Now serving <code>pwsh</code> <strong>7.5.1-1</strong> and <code>pwsh-preview</code> <strong>7.6.0~preview.4-1</strong>. Repository index last signed <time datetime="2026-11-14T00:00Z">14 November 2026, 00:00 UTC</time>, valid until <time datetime="2026-11-22T00:00Z">22 November 2026</time> (it is re-signed daily).</p>'
 lacks "the fallback HTML is replaced" "$R/index.html" 'fallback'
 has "the markers stay" "$R/index.html" '<!-- generated:status -->'
 has "  ... both of them" "$R/index.html" '<!-- /generated:status -->'
@@ -126,9 +126,9 @@ has "  ... both of them" "$R/index.html" '<!-- /generated:status -->'
 BLOB=https://github.com/EliorMachlev/pwsh-termux/blob/main
 COMMIT=https://github.com/EliorMachlev/pwsh-termux/commit
 has "documents: the handbook first, the title HTML-escaped, its last commit" "$R/index.html" \
-  "    <tr><td><a href=\"$BLOB/docs/markDown/guide.md\">Guide &amp; &lt;tips&gt;</a><br><code>docs/markDown/guide.md</code></td><td>Last updated <time datetime=\"2026-03-04\">2026-03-04</time> &middot; <a href=\"$COMMIT/$SECOND\"><code>${SECOND:0:7}</code></a></td></tr>"
+  "    <tr><td><a href=\"$BLOB/docs/markDown/guide.md\">Guide &amp; &lt;tips&gt;</a><br><code>docs/markDown/guide.md</code></td><td>Last updated <time datetime=\"2026-03-04\">4 March 2026</time> &middot; <a href=\"$COMMIT/$SECOND\"><code>${SECOND:0:7}</code></a></td></tr>"
 has "  a document without a heading is listed by its path" "$R/index.html" \
-  "    <tr><td><a href=\"$BLOB/docs/markDown/untitled.md\">docs/markDown/untitled.md</a><br><code>docs/markDown/untitled.md</code></td><td>Last updated <time datetime=\"2026-01-02\">2026-01-02</time> &middot; <a href=\"$COMMIT/$FIRST\"><code>${FIRST:0:7}</code></a></td></tr>"
+  "    <tr><td><a href=\"$BLOB/docs/markDown/untitled.md\">docs/markDown/untitled.md</a><br><code>docs/markDown/untitled.md</code></td><td>Last updated <time datetime=\"2026-01-02\">2 January 2026</time> &middot; <a href=\"$COMMIT/$FIRST\"><code>${FIRST:0:7}</code></a></td></tr>"
 same_order=$(grep -o '<code>[A-Za-z/]*\.md</code>' "$R/index.html" | tr '\n' ' ')
 if [ "$same_order" = "<code>docs/markDown/guide.md</code> <code>docs/markDown/product/packages.md</code> <code>docs/markDown/untitled.md</code> <code>README.md</code> <code>INSTALL.md</code> <code>SECURITY.md</code> <code>CONTRIBUTING.md</code> <code>NOTICE.md</code> " ]; then
   pass "  then the top-level documents, in order"
@@ -137,11 +137,11 @@ else
 fi
 
 has "last-updated: README.md" "$R/index.html" \
-  "<p class=\"updated\">Last updated <time datetime=\"2026-01-02\">2026-01-02</time> &middot; <a href=\"$COMMIT/$FIRST\"><code>${FIRST:0:7}</code></a></p>"
+  "<p class=\"updated\">Last updated <time datetime=\"2026-01-02\">2 January 2026</time> &middot; <a href=\"$COMMIT/$FIRST\"><code>${FIRST:0:7}</code></a></p>"
 has "  in every page that has the block" "$R/other.html" \
-  "<p class=\"updated\">Last updated <time datetime=\"2026-01-02\">2026-01-02</time> &middot; <a href=\"$COMMIT/$FIRST\"><code>${FIRST:0:7}</code></a></p>"
+  "<p class=\"updated\">Last updated <time datetime=\"2026-01-02\">2 January 2026</time> &middot; <a href=\"$COMMIT/$FIRST\"><code>${FIRST:0:7}</code></a></p>"
 has "  and a handbook document's own block" "$R/other.html" \
-  "<p class=\"updated\">Last updated <time datetime=\"2026-03-04\">2026-03-04</time> &middot; <a href=\"$COMMIT/$SECOND\"><code>${SECOND:0:7}</code></a></p>"
+  "<p class=\"updated\">Last updated <time datetime=\"2026-03-04\">4 March 2026</time> &middot; <a href=\"$COMMIT/$SECOND\"><code>${SECOND:0:7}</code></a></p>"
 lacks "  a page without a block is left alone" "$R/other.html" 'Now serving'
 
 CSS=$(sha256_of "$O/docs/style.css") ICON=$(sha256_of "$O/docs/favicon.svg")

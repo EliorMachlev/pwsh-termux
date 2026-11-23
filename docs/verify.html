@@ -78,7 +78,7 @@ gpg --show-keys "$PREFIX/share/keyrings/pwsh-termux-archive-keyring.gpg"</code><
 <pre class="copy"><code>curl -fsSL https://pwsh-termux.machlev.org/dists/stable/InRelease -o "$TMPDIR/InRelease"
 gpgv --keyring "$PREFIX/share/keyrings/pwsh-termux-archive-keyring.gpg" "$TMPDIR/InRelease"
 grep -E '^(Date|Valid-Until):' "$TMPDIR/InRelease"</code></pre>
-    <p><code>Valid-Until</code> is 14 days after <code>Date</code> and the index is re-signed daily, so apt refuses an old index served to you for longer than that. The security contact is in <a href="/.well-known/security.txt"><code>/.well-known/security.txt</code></a>.</p>
+    <p><code>Valid-Until</code> is 14 days after <code>Date</code> and the index is re-signed daily, so <abbr title="Advanced Package Tool">apt</abbr> refuses an old index served to you for longer than that. The security contact is in <a href="/.well-known/security.txt"><code>/.well-known/security.txt</code></a>.</p>
   </section>
 
   <section class="panel">

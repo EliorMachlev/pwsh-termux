@@ -36,9 +36,9 @@
 </div></header>
 <main id="main"><div class="wrap">
   <section class="hero">
-    <p class="eyebrow">Unofficial apt repository</p>
+    <p class="eyebrow">Unofficial <abbr title="Advanced Package Tool">apt</abbr> repository</p>
     <h1>PowerShell 7 for Termux, with <code>pkg</code>.</h1>
-    <p class="lead">Termux does not ship PowerShell. This apt repository follows Microsoft&rsquo;s releases, checks each against Microsoft&rsquo;s published hash, makes it run on Termux&rsquo;s glibc and signs it. You install and update it like any other package.</p>
+    <p class="lead">Termux does not ship PowerShell. This apt repository follows Microsoft&rsquo;s releases, checks each against Microsoft&rsquo;s published hash, makes it run on Termux&rsquo;s <abbr title="GNU C library">glibc</abbr> and signs it. You install and update it like any other package.</p>
     <p class="actions">
       <a class="btn" href="/install.html">Install</a>
       <a class="more" href="https://github.com/EliorMachlev/pwsh-termux">Source on GitHub</a>
@@ -98,9 +98,9 @@ pkg install pwsh</code></pre>
       <ol>
         <li><strong>Microsoft publishes</strong><span>PowerShell 7 releases on GitHub</span></li>
         <li><strong>Choose releases</strong><span>highest stable, plus a newer preview</span></li>
-        <li><strong>Verify</strong><span>SHA-256 must match hashes.sha256</span></li>
+        <li><strong>Verify</strong><span><abbr title="Secure Hash Algorithm, 256 bits">SHA-256</abbr> must match hashes.sha256</span></li>
         <li><strong>Patch and package</strong><span>Termux glibc loader, build the .deb</span></li>
-        <li><strong>Sign</strong><span>apt index signed with Ed25519</span></li>
+        <li><strong>Sign</strong><span>apt index signed with <abbr title="a digital signature algorithm">Ed25519</abbr></span></li>
         <li><strong>Publish</strong><span>GitHub Pages and release assets</span></li>
         <li><strong>Your phone</strong><span>pkg update, pkg upgrade</span></li>
       </ol>
@@ -126,7 +126,7 @@ pkg install pwsh</code></pre>
       <h2 id="trust">Why trust it</h2>
     </div>
     <div class="grid two">
-      <div class="card"><h3>Verified</h3><p>Every download is checked against the SHA-256 in Microsoft&rsquo;s own <code>hashes.sha256</code> before it is packaged.</p></div>
+      <div class="card"><h3>Verified</h3><p>Every download is checked against the <abbr title="Secure Hash Algorithm, 256 bits">SHA-256</abbr> in Microsoft&rsquo;s own <code>hashes.sha256</code> before it is packaged.</p></div>
       <div class="card"><h3>Signed</h3><p>The index is signed with an Ed25519 key that apt checks on every <code>pkg update</code>. <a href="/verify.html">Check it yourself</a>.</p></div>
       <div class="card"><h3>Made for Termux</h3><p>Patched at build time for Termux&rsquo;s glibc loader: no proot, no launcher.</p></div>
       <div class="card"><h3>Open and archived</h3><p>The scripts are public and every <code>.deb</code> is kept as a GitHub release asset.</p></div>

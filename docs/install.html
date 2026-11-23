@@ -59,7 +59,7 @@
   <section class="panel">
     <p class="eyebrow">Step 1</p>
     <h2 id="setup">Set up the repository (once)</h2>
-    <p>Stable and preview both need this. It enables Termux&rsquo;s glibc repository and installs <code>pwsh-termux-keyring</code>: the public signing key and the apt source, trusted for this repository only. <code>pkg</code> then checks every later download against it.</p>
+    <p>Stable and preview both need this. It enables Termux&rsquo;s <abbr title="GNU C library">glibc</abbr> repository and installs <code>pwsh-termux-keyring</code>: the public signing key and the <abbr title="Advanced Package Tool">apt</abbr> source, trusted for this repository only. <code>pkg</code> then checks every later download against it.</p>
 <pre class="copy"><code>pkg install -y glibc-repo &amp;&amp; \
 curl -fsSL https://pwsh-termux.machlev.org/pwsh-termux-keyring.deb -o "$TMPDIR/pwsh-termux-keyring.deb" &amp;&amp; \
 dpkg -i "$TMPDIR/pwsh-termux-keyring.deb" &amp;&amp; \

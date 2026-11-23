@@ -32,6 +32,7 @@ GENERATED = (
 
 # Directives every page's policy must contain, exactly.
 REQUIRED_CSP = ("default-src 'none'", "base-uri 'none'", "form-action 'none'")
+VOID_TAGS = {"area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "source", "track", "wbr"}
 FORBIDDEN_TAGS = {"script", "form", "base", "iframe", "object", "embed"}
 
 # Files the site needs besides the pages.
@@ -44,6 +45,13 @@ NOT_IN_SITEMAP = ("404.html",)
 GENERATED_BLOCK = re.compile(
     r"^<!-- (/?)generated:([A-Za-z0-9:/._-]+) -->$", re.MULTILINE
 )
+# Terms a page must explain at their first use in prose (WCAG 3 draft, "Abbreviations
+# explained"): wrapped in <abbr title="..."> or followed by a gloss in parentheses.
+# Text inside <code> and <pre> is a literal command or name and is not checked.
+ABBREVIATIONS = ("apt", "DNS", "Ed25519", "SHA-256", "SBOM", "glibc")
+# A page with at least this many words of text in <main> needs a summary: a
+# <p class="lead"> (the hero's one-sentence summary).
+SUMMARY_MIN_WORDS = 300
 # security.txt must be renewed before it has fewer days than this left.
 SECURITY_TXT_MIN_DAYS_LEFT = 30
 
@@ -63,10 +71,30 @@ class Page(HTMLParser):
         self.skip_link = False
         self.has_title_text = False
         self._in_title = False
+        self.headings = []  # heading levels, in order
+        self.runs = []  # (text, in_abbr) of prose outside head, code and pre
+        self.main_words = 0
+        self.lead = False
+        self._skip = 0  # depth inside <head>, <code>, <pre>
+        self._abbr = 0
+        self._in_main = False
+        self._stack = []
 
     def handle_starttag(self, tag, attrs):
         a = dict(attrs)
         self.tags.append(tag)
+        if tag not in VOID_TAGS:
+            self._stack.append(tag)
+        if tag in ("head", "code", "pre"):
+            self._skip += 1
+        elif tag == "abbr":
+            self._abbr += 1
+        elif tag == "main":
+            self._in_main = True
+        elif tag == "p" and "lead" in (a.get("class") or "").split():
+            self.lead = True
+        elif re.fullmatch(r"h[1-6]", tag):
+            self.headings.append(int(tag[1]))
         if tag in FORBIDDEN_TAGS:
             self.problems.append(f"<{tag}> is not allowed")
         for name in a:
@@ -110,10 +138,27 @@ class Page(HTMLParser):
     def handle_endtag(self, tag):
         if tag == "title":
             self._in_title = False
+        if tag in VOID_TAGS or tag not in self._stack:
+            return
+        # close any unclosed element above it, as a browser does
+        while self._stack:
+            top = self._stack.pop()
+            if top in ("head", "code", "pre"):
+                self._skip -= 1
+            elif top == "abbr":
+                self._abbr -= 1
+            elif top == "main":
+                self._in_main = False
+            if top == tag:
+                break
 
     def handle_data(self, data):
         if self._in_title and data.strip():
             self.has_title_text = True
+        if self._skip == 0 and data.strip():
+            self.runs.append((data, self._abbr > 0))
+            if self._in_main:
+                self.main_words += len(data.split())
 
 
 def local_target(
@@ -156,6 +201,33 @@ def check_generated_blocks(name, text: str) -> list:
     return problems
 
 
+def check_prose(name, p: Page) -> list:
+    """WCAG 3 draft checks: heading order, a summary, abbreviations explained."""
+    problems = []
+    previous = 0
+    for level in p.headings:
+        if level > previous + 1:
+            problems.append(f"{name}: <h{level}> follows <h{previous}>: a heading level is skipped")
+        previous = level
+    if p.main_words >= SUMMARY_MIN_WORDS and not p.lead:
+        problems.append(
+            f'{name}: {p.main_words} words need a summary: a <p class="lead"> at the top'
+        )
+    for term in ABBREVIATIONS:
+        pattern = re.compile(rf"(?<![\w-]){re.escape(term)}(?![\w-])")
+        for text, in_abbr in p.runs:
+            m = pattern.search(text)
+            if not m:
+                continue
+            if not in_abbr and not text[m.end() :].startswith(" ("):
+                problems.append(
+                    f"{name}: {term!r} is not explained at its first use "
+                    f'(<abbr title="...">{term}</abbr>, or a gloss in parentheses)'
+                )
+            break
+    return problems
+
+
 def check_page(docs: pathlib.Path, page: pathlib.Path, errors: list) -> None:
     name = page.relative_to(docs)
     text = page.read_text(encoding="utf-8")
@@ -163,6 +235,7 @@ def check_page(docs: pathlib.Path, page: pathlib.Path, errors: list) -> None:
     p.feed(text)
     problems = [f"{name}: {x}" for x in p.problems]
     problems += check_generated_blocks(name, text)
+    problems += check_prose(name, p)
 
     if len(p.csp) != 1:
         problems.append(
