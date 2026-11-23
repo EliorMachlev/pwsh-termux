@@ -246,17 +246,27 @@ def check_prose(name, p: Page) -> list:
         )
     for term in ABBREVIATIONS:
         pattern = re.compile(rf"(?<![\w-]){re.escape(term)}s?(?![\w-])", re.IGNORECASE)
-        for text, in_abbr in p.runs:
+        for i, (text, in_abbr) in enumerate(p.runs):
             m = pattern.search(text)
             if not m:
                 continue
-            if not in_abbr and not text[m.end() :].startswith(" ("):
+            if not in_abbr and not glossed(text[m.end() :], p.runs[i + 1 :]):
                 problems.append(
                     f"{name}: {term!r} is not explained at its first use "
                     f'(<abbr title="...">{term}</abbr>, or a gloss in parentheses)'
                 )
             break
     return problems
+
+
+def glossed(rest: str, following: list) -> bool:
+    """True if a gloss in parentheses follows a term: in the same text run
+    after whitespace (a newline counts), or, when the term ends its run
+    (<strong>apt</strong> (...)), at the start of the next runs."""
+    if rest.strip():
+        return re.match(r"\s+\(", rest) is not None
+    tail = rest + "".join(text for text, _ in following[:3])
+    return re.match(r"\s*\(", tail) is not None
 
 
 def check_page(docs: pathlib.Path, page: pathlib.Path, errors: list) -> None:
