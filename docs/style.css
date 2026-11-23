@@ -5,8 +5,9 @@
   --paper: #f5f5f7;
   --surface: #fff; /* raised tiles sit on the paper */
   --ink: #1d1d1f;
-  --ink-2: #636366;
-  --accent: #06c; /* links and outlines */
+  --ink-2: #58585c; /* APCA Lc 75+ on the paper and the tiles */
+  --accent: #005bb8; /* links and step outlines: APCA Lc 75+ on the paper */
+  --focus: var(--ink); /* the focus ring: 10:1 or more on the paper, tiles and chips, 3:1 or more beside a filled button */
   --fill: #0071e3; /* filled buttons: colour on a solid layer, white text */
   --fill-ink: #fff;
   --line: rgb(0 0 0 / 12%);
@@ -34,8 +35,8 @@
     --paper: #000;
     --surface: #1c1c1e;
     --ink: #f5f5f7;
-    --ink-2: #a1a1a6;
-    --accent: #4aa8ff; /* 4.5:1 on the .status chip too */
+    --ink-2: #d1d1d6; /* APCA Lc 70+ even on the .status chip */
+    --accent: #aed4ff; /* APCA Lc 75+ on the black and the tiles, 7:1 on the .status chip */
     --line: rgb(255 255 255 / 16%);
     --code-bg: #000;
     --code-edge: rgb(255 255 255 / 16%); /* nearly the page's colour, so it needs an edge */
@@ -89,7 +90,7 @@ a {
 }
 
 :focus-visible {
-  outline: 3px solid var(--accent);
+  outline: 3px solid var(--focus);
   outline-offset: 3px;
 }
 
@@ -691,15 +692,15 @@ nav a {
 
 @media (prefers-reduced-motion: no-preference) {
   .flow ol li {
-    animation: lit 1s linear both;
+    animation: lit .7s linear both;
   }
 
-  .flow li:nth-child(2) { animation-delay: 1s; }
-  .flow li:nth-child(3) { animation-delay: 2s; }
-  .flow li:nth-child(4) { animation-delay: 3s; }
-  .flow li:nth-child(5) { animation-delay: 4s; }
-  .flow li:nth-child(6) { animation-delay: 5s; }
-  .flow li:nth-child(7) { animation-delay: 6s; }
+  .flow li:nth-child(2) { animation-delay: .6s; }
+  .flow li:nth-child(3) { animation-delay: 1.2s; }
+  .flow li:nth-child(4) { animation-delay: 1.8s; }
+  .flow li:nth-child(5) { animation-delay: 2.4s; }
+  .flow li:nth-child(6) { animation-delay: 3s; }
+  .flow li:nth-child(7) { animation-delay: 3.6s; }
 
   .flow:has(input:checked) li {
     animation-play-state: paused;

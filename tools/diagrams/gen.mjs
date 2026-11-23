@@ -9,6 +9,9 @@
 // Palette follows the site: the dark code tile (#1d1d1f), Apple's dark-mode grays and systemBlue.
 import { writeFileSync, mkdirSync, copyFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
+// A GIF cannot be paused, so it plays once and stays on its last frame, and the steps take under five seconds
+// together (WCAG 2.2.2).
+const STEP = 0.6;
 const out = process.argv[2];
 mkdirSync(out, { recursive: true });
 const diagrams = {
@@ -60,7 +63,7 @@ function frame(steps, active) {
 }
 const gif = (list, dest) => execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-f', 'concat', '-safe', '0', '-i', list,
   '-vf', 'split[a][b];[a]palettegen=max_colors=32:reserve_transparent=1:stats_mode=full[p];[b][p]paletteuse=dither=none:alpha_threshold=128',
-  '-loop', '0', dest]);
+  '-loop', '-1', dest]);
 for (const [name, steps] of Object.entries(diagrams)) {
   for (const [scale, suffix] of [[1, ''], [2, '@2x']]) {
     const list = [];
@@ -68,7 +71,7 @@ for (const [name, steps] of Object.entries(diagrams)) {
       const f = `${out}/${name}${suffix}-${String(a).padStart(2, '0')}`;
       writeFileSync(f + '.svg', frame(steps, a));
       execFileSync('rsvg-convert', ['-z', String(scale), '-o', f + '.png', f + '.svg']);
-      list.push(`file '${f}.png'\nduration ${a === steps.length ? 3 : 1}`);
+      list.push(`file '${f}.png'\nduration ${a === steps.length ? 1 : STEP}`);
     }
     const last = `${out}/${name}${suffix}-${String(steps.length).padStart(2, '0')}.png`;
     writeFileSync(`${out}/${name}${suffix}.txt`, list.join('\n') + `\nfile '${last}'\n`);
