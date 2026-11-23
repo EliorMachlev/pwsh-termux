@@ -11,7 +11,7 @@ The checks that keep the [website](website.md) script-free, valid and consistent
 3. anything loaded from another site (`<link>`, `<img>`, `src`, `srcset`), or a plain-`http` link;
 4. a missing local link or asset (paths the apt repository adds at deploy time, such as `/pwsh-termux.gpg`, are allowed), or a missing `style.css`, `favicon.svg`, `llms.txt` or `.nojekyll`;
 5. a generated block not opened and closed in order;
-6. a page without `lang`, a title, a viewport `<meta>`, exactly one `<h1>`, `<main id="main">`, a skip link, or an `alt` on each image;
+6. a page without `lang`, a title, a viewport `<meta>`, exactly one `<h1>`, `<main id="main">`, a skip link, or an `alt` on each image; a skipped heading level (`<h2>` to `<h4>`); a page of 300 words or more without a `<p class="lead">` summary; or one of apt, CLI, DNS, Ed25519, IP, SHA-256, SBOM and glibc that is neither in `<abbr>` nor followed by a gloss in parentheses at its first use in prose (text in `<code>` and `<pre>` is skipped);
 7. a `sitemap.xml` that does not list every page but `404.html`, a `robots.txt` that does not point to it, a `CNAME` that is not the domain, or a `security.txt` with a wrong `Canonical` or fewer than 30 days before `Expires`.
 
 It runs on `docs/` in [`site.yaml`](../../../.github/workflows/site.yaml) and before every deploy, and on the assembled site (generated blocks filled) in CI's package build, `update.yaml` and `recover.yaml`.

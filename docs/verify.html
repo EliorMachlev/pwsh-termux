@@ -64,12 +64,12 @@ gpg --show-keys "$PREFIX/share/keyrings/pwsh-termux-archive-keyring.gpg"</code><
 
   <section class="panel">
     <h2 id="provenance">2. Where the packages were built</h2>
-    <p>Every <code>.deb</code> has a signed build provenance from this project&rsquo;s build workflow, recorded on GitHub. With the <a href="https://cli.github.com/">GitHub CLI</a> (<code>pkg install gh</code>, signed in), run the checks the publishing workflow runs before it signs anything:</p>
+    <p>Every <code>.deb</code> has a signed build provenance from this project&rsquo;s build workflow, recorded on GitHub. With the <a href="https://cli.github.com/">GitHub <abbr title="command-line interface">CLI</abbr></a> (<code>pkg install gh</code>, signed in), run the checks the publishing workflow runs before it signs anything:</p>
 <pre class="copy"><code>gh attestation verify "$TMPDIR/pwsh-termux-keyring.deb" \
   --repo EliorMachlev/pwsh-termux \
   --signer-workflow EliorMachlev/pwsh-termux/.github/workflows/build-packages.yaml \
   --deny-self-hosted-runners</code></pre>
-    <p>The same works for a <code>pwsh_&lt;version&gt;_aarch64.deb</code> from a release, and for its SBOMs.</p>
+    <p>The same works for a <code>pwsh_&lt;version&gt;_aarch64.deb</code> from a release, and for its <abbr title="Software Bill of Materials">SBOM</abbr>s.</p>
   </section>
 
   <section class="panel">
@@ -78,7 +78,7 @@ gpg --show-keys "$PREFIX/share/keyrings/pwsh-termux-archive-keyring.gpg"</code><
 <pre class="copy"><code>curl -fsSL https://pwsh-termux.machlev.org/dists/stable/InRelease -o "$TMPDIR/InRelease"
 gpgv --keyring "$PREFIX/share/keyrings/pwsh-termux-archive-keyring.gpg" "$TMPDIR/InRelease"
 grep -E '^(Date|Valid-Until):' "$TMPDIR/InRelease"</code></pre>
-    <p><code>Valid-Until</code> is 14 days after <code>Date</code> and the index is re-signed daily, so apt refuses an old index served to you for longer than that. The security contact is in <a href="/.well-known/security.txt"><code>/.well-known/security.txt</code></a>.</p>
+    <p><code>Valid-Until</code> is 14 days after <code>Date</code> and the index is re-signed daily, so <abbr title="Advanced Package Tool">apt</abbr> refuses an old index served to you for longer than that. The security contact is in <a href="/.well-known/security.txt"><code>/.well-known/security.txt</code></a>.</p>
   </section>
 
   <section class="panel">

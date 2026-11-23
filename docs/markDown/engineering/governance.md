@@ -1,5 +1,7 @@
 # Governance and roadmap
 
+This page says who decides (one maintainer), who does what, what happens if the maintainer cannot continue, and what work is planned.
+
 ## Governance
 
 pwsh-termux is a single-maintainer project: **[Elior Machlev](https://github.com/EliorMachlev)** owns the repository, the signing key, the domain and the decisions. There is no committee and no vote.

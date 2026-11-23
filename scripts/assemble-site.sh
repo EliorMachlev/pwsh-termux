@@ -94,6 +94,10 @@ package_version() {
     /^Package: / {pkg = $2} /^Version: / && pkg == want {print $2; exit}' "$1"
 }
 
+# written_date <date>: "2 January 2026" for an ISO date or an @epoch, in UTC and in English whatever
+# the locale. The visible text names the month; the <time datetime> next to it carries the ISO form.
+written_date() { LC_ALL=C date -u -d "$1" '+%-d %B %Y'; }
+
 # write_status <out-file>: the status block, from the repository's index.
 write_status() {
   local out=$1 dist_dir packages_file release_file package version served=() date valid_until
@@ -113,9 +117,9 @@ write_status() {
   {
     printf '<p class="status">Now serving %s.' "$(join_with ' and ' "${served[@]}")"
     printf ' Repository index last signed <time datetime="%s">%s</time>,' \
-      "$(date -u -d "@$date" +%Y-%m-%dT%H:%MZ)" "$(date -u -d "@$date" '+%Y-%m-%d %H:%M UTC')"
+      "$(date -u -d "@$date" +%Y-%m-%dT%H:%MZ)" "$(written_date "@$date"), $(date -u -d "@$date" '+%H:%M UTC')"
     printf ' valid until <time datetime="%s">%s</time> (it is re-signed daily).</p>\n' \
-      "$(date -u -d "@$valid_until" +%Y-%m-%dT%H:%MZ)" "$(date -u -d "@$valid_until" '+%Y-%m-%d')"
+      "$(date -u -d "@$valid_until" +%Y-%m-%dT%H:%MZ)" "$(written_date "@$valid_until")"
   } > "$out"
 }
 
@@ -148,7 +152,7 @@ last_updated_html() {
   local date short sha
   read -r date short sha < <(last_commit "$1") || die "no commit for $1"
   printf 'Last updated <time datetime="%s">%s</time> &middot; <a href="%s"><code>%s</code></a>' \
-    "$date" "$date" "$(project_commit_url "$sha")" "$short"
+    "$date" "$(written_date "$date")" "$(project_commit_url "$sha")" "$short"
 }
 
 # document_title <path>: its first "# " heading, HTML-escaped, or the path.
