@@ -25,7 +25,7 @@
 
 ## What is this?
 
-Termux does not ship PowerShell. This project is an unofficial apt repository that fills the gap: it takes Microsoft's official PowerShell 7 release, checks it, makes it run on Termux, signs it and keeps it up to date. You add the repository once; after that `pkg install pwsh` and `pkg upgrade` work like for any other package.
+Termux does not ship PowerShell. This project is an unofficial apt (Advanced Package Tool) repository that fills the gap: it takes Microsoft's official PowerShell 7 release, checks it, makes it run on Termux, signs it and keeps it up to date. You add the repository once; after that `pkg install pwsh` and `pkg upgrade` work like for any other package.
 
 It is not affiliated with Microsoft. Microsoft's files ship unchanged apart from two ELF headers ([NOTICE.md](NOTICE.md)).
 
@@ -80,10 +80,10 @@ flowchart TD
 </details>
 
 1. **Follows Microsoft.** The highest stable release becomes `pwsh`; while a newer preview or release candidate exists, it becomes `pwsh-preview`. Releases are chosen by version, not date, because Microsoft backports patches to older lines.
-2. **Verified.** Each tarball must match the SHA-256 in Microsoft's `hashes.sha256` before anything is built from it.
-3. **Signed.** apt verifies the index's Ed25519 signature on every `pkg update` ([fingerprint](SECURITY.md#signing-key)).
-4. **Native.** The glibc binary is patched at build time to use Termux's glibc loader: no proot, no `glibc-runner` ([why](docs/markDown/engineering/architecture/packaging.md#why-patchelf-and-not-glibc-runner)).
-5. **Archived.** Every built `.deb` stays as a GitHub release asset, with a CycloneDX and three SPDX SBOMs and signed build provenance ([verify](SECURITY.md#software-bill-of-materials-sbom-and-build-provenance)).
+2. **Verified.** Each tarball must match the SHA-256 (a 256-bit hash) in Microsoft's `hashes.sha256` before anything is built from it.
+3. **Signed.** apt verifies the index's Ed25519 (a digital signature algorithm) signature on every `pkg update` ([fingerprint](SECURITY.md#signing-key)).
+4. **Native.** The glibc (the GNU C library) binary is patched at build time to use Termux's glibc loader: no proot, no `glibc-runner` ([why](docs/markDown/engineering/architecture/packaging.md#why-patchelf-and-not-glibc-runner)).
+5. **Archived.** Every built `.deb` stays as a GitHub release asset, with a CycloneDX and three SPDX (Software Package Data Exchange) SBOMs (software bills of materials) and signed build provenance ([verify](SECURITY.md#software-bill-of-materials-sbom-and-build-provenance)).
 
 The pipeline is [`update.yaml`](.github/workflows/update.yaml); [architecture](docs/markDown/engineering/architecture/README.md) explains each stage.
 
@@ -96,7 +96,7 @@ The pipeline is [`update.yaml`](.github/workflows/update.yaml); [architecture](d
 
 ## Learn more
 
-- [Documentation index](docs/markDown/README.md): architecture, build, release, CI / CD, security.
+- [Documentation index](docs/markDown/README.md): architecture, build, release, CI (continuous integration) / CD, security.
 - [Contributing](CONTRIBUTING.md): bug fixes are welcome; for new features, open an issue first. Every pull request must pass 22 required checks ([CI / CD](docs/markDown/engineering/ci-cd.md)).
 - [Security policy](SECURITY.md): report vulnerabilities privately.
 - Legal: [Privacy](docs/markDown/legal/privacy-policy.md) · [Terms](docs/markDown/legal/terms-of-service.md) · [Accessibility](docs/markDown/legal/accessibility-statement.md) · [Compliance](docs/markDown/legal/compliance-posture.md)

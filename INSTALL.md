@@ -26,7 +26,7 @@ uname -m
 
 Do this one time. Stable and preview both need it.
 
-This command enables Termux's glibc repository, downloads the keyring package, installs it and refreshes the package lists. The keyring holds the repository's public signing key and its apt source. `pkg` then checks every download against that key.
+This command enables Termux's glibc (the GNU C library) repository, downloads the keyring package, installs it and refreshes the package lists. The keyring holds the repository's public signing key and its apt (Advanced Package Tool) source. `pkg` then checks every download against that key.
 
 ```bash
 pkg install -y glibc-repo && \
