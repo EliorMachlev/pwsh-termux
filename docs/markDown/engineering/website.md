@@ -24,9 +24,9 @@ The markup follows the same pattern on every page: a `hero` (small `eyebrow` lab
 
 ## Diagrams
 
-The home and install pages show each flow as a numbered list of steps (`<figure class="flow">`, an `<ol>`): plain text, so it follows the palette, forced colours, zoom and screen readers, and needs no image or script. In `style.css` each step lights up in turn, once, then stays lit (a CSS animation with a delay per step, so a list longer than seven needs another `nth-child` rule). A checkbox before the list pauses it with `:has(input:checked)` and `animation-play-state` (WCAG 2.2.2, since the run lasts more than five seconds); with reduced motion the list is shown finished and the checkbox is hidden. The Mermaid source stays in a `<details>` fold-out below, for readers who want it.
+The home and install pages show each flow as a numbered list of steps (`<figure class="flow">`, an `<ol>`): plain text, so it follows the palette, forced colours, zoom and screen readers, and needs no image or script. In `style.css` each step lights up in turn, once, then stays lit (a CSS animation with a delay per step, so a list longer than seven needs another `nth-child` rule). The whole run is a colour change that takes about four seconds (steps of 0.6s, each lasting 0.7s), under the five seconds the WCAG 3 draft allows for motion; a list longer than seven steps must keep to that. A checkbox before the list still pauses it with `:has(input:checked)` and `animation-play-state` (WCAG 2.2.2); with reduced motion the list is shown finished and the checkbox is hidden. The Mermaid source stays in a `<details>` fold-out below, for readers who want it.
 
-The README and `INSTALL.md` still use the animated GIFs in [`docs/img/`](../../img), because GitHub renders no Mermaid in its mobile browsers and app. The steps are drawn by [`tools/diagrams/gen.mjs`](../../../tools/diagrams/gen.mjs), which also writes the matching Mermaid source: change the steps there and update the `<ol>` lists, the Mermaid blocks and the GIFs together ([how to run it](build.md#regenerate-the-diagrams)). Only the 640-wide `<name>.gif` files are used.
+The README and `INSTALL.md` still use the animated GIFs in [`docs/img/`](../../img), because GitHub renders no Mermaid in its mobile browsers and app. A GIF cannot be paused, so it plays once (no loop) in under five seconds and stays on its last frame (`STEP` and `-loop -1` in `gen.mjs`); the site pages do not use the GIFs. The steps are drawn by [`tools/diagrams/gen.mjs`](../../../tools/diagrams/gen.mjs), which also writes the matching Mermaid source: change the steps there and update the `<ol>` lists, the Mermaid blocks and the GIFs together ([how to run it](build.md#regenerate-the-diagrams)). Only the 640-wide `<name>.gif` files are used.
 
 ## Accessibility rules for changes
 
@@ -39,6 +39,9 @@ The target is WCAG 2.2 level AA ([statement](../legal/accessibility-statement.md
 5. **Data tables** use `<th scope="col">`, including the generated one in `assemble-site.sh`.
 6. **Targets are 44px** (`--tap`) except links inside a sentence; focus uses `:focus-visible` and the sticky bar must not cover it (`scroll-padding-top`).
 7. **No inline `style` attributes** (the CSP forbids them): per-item values go in `nth-child` rules.
+8. **Contrast beyond 4.5:1 for small text.** Muted text (`--ink-2`) and links (`--accent`) keep APCA Lc 75 or more on the paper and the tiles in both palettes (measured with the SAPC 0.98G-4g formula; the WCAG 3 draft is expected to use APCA but has not decided). The focus ring is `--focus`, the text colour, so it stays above 3:1 on every background and beside a filled button. Borders and chips (`--line`, `--chip`) are decoration: text, not the edge, identifies each control, and the diagram steps carry their meaning in their text.
+9. **Dates are written out** (2 January 2026) with the ISO form in `<time datetime>`.
+10. **A page of 300 words or more opens with a `<p class="lead">` summary**, and **an abbreviation is explained at its first use on a page** (`<abbr title>` or a gloss in parentheses; a phone has no tooltips, so prefer the gloss in running text). `site-check.py` checks both, and heading order.
 
 Keep the accessibility statement in step with any change here.
 
@@ -47,10 +50,10 @@ Keep the accessibility statement in step with any change here.
 A page can mark fallback HTML between `<!-- generated:<name> -->` and `<!-- /generated:<name> -->`, each on its own line; [`assemble-site.sh`](../../../scripts/assemble-site.sh) replaces it at deploy time:
 
 1. `status` (home and install pages): the versions the index serves, its last signing date and `Valid-Until`, from the deployed `Packages` and `Release`. The fallback points to the releases.
-2. `documents` (documents page): a table of the handbook in `docs/markDown/` plus the top-level `README.md`, `INSTALL.md`, `SECURITY.md`, `CONTRIBUTING.md` and `NOTICE.md`, each with *Last updated &lt;date&gt; · &lt;short SHA&gt;* linked to the commit.
+2. `documents` (documents page): a table of the handbook in `docs/markDown/` plus the top-level `README.md`, `INSTALL.md`, `SECURITY.md`, `CONTRIBUTING.md` and `NOTICE.md`, each with *Last updated &lt;date, written out&gt; · &lt;short SHA&gt;* linked to the commit.
 3. `last-updated:<path>` (privacy page, for the full policy): that line for one file.
 
-No Markdown file holds its own date (a file cannot name the commit that changes it). The date (`%cs`) and SHA come from `git log -1 -- <file>` at deploy time, so the deploying checkouts use `fetch-depth: 0`; the script stops in a shallow clone, outside Git, or for an uncommitted document rather than print a wrong or empty date ([`test-assemble-site.sh`](../../../scripts/test-assemble-site.sh)). A change to a top-level Markdown file does not trigger a deploy; its date updates at the next daily run.
+No Markdown file holds its own date (a file cannot name the commit that changes it). The date (`%cs`, shown as *2 January 2026* with the ISO form in `datetime`) and SHA come from `git log -1 -- <file>` at deploy time, so the deploying checkouts use `fetch-depth: 0`; the script stops in a shallow clone, outside Git, or for an uncommitted document rather than print a wrong or empty date ([`test-assemble-site.sh`](../../../scripts/test-assemble-site.sh)). A change to a top-level Markdown file does not trigger a deploy; its date updates at the next daily run.
 
 ## Nothing loads from another site
 

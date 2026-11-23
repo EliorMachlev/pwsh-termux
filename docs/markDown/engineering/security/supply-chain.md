@@ -1,5 +1,8 @@
 # Supply chain
 
+This page lists how what you install is protected from source to package: the checked input, packages that rebuild to the same bytes, SBOMs and provenance, pinned actions and dependencies, a restricted network, and code analysis.
+
+
 ## Input
 
 The build downloads Microsoft's `linux-arm64` tarball from its GitHub release and stops unless it matches Microsoft's `hashes.sha256` ([packaging](../architecture/packaging.md)). A package is that tarball with two ELF headers changed and a symlink and a copyright file added ([NOTICE.md](../../../../NOTICE.md)).
