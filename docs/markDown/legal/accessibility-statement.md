@@ -25,7 +25,7 @@ The site is **designed to meet WCAG 2.2 level AA**. It has **not been formally a
 - The README's badges are third-party images with short text alternatives. The README's and `INSTALL.md`'s diagrams are animated GIFs that play once, in about four seconds, and stay on the last frame; the site shows the same steps as text.
 - A pass with TalkBack, a keyboard-only pass, 200% text and WCAG text-spacing overrides on a phone is [still to do](https://github.com/EliorMachlev/pwsh-termux/issues/60); axe covers what a script can.
 - The colours inside the two animated GIFs were not raised with the site's: some text and arrows in them are below Lc 75 (white on the blue box is 3.4:1). The same steps are on the site as text.
-- WCAG 3 is a working draft and not a standard. This statement is rechecked against it when it reaches Candidate Recommendation, and the Lc figures above are the working measure until then.
+- WCAG 3 is a working draft and not a standard. This site was last checked against the Working Draft of 10 September 2026. This statement is rechecked against it when it reaches Candidate Recommendation, and the Lc figures above are the working measure until then.
 - Terminal output of `pkg` and `pwsh` depends on your terminal and its screen reader support.
 
 ## Feedback
