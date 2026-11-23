@@ -5,7 +5,9 @@ Usage: site-check.py <docs-dir>
 
 Every page must carry a Content-Security-Policy <meta> that allows nothing
 beyond the site itself (no scripts at all), load nothing from another site,
-and link only to files that exist. sitemap.xml, robots.txt, security.txt and
+and link only to files that exist. It also checks the prose: no skipped
+heading level, a lead paragraph on a long page, and the abbreviations in
+ABBREVIATIONS explained at their first use. sitemap.xml, robots.txt, security.txt and
 CNAME must agree with each other and with the domain.
 
 Standard library only; exits 1 and lists every problem it finds.
@@ -32,7 +34,21 @@ GENERATED = (
 
 # Directives every page's policy must contain, exactly.
 REQUIRED_CSP = ("default-src 'none'", "base-uri 'none'", "form-action 'none'")
-VOID_TAGS = {"area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "source", "track", "wbr"}
+VOID_TAGS = {
+    "area",
+    "base",
+    "br",
+    "col",
+    "embed",
+    "hr",
+    "img",
+    "input",
+    "link",
+    "meta",
+    "source",
+    "track",
+    "wbr",
+}
 FORBIDDEN_TAGS = {"script", "form", "base", "iframe", "object", "embed"}
 
 # Files the site needs besides the pages.
@@ -85,10 +101,15 @@ class Page(HTMLParser):
         self.tags.append(tag)
         if tag not in VOID_TAGS:
             self._stack.append(tag)
+        if tag == "body":
+            self._close_head()  # </head> may be left out
         if tag in ("head", "code", "pre"):
             self._skip += 1
         elif tag == "abbr":
-            self._abbr += 1
+            # an abbreviation without a title explains nothing
+            if (a.get("title") or "").strip():
+                self._abbr += 1
+                self._stack[-1] = "abbr+"
         elif tag == "main":
             self._in_main = True
         elif tag == "p" and "lead" in (a.get("class") or "").split():
@@ -138,6 +159,8 @@ class Page(HTMLParser):
     def handle_endtag(self, tag):
         if tag == "title":
             self._in_title = False
+        if tag == "abbr" and "abbr+" in self._stack:
+            tag = "abbr+"
         if tag in VOID_TAGS or tag not in self._stack:
             return
         # close any unclosed element above it, as a browser does
@@ -145,12 +168,18 @@ class Page(HTMLParser):
             top = self._stack.pop()
             if top in ("head", "code", "pre"):
                 self._skip -= 1
-            elif top == "abbr":
+            elif top == "abbr+":
                 self._abbr -= 1
             elif top == "main":
                 self._in_main = False
             if top == tag:
                 break
+
+    def _close_head(self):
+        if "head" in self._stack:
+            while self._stack and self._stack.pop() != "head":
+                pass
+            self._skip -= 1
 
     def handle_data(self, data):
         if self._in_title and data.strip():
@@ -204,17 +233,19 @@ def check_generated_blocks(name, text: str) -> list:
 def check_prose(name, p: Page) -> list:
     """WCAG 3 draft checks: heading order, a summary, abbreviations explained."""
     problems = []
-    previous = 0
+    previous = 1  # the first heading must be the <h1>
     for level in p.headings:
         if level > previous + 1:
-            problems.append(f"{name}: <h{level}> follows <h{previous}>: a heading level is skipped")
+            problems.append(
+                f"{name}: <h{level}> follows <h{previous}>: a heading level is skipped"
+            )
         previous = level
     if p.main_words >= SUMMARY_MIN_WORDS and not p.lead:
         problems.append(
-            f'{name}: {p.main_words} words need a summary: a <p class="lead"> at the top'
+            f'{name}: {p.main_words} words need a summary: a <p class="lead">'
         )
     for term in ABBREVIATIONS:
-        pattern = re.compile(rf"(?<![\w-]){re.escape(term)}(?![\w-])")
+        pattern = re.compile(rf"(?<![\w-]){re.escape(term)}s?(?![\w-])", re.IGNORECASE)
         for text, in_abbr in p.runs:
             m = pattern.search(text)
             if not m:
