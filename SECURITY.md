@@ -2,7 +2,6 @@
 
 This policy says which versions are supported, how to report a vulnerability privately, what is in scope, and how to check the signing key, a package and the repository index yourself.
 
-
 ## Supported Versions
 
 Only what the repository currently publishes: the latest `pwsh` (stable) and, while it exists, the latest `pwsh-preview`. Older builds (release assets) are not supported.

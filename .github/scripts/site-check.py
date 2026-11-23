@@ -64,7 +64,7 @@ GENERATED_BLOCK = re.compile(
 # Terms a page must explain at their first use in prose (WCAG 3 draft, "Abbreviations
 # explained"): wrapped in <abbr title="..."> or followed by a gloss in parentheses.
 # Text inside <code> and <pre> is a literal command or name and is not checked.
-ABBREVIATIONS = ("apt", "DNS", "Ed25519", "SHA-256", "SBOM", "glibc")
+ABBREVIATIONS = ("apt", "CLI", "DNS", "Ed25519", "IP", "SHA-256", "SBOM", "glibc")
 # A page with at least this many words of text in <main> needs a summary: a
 # <p class="lead"> (the hero's one-sentence summary).
 SUMMARY_MIN_WORDS = 300

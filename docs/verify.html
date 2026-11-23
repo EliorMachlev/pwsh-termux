@@ -64,7 +64,7 @@ gpg --show-keys "$PREFIX/share/keyrings/pwsh-termux-archive-keyring.gpg"</code><
 
   <section class="panel">
     <h2 id="provenance">2. Where the packages were built</h2>
-    <p>Every <code>.deb</code> has a signed build provenance from this project&rsquo;s build workflow, recorded on GitHub. With the <a href="https://cli.github.com/">GitHub CLI</a> (<code>pkg install gh</code>, signed in), run the checks the publishing workflow runs before it signs anything:</p>
+    <p>Every <code>.deb</code> has a signed build provenance from this project&rsquo;s build workflow, recorded on GitHub. With the <a href="https://cli.github.com/">GitHub <abbr title="command-line interface">CLI</abbr></a> (<code>pkg install gh</code>, signed in), run the checks the publishing workflow runs before it signs anything:</p>
 <pre class="copy"><code>gh attestation verify "$TMPDIR/pwsh-termux-keyring.deb" \
   --repo EliorMachlev/pwsh-termux \
   --signer-workflow EliorMachlev/pwsh-termux/.github/workflows/build-packages.yaml \

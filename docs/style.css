@@ -738,7 +738,7 @@ nav a {
 }
 
 .source pre {
-  margin-top: .25rem;
+  margin-top: .5rem; /* clears the focus ring of the summary above */
 }
 
 /* Footer: a directory in columns, a breadcrumb on inner pages, then the legal text. */
