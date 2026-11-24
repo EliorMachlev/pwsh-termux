@@ -34,8 +34,10 @@ const diagrams = {
   ],
 };
 const C = {
-  bg: '#1d1d1f', box: '#2c2c2e', edge: '#3a3a3c', off: '#48484a',
-  blue: '#0a84ff', tint: '#1b3a5c', ink: '#f5f5f7', ink2: '#a1a1a6',
+  // Colours checked for contrast (WCAG 2.2 ratio): lines, arrows and outlines 3:1 or more
+  // on the background, white numbers 4.5:1 or more on their discs, subtitles 7:1 or more.
+  bg: '#1d1d1f', box: '#2c2c2e', edge: '#7a7a80', off: '#6e6e73', line: '#7a7a80',
+  blue: '#0a84ff', disc: '#0060df', tint: '#1b3a5c', ink: '#f5f5f7', ink2: '#d1d1d6',
 };
 const W = 640, BH = 76, GAP = 36, TOP = 28, X = 36, BW = W - 2 * X;
 const esc = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;');
@@ -48,13 +50,13 @@ function frame(steps, active) {
     const on = i === active, done = i < active || active === steps.length;
     if (i > 0) {
       const lit = i <= active || active === steps.length;
-      const col = lit ? C.blue : C.off, x = W / 2, y1 = y - GAP + 6, y2 = y - 6;
+      const col = lit ? C.blue : C.line, x = W / 2, y1 = y - GAP + 6, y2 = y - 6;
       s += `<line x1="${x}" y1="${y1}" x2="${x}" y2="${y2 - 7}" stroke="${col}" stroke-width="3" stroke-linecap="round"/>` +
         `<path d="M${x - 7} ${y2 - 9}L${x} ${y2}L${x + 7} ${y2 - 9}" fill="none" stroke="${col}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>`;
     }
     const stroke = on ? C.blue : done ? C.blue : C.edge;
     s += `<rect x="${X}" y="${y}" width="${BW}" height="${BH}" rx="18" fill="${on ? C.tint : C.box}" stroke="${stroke}" stroke-width="${on ? 3 : 1.5}"/>` +
-      `<circle cx="${X + 40}" cy="${y + BH / 2}" r="17" fill="${on || done ? C.blue : C.off}"/>` +
+      `<circle cx="${X + 40}" cy="${y + BH / 2}" r="17" fill="${on || done ? C.disc : C.off}"/>` +
       `<text x="${X + 40}" y="${y + BH / 2 + 7}" text-anchor="middle" font-size="19" font-weight="600" fill="${C.ink}">${i + 1}</text>` +
       `<text x="${X + 76}" y="${y + 33}" font-size="22" font-weight="600" fill="${C.ink}">${esc(t)}</text>` +
       `<text x="${X + 76}" y="${y + 58}" font-size="17" fill="${C.ink2}">${esc(sub)}</text>`;

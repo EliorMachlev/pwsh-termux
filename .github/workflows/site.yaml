@@ -28,6 +28,7 @@ on:
     paths:
       - 'docs/**'
       - '.github/scripts/site-check.py'
+      - '.github/scripts/test_site_check.py'
       - 'tools/site-lint/**'
       - '.github/workflows/site.yaml'
       - 'art/brand/**'
@@ -75,6 +76,8 @@ jobs:
         run: python3 .github/scripts/site-check.py docs
       - name: Compile the checker
         run: python3 -I -m py_compile .github/scripts/site-check.py
+      - name: Test the checker's prose rules
+        run: python3 -I .github/scripts/test_site_check.py
 
   validate:
     name: Validate the HTML and CSS

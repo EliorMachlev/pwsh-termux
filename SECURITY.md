@@ -28,12 +28,12 @@ Please do not disclose publicly before a fix is available. To disclose on a fixe
 
 ## Scope
 
-In scope: the packaging scripts (`scripts/`), the workflows (`.github/`), the website (`docs/`), the signing key's handling, and the published apt repository and `.deb` files.
+In scope: the packaging scripts (`scripts/`), the workflows (`.github/`), the website (`docs/`), the signing key's handling, and the published apt (Advanced Package Tool) repository and `.deb` files.
 
 Out of scope, report to their owners:
 
 - PowerShell itself: Microsoft ([PowerShell security policy](https://github.com/PowerShell/PowerShell/security/policy)). A released fix is picked up by the next daily run.
-- Termux, Termux's glibc packages, GitHub.
+- Termux, Termux's glibc (the GNU C library) packages, GitHub.
 
 ## Signing key
 
@@ -46,7 +46,7 @@ The apt repository is signed with a dedicated key. apt trusts it for this reposi
 | Recovery key | `937A 3D41 5103 CFF8 9DCD  A982 A4B4 5397 EEB6 D752` |
 | Expiry | None; replaced by rotation |
 
-CI reads the fingerprint from this table and checks it against `keys/`.
+CI (continuous integration) reads the fingerprint from this table and checks it against `keys/`.
 
 - **Recovery key:** also in `keys/RECOVERY`. An offline Ed25519 key, generated offline and never in GitHub or CI. It signs only to recover from a lost or compromised online key.
 - **Public key:** [`keys/pwsh-termux-archive-keyring.gpg`](keys/pwsh-termux-archive-keyring.gpg); on the site as <https://pwsh-termux.machlev.org/pwsh-termux.gpg> (the same file) and `.asc` (armored). Every [release](https://github.com/EliorMachlev/pwsh-termux/releases) since the keyring package exists carries a copy, a `FINGERPRINT.txt` and `pwsh-termux-keyring.deb`, as they were when it was made.
@@ -81,7 +81,7 @@ The file holds the online signing key, the recovery key and, only during a plann
 - the public key file from `keys/`, at `$PREFIX/share/keyrings/pwsh-termux-archive-keyring.gpg`;
 - `$PREFIX/etc/apt/sources.list.d/pwsh-termux.list` with `deb [signed-by=/data/data/com.termux/files/usr/share/keyrings/pwsh-termux-archive-keyring.gpg] https://pwsh-termux.machlev.org stable main`.
 
-[`scripts/build-keyring.sh`](scripts/build-keyring.sh) builds it deterministically (CI builds it twice and compares) in the unprivileged build job, with the same SBOMs and build provenance as the other packages. Before anything is signed, a job with a read-only token and no signing key verifies that provenance (`gh attestation verify`, pinned to `build-packages.yaml`, the published commit and GitHub-hosted runners). The publish job refuses to sign or publish unless the package is that verified file, ships the committed `keys/` file byte for byte, and the signer is the online key (never the recovery key). This proves the package holds exactly the committed keys; it does not prove the committed key is the right one, which is why you compare fingerprints with this page.
+[`scripts/build-keyring.sh`](scripts/build-keyring.sh) builds it deterministically (CI builds it twice and compares) in the unprivileged build job, with the same SBOMs (software bills of materials) and build provenance as the other packages. Before anything is signed, a job with a read-only token and no signing key verifies that provenance (`gh attestation verify`, pinned to `build-packages.yaml`, the published commit and GitHub-hosted runners). The publish job refuses to sign or publish unless the package is that verified file, ships the committed `keys/` file byte for byte, and the signer is the online key (never the recovery key). This proves the package holds exactly the committed keys; it does not prove the committed key is the right one, which is why you compare fingerprints with this page.
 
 ### Handling
 
@@ -93,10 +93,10 @@ Microsoft's `linux-arm64` tarball for the release, verified against Microsoft's 
 
 ## Software Bill of Materials (SBOM) and build provenance
 
-Each GitHub release carries four SBOMs for its `.deb` (and four for the `pwsh-termux-keyring` package it carries), all listed in the release's `SHA256SUMS`:
+Each GitHub release carries four SBOMs (software bills of materials) for its `.deb` (and four for the `pwsh-termux-keyring` package it carries), all listed in the release's `SHA256SUMS`:
 
 1. `*.cdx.json`: CycloneDX 1.6, from Syft.
-2. `*.build.spdx.json`: SPDX 2.3, the packaging view (the official tarball and its SHA-256, the patching tool, the dependencies; for the keyring, the committed key file and its SHA-256).
+2. `*.build.spdx.json`: SPDX (Software Package Data Exchange) 2.3, the packaging view (the official tarball and its SHA-256), the patching tool, the dependencies; for the keyring, the committed key file and its SHA-256).
 3. `*.syft.spdx3.json`: SPDX 3.0.1, Syft over the package's files.
 4. `*.msft.spdx3.json`: SPDX 3.0, Microsoft's SBOM tool over the package's files.
 

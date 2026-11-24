@@ -772,6 +772,8 @@ footer.site a {
 
 footer.site [aria-current="page"] {
   color: var(--ink);
+  text-decoration: underline;
+  text-underline-offset: .2em;
 }
 
 .crumbs {
@@ -868,6 +870,9 @@ header.site nav a {
 
 header.site nav a[aria-current="page"] {
   color: var(--ink);
+  text-decoration: underline; /* not colour alone: ink against ink-2 is a weak cue, weaker in dark mode */
+  text-decoration-thickness: 2px;
+  text-underline-offset: .3em;
 }
 
 /* Feedback on the press itself, not on release. */
@@ -880,13 +885,6 @@ header.site nav a:active {
 @media (hover: hover) and (pointer: fine) {
   header.site nav a:hover {
     color: var(--ink);
-  }
-}
-
-/* In forced colours every link has the same colour, so the current page is underlined instead. */
-@media (forced-colors: active) {
-  header.site nav a[aria-current="page"] {
-    text-decoration: underline;
   }
 }
 

@@ -1,6 +1,6 @@
 # Supply chain
 
-This page lists how what you install is protected from source to package: the checked input, packages that rebuild to the same bytes, SBOMs and provenance, pinned actions and dependencies, a restricted network, and code analysis.
+This page lists how what you install is protected from source to package: the checked input, packages that rebuild to the same bytes, SBOMs (software bills of materials) and provenance, pinned actions and dependencies, a restricted network, and code analysis.
 
 ## Input
 
@@ -8,16 +8,16 @@ The build downloads Microsoft's `linux-arm64` tarball from its GitHub release an
 
 ## Reproducible packages
 
-The same release, script and tools give the same bytes: every timestamp is the newest file time in Microsoft's tarball, xz is single-threaded, and `Installed-Size` is summed from file sizes. CI builds each package twice and compares.
+The same release, script and tools give the same bytes: every timestamp is the newest file time in Microsoft's tarball, xz is single-threaded, and `Installed-Size` is summed from file sizes. CI (continuous integration) builds each package twice and compares.
 
 Limits:
 
-- A runner image update that changes `dpkg-deb`, xz or `patchelf` can change the bytes once for the same version. apt then downloads a new `Packages` but offers no upgrade.
+- A runner image update that changes `dpkg-deb`, xz or `patchelf` can change the bytes once for the same version. apt (Advanced Package Tool) then downloads a new `Packages` but offers no upgrade.
 - No independent rebuild is compared against what is published.
 
 ## SBOMs and provenance
 
-Every release carries a CycloneDX and three SPDX SBOMs and signed build provenance for each `.deb`. What they hold and how to verify them: [SECURITY.md](../../../../SECURITY.md#software-bill-of-materials-sbom-and-build-provenance).
+Every release carries a CycloneDX and three SPDX (Software Package Data Exchange) SBOMs and signed build provenance for each `.deb`. What they hold and how to verify them: [SECURITY.md](../../../../SECURITY.md#software-bill-of-materials-sbom-and-build-provenance).
 
 ## Actions and dependencies
 

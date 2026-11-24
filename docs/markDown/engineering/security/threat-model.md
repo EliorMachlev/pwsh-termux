@@ -11,7 +11,7 @@ The tarball changes between Microsoft and the build.
 
 ## Tampered package or index
 
-- **Mitigation.** apt checks the Ed25519 signature on `InRelease`, then each index file's hash, then each `.deb`'s SHA-256, over HTTPS.
+- **Mitigation.** apt (Advanced Package Tool) checks the Ed25519 (a digital signature algorithm) signature on `InRelease`, then each index file's hash, then each `.deb`'s SHA-256 (a 256-bit hash), over HTTPS.
 - **Left over.** Whoever holds the signing key can sign anything ([signing key theft](#signing-key-theft)).
 
 ## Frozen or replayed index
@@ -48,7 +48,7 @@ GitHub disables a public repository's schedules after 60 days without activity, 
 
 ## Wrong key in the keyring package
 
-- **Mitigation.** `keys/` holds exactly one online key plus only keys named by `keys/RECOVERY` or `keys/ROTATION`; `check-keys.sh` enforces it in CI and the `sign` job. The package is attested in the unprivileged build job, a job without the signing key verifies the attestation, and the `sign` job signs only an index that lists that verified file (by its SHA-256) and only if the signer is the online key; the `publish` job has no key and installs the signatures only if they verify against `keys/` ([repository](../architecture/repository.md#signing)).
+- **Mitigation.** `keys/` holds exactly one online key plus only keys named by `keys/RECOVERY` or `keys/ROTATION`; `check-keys.sh` enforces it in CI (continuous integration) and the `sign` job. The package is attested in the unprivileged build job, a job without the signing key verifies the attestation, and the `sign` job signs only an index that lists that verified file (by its SHA-256) and only if the signer is the online key; the `publish` job has no key and installs the signatures only if they verify against `keys/` ([repository](../architecture/repository.md#signing)).
 - **Left over.** That the committed keys are the right ones rests on review of `keys/` and on users comparing fingerprints with [SECURITY.md](../../../../SECURITY.md#signing-key). The first download rests on HTTPS.
 
 ## Malicious change to the workflows or scripts
@@ -70,7 +70,7 @@ GitHub disables a public repository's schedules after 60 days without activity, 
 ## Domain or Pages takeover
 
 - **Mitigation.** HTTPS is enforced, the `CNAME` record points only to GitHub, and the domain is verified in the maintainer's GitHub account, so no one else can claim it for a Pages site ([custom domain](../release/setup.md#custom-domain)).
-- **Left over.** The domain's registration and DNS account are the maintainer's to keep: a lapsed registration or a hijacked DNS account moves the site, and the verification `TXT` record must stay in place.
+- **Left over.** The domain's registration and DNS (Domain Name System) account are the maintainer's to keep: a lapsed registration or a hijacked DNS account moves the site, and the verification `TXT` record must stay in place.
 
 ## Publishing stops
 
