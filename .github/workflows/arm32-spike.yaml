@@ -17,6 +17,16 @@ jobs:
     name: Run the arm package under QEMU
     runs-on: ubuntu-24.04
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: arm
+            loader: ld-linux-armhf.so.3
+          # The control: arm64 is known to run natively (CI's arm64 job), so a
+          # crash of it under QEMU, and not on the real arm64 runner, is QEMU's.
+          - arch: aarch64
+            loader: ld-linux-aarch64.so.1
     env:
       TERMUX_PREFIX: /data/data/com.termux/files/usr
       TERMUX_GLIBC_REPO: https://packages-cf.termux.dev/apt/termux-glibc
@@ -48,20 +58,20 @@ jobs:
       - name: Build the arm .deb
         env:
           GITHUB_TOKEN: ${{ github.token }}
-          PWSH_ARCH: arm
+          PWSH_ARCH: ${{ matrix.arch }}
         run: |
           bash scripts/find-releases.sh | tee releases.txt
           tag=$(awk '$1 == "stable" {print $2}' releases.txt)
           mkdir -p debs
           bash scripts/build-deb.sh pwsh "$tag" debs
-          dpkg-deb -I debs/pwsh_*_arm.deb | grep -E 'Architecture|Depends'
-          dpkg-deb -x debs/pwsh_*_arm.deb "$RUNNER_TEMP/pkg"
+          dpkg-deb -I debs/pwsh_*_${{ matrix.arch }}.deb | grep -E 'Architecture|Depends'
+          dpkg-deb -x debs/pwsh_*_${{ matrix.arch }}.deb "$RUNNER_TEMP/pkg"
           patchelf --print-interpreter "$RUNNER_TEMP/pkg$TERMUX_PREFIX/opt/pwsh/pwsh"
           file "$RUNNER_TEMP/pkg$TERMUX_PREFIX/opt/pwsh/pwsh"
       - name: Install Termux's arm glibc packages (SHA-256 from the repository index)
         run: |
           mkdir -p "$RUNNER_TEMP/termux"
-          curl -fsSL --retry 5 "$TERMUX_GLIBC_REPO/dists/glibc/stable/binary-arm/Packages" -o "$RUNNER_TEMP/termux/Packages"
+          curl -fsSL --retry 5 "$TERMUX_GLIBC_REPO/dists/glibc/stable/binary-${{ matrix.arch }}/Packages" -o "$RUNNER_TEMP/termux/Packages"
           for p in glibc gcc-libs-glibc libicu-glibc openssl-glibc zlib-glibc; do
             read -r file sha < <(awk -v p="$p" '
               /^Package: /   { hit = ($2 == p) }
@@ -74,13 +84,20 @@ jobs:
           done
           sudo chmod -R a+rX /data/data/com.termux   # Termux's debs ship the prefix directories as 0700
           ls -l "$TERMUX_PREFIX"/glibc/lib/ld-* || true
-          test -e "$TERMUX_PREFIX/glibc/lib/ld-linux-armhf.so.3"
+          test -e "$TERMUX_PREFIX/glibc/lib/${{ matrix.loader }}"
       - name: Install the package and run pwsh
         env:
           DOTNET_EnableWriteXorExecute: "0"   # .NET's W^X remapping fails under QEMU user-mode
           POWERSHELL_TELEMETRY_OPTOUT: "1"    # its named mutex (shared memory) crashes under QEMU user-mode
         run: |
-          sudo dpkg-deb -x debs/pwsh_*_arm.deb /
+          sudo dpkg-deb -x debs/pwsh_*_${{ matrix.arch }}.deb /
           sudo chmod -R a+rX /data/data/com.termux
           "$TERMUX_PREFIX/opt/pwsh/pwsh" -NoProfile -Command '$PSVersionTable.PSVersion.ToString(); [System.Globalization.CultureInfo]::CurrentCulture.Name; [System.Environment]::Is64BitProcess'
           test "$("$TERMUX_PREFIX/bin/pwsh" -NoProfile -Command '1 + 1')" = 2
+      - name: Without the telemetry opt-out (does it still crash under QEMU?)
+        continue-on-error: true
+        env:
+          DOTNET_EnableWriteXorExecute: "0"
+        run: |
+          env -u POWERSHELL_TELEMETRY_OPTOUT "$TERMUX_PREFIX/bin/pwsh" -NoProfile -Command '$PSVersionTable.PSVersion.ToString()' || { echo "NO-OPTOUT-RESULT: exit $?"; exit 1; }
+          echo "NO-OPTOUT-RESULT: ok"
