@@ -1,0 +1,82 @@
+# Spike: can the 32-bit (arm) package run? An x86 runner cannot run an arm
+# binary natively, so it runs under QEMU user-mode emulation, against Termux's
+# own arm glibc packages (the real loader and libraries, ICU included),
+# installed under the same prefix the package is patched for.
+name: arm32 spike
+
+on:
+  push:
+    branches: [feat/arm32-spike]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  arm32:
+    name: Run the arm package under QEMU
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      TERMUX_PREFIX: /data/data/com.termux/files/usr
+      TERMUX_GLIBC_REPO: https://packages-cf.termux.dev/apt/termux-glibc
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a # v2.22.4
+        with:
+          egress-policy: block
+          allowed-endpoints: >
+            github.com:443
+            api.github.com:443
+            *.actions.githubusercontent.com:443
+            *.blob.core.windows.net:443
+            release-assets.githubusercontent.com:443
+            *.archive.ubuntu.com:80
+            *.archive.ubuntu.com:443
+            security.ubuntu.com:80
+            security.ubuntu.com:443
+            ports.ubuntu.com:80
+            ports.ubuntu.com:443
+            packages.microsoft.com:443
+            packages-cf.termux.dev:443
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install tools
+        run: sudo apt-get update && sudo apt-get install -y patchelf jq xz-utils qemu-user-static
+      - name: Build the arm .deb
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          PWSH_ARCH: arm
+        run: |
+          bash scripts/find-releases.sh | tee releases.txt
+          tag=$(awk '$1 == "stable" {print $2}' releases.txt)
+          mkdir -p debs
+          bash scripts/build-deb.sh pwsh "$tag" debs
+          dpkg-deb -I debs/pwsh_*_arm.deb | grep -E 'Architecture|Depends'
+          dpkg-deb -x debs/pwsh_*_arm.deb "$RUNNER_TEMP/pkg"
+          patchelf --print-interpreter "$RUNNER_TEMP/pkg$TERMUX_PREFIX/opt/pwsh/pwsh"
+          file "$RUNNER_TEMP/pkg$TERMUX_PREFIX/opt/pwsh/pwsh"
+      - name: Install Termux's arm glibc packages (SHA-256 from the repository index)
+        run: |
+          mkdir -p "$RUNNER_TEMP/termux"
+          curl -fsSL --retry 5 "$TERMUX_GLIBC_REPO/dists/glibc/stable/binary-arm/Packages" -o "$RUNNER_TEMP/termux/Packages"
+          for p in glibc gcc-libs-glibc libicu-glibc openssl-glibc zlib-glibc; do
+            read -r file sha < <(awk -v p="$p" '
+              /^Package: /   { hit = ($2 == p) }
+              hit && /^Filename: / { f = $2 }
+              hit && /^SHA256: /   { print f, $2; exit }' "$RUNNER_TEMP/termux/Packages")
+            test -n "$file" && test -n "$sha"
+            curl -fsSL --retry 5 "$TERMUX_GLIBC_REPO/$file" -o "$RUNNER_TEMP/termux/$p.deb"
+            echo "$sha  $RUNNER_TEMP/termux/$p.deb" | sha256sum -c -
+            sudo dpkg-deb -x "$RUNNER_TEMP/termux/$p.deb" /
+          done
+          test -e "$TERMUX_PREFIX/glibc/lib/ld-linux-armhf.so.3"
+      - name: Install the package and run pwsh
+        env:
+          DOTNET_EnableWriteXorExecute: "0"   # .NET's W^X remapping fails under QEMU user-mode
+        run: |
+          sudo dpkg-deb -x debs/pwsh_*_arm.deb /
+          "$TERMUX_PREFIX/opt/pwsh/pwsh" -NoProfile -Command '$PSVersionTable.PSVersion.ToString(); [System.Globalization.CultureInfo]::CurrentCulture.Name; [System.Environment]::Is64BitProcess'
+          test "$("$TERMUX_PREFIX/bin/pwsh" -NoProfile -Command '1 + 1')" = 2

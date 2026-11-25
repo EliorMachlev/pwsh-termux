@@ -1,10 +1,13 @@
 #!/usr/bin/env bash
-# Build a Termux (glibc) .deb from an official PowerShell linux-arm64 release.
+# Build a Termux (glibc) .deb from an official PowerShell Linux ARM release
+# (linux-arm64 for aarch64, linux-arm32 for arm).
 #
 # Usage: build-deb.sh <pwsh|pwsh-preview> <tag> <outdir>
 # Prints the path of the built .deb on stdout (everything else goes to stderr).
 #
 # Env: PATCHELF          patchelf binary (default: patchelf)
+#      PWSH_ARCH         aarch64 | arm: the Termux architecture to build for
+#                        (default: aarch64)
 #      TERMUX_PREFIX     (default: /data/data/com.termux/files/usr)
 #      DEB_COMPRESSION   xz | gzip (default: xz)
 #      SOURCE_DATE_EPOCH timestamp for every file in the package. Default: the
@@ -28,6 +31,7 @@ TAG=${2:?release tag, e.g. v7.7.0}
 OUT_DIR=${3:?output directory}
 TERMUX_PREFIX=${TERMUX_PREFIX:-$DEFAULT_TERMUX_PREFIX}
 PATCHELF=${PATCHELF:-patchelf}
+PWSH_ARCH=${PWSH_ARCH:-$APT_ARCH}
 DEB_COMPRESSION=${DEB_COMPRESSION:-xz}
 REVISIONS_FILE=${PACKAGING_REVISIONS:-$REPO_ROOT/packaging-revisions}
 
@@ -40,7 +44,13 @@ readonly CHECKSUMS_ASSET=hashes.sha256
 readonly MAINTAINER="pwsh-termux packagers <noreply@users.noreply.github.com>"
 readonly DEPENDS="glibc, gcc-libs-glibc, libicu-glibc, openssl-glibc, zlib-glibc"
 readonly GLIBC_LIB_DIR=$TERMUX_PREFIX/glibc/lib
-readonly ELF_INTERPRETER=$GLIBC_LIB_DIR/ld-linux-aarch64.so.1
+# Per architecture: Microsoft's tarball suffix and Termux's glibc loader name.
+case "$PWSH_ARCH" in
+  aarch64) readonly UPSTREAM_ARCH=arm64 LOADER=ld-linux-aarch64.so.1 ;;
+  arm) readonly UPSTREAM_ARCH=arm32 LOADER=ld-linux-armhf.so.3 ;;
+  *) die "PWSH_ARCH must be aarch64 or arm, not $PWSH_ARCH" ;;
+esac
+readonly ELF_INTERPRETER=$GLIBC_LIB_DIR/$LOADER
 readonly INSTALL_DIR=$TERMUX_PREFIX/opt/$PKG
 readonly ELF_RPATH=$GLIBC_LIB_DIR:$INSTALL_DIR
 
@@ -171,7 +181,7 @@ write_control() {
   cat > "$stage/DEBIAN/control" <<CTRL
 Package: $PKG
 Version: $deb_ver
-Architecture: $APT_ARCH
+Architecture: $PWSH_ARCH
 Maintainer: $MAINTAINER
 Installed-Size: $installed_kb
 Depends: $DEPENDS
@@ -179,7 +189,7 @@ Section: shells
 Priority: optional
 Homepage: https://github.com/PowerShell/PowerShell
 Description: PowerShell $ver for Termux (unofficial repackaging)
- Unofficial repackaging of Microsoft's official linux-arm64 PowerShell
+ Unofficial repackaging of Microsoft's official linux-$UPSTREAM_ARCH PowerShell
  release for Termux (glibc). Not affiliated with or endorsed by Microsoft.
  The binary is verified against Microsoft's published SHA-256 hash and
  patched to run on Termux's glibc loader.
@@ -209,7 +219,7 @@ main() {
   # Debian version: 7.7.0-rc.1 -> 7.7.0~rc.1 so prereleases sort before the final release
   deb_ver="${ver/-/'~'}-${revision}"
   log "version $deb_ver"
-  asset="powershell-${ver}-linux-arm64.tar.gz"
+  asset="powershell-${ver}-linux-${UPSTREAM_ARCH}.tar.gz"
   base_url="$UPSTREAM_RELEASES_URL/${TAG}"
 
   WORK_DIR=$(mktemp -d)
@@ -227,7 +237,7 @@ main() {
   add_command_and_copyright "$stage" "$stage$INSTALL_DIR" "$ver"
   write_control "$stage" "$ver" "$deb_ver"
 
-  deb="$OUT_DIR/${PKG}_${deb_ver}_${APT_ARCH}.deb"
+  deb="$OUT_DIR/${PKG}_${deb_ver}_${PWSH_ARCH}.deb"
   build_reproducible_deb "$stage" "$deb" -Z"$DEB_COMPRESSION"
   log "built $deb"
 
