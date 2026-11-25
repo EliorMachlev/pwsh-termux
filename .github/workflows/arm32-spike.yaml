@@ -101,3 +101,14 @@ jobs:
         run: |
           env -u POWERSHELL_TELEMETRY_OPTOUT "$TERMUX_PREFIX/bin/pwsh" -NoProfile -Command '$PSVersionTable.PSVersion.ToString()' || { echo "NO-OPTOUT-RESULT: exit $?"; exit 1; }
           echo "NO-OPTOUT-RESULT: ok"
+      - name: Trace the crash (arm only)
+        if: matrix.arch == 'arm'
+        continue-on-error: true
+        env:
+          DOTNET_EnableWriteXorExecute: "0"
+        run: |
+          env -u POWERSHELL_TELEMETRY_OPTOUT qemu-arm-static -strace "$TERMUX_PREFIX/opt/pwsh/pwsh" -NoProfile -Command 1 > "$RUNNER_TEMP/strace.txt" 2>&1 || true
+          echo "TRACE-LINES: $(wc -l < "$RUNNER_TEMP/strace.txt")"
+          grep -n -i -E 'dotnet|shm|flock|ftruncate|fcntl64.*F_SETLK|= -[0-9]+ \(' "$RUNNER_TEMP/strace.txt" | tail -40 | cut -c1-240
+          echo "---- last 25 lines"
+          tail -25 "$RUNNER_TEMP/strace.txt" | cut -c1-240
