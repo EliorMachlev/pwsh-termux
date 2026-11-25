@@ -78,6 +78,7 @@ jobs:
       - name: Install the package and run pwsh
         env:
           DOTNET_EnableWriteXorExecute: "0"   # .NET's W^X remapping fails under QEMU user-mode
+          POWERSHELL_TELEMETRY_OPTOUT: "1"    # its named mutex (shared memory) crashes under QEMU user-mode
         run: |
           sudo dpkg-deb -x debs/pwsh_*_arm.deb /
           sudo chmod -R a+rX /data/data/com.termux
