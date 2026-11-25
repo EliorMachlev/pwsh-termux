@@ -72,6 +72,7 @@ jobs:
             echo "$sha  $RUNNER_TEMP/termux/$p.deb" | sha256sum -c -
             sudo dpkg-deb -x "$RUNNER_TEMP/termux/$p.deb" /
           done
+          sudo chmod -R a+rX /data/data/com.termux   # Termux's debs ship the prefix directories as 0700
           ls -l "$TERMUX_PREFIX"/glibc/lib/ld-* || true
           test -e "$TERMUX_PREFIX/glibc/lib/ld-linux-armhf.so.3"
       - name: Install the package and run pwsh
@@ -79,5 +80,6 @@ jobs:
           DOTNET_EnableWriteXorExecute: "0"   # .NET's W^X remapping fails under QEMU user-mode
         run: |
           sudo dpkg-deb -x debs/pwsh_*_arm.deb /
+          sudo chmod -R a+rX /data/data/com.termux
           "$TERMUX_PREFIX/opt/pwsh/pwsh" -NoProfile -Command '$PSVersionTable.PSVersion.ToString(); [System.Globalization.CultureInfo]::CurrentCulture.Name; [System.Environment]::Is64BitProcess'
           test "$("$TERMUX_PREFIX/bin/pwsh" -NoProfile -Command '1 + 1')" = 2
