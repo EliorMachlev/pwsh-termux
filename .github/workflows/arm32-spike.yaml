@@ -72,8 +72,8 @@ jobs:
             echo "$sha  $RUNNER_TEMP/termux/$p.deb" | sha256sum -c -
             sudo dpkg-deb -x "$RUNNER_TEMP/termux/$p.deb" /
           done
-          ls -l ""/glibc/lib/ld-* || true
-          test -e "/glibc/lib/ld-linux-armhf.so.3"
+          ls -l "$TERMUX_PREFIX"/glibc/lib/ld-* || true
+          test -e "$TERMUX_PREFIX/glibc/lib/ld-linux-armhf.so.3"
       - name: Install the package and run pwsh
         env:
           DOTNET_EnableWriteXorExecute: "0"   # .NET's W^X remapping fails under QEMU user-mode
